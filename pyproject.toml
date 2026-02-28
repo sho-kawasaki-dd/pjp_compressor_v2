@@ -1,0 +1,7 @@
+[project]
+name = "pjp-compressor-v2"
+version = "2.0.0"
+description = "PDF, JPEG, PNG compressor GUI application version 2."
+readme = "./Documentation/README.md"
+requires-python = ">=3.13"
+dependencies = []
