@@ -1,0 +1,34 @@
+body {
+  width: 95%;
+  margin: auto;
+}
+.mermaid{
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: block;
+  height: auto;
+  padding: 0;
+  background-color: #f9f9f9;
+}
+.mermaid svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.mermaid.no-contain {
+  position: relative;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  display: block;
+  height: auto;
+  padding: 0;
+  background-color: #f9f9f9;
+  overflow: auto;
+}
+.mermaid.no-contain svg {
+  width: auto;
+  height: auto;
+  display: block;
+  margin:auto;
+}

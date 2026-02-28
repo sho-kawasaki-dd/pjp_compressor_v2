@@ -1,0 +1,12 @@
+# Core image/PDF processing
+Pillow
+pypdf
+
+# Optional: drag & drop support
+tkinterdnd2
+
+# Optional: sound effects
+pygame
+
+# Optional fallback (if pypdf unavailable)
+PyPDF2

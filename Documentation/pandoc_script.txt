@@ -1,0 +1,3 @@
+pandoc -f markdown -t html5 -s --include-in-header="./headers/viewport.html"  --toc -c "./styles/github-markdown.css"  "README.md" > "README.html"
+
+pandoc -f markdown -t html5 -s --include-in-header="./headers/mermaid_js.html" --filter="./pandoc_filters/mermaid_filter.py" -s -c "./styles/mermaid.css" "flow_sequence_and_class_diagrams.md" > "flow_sequence_and_class_diagrams.html"

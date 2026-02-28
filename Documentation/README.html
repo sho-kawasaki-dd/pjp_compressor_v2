@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>README</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+    /* CSS for syntax highlighting */
+    html { -webkit-text-size-adjust: 100%; }
+    pre > code.sourceCode { white-space: pre; position: relative; }
+    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+    pre > code.sourceCode > span:empty { height: 1.2em; }
+    .sourceCode { overflow: visible; }
+    code.sourceCode > span { color: inherit; text-decoration: inherit; }
+    div.sourceCode { margin: 1em 0; }
+    pre.sourceCode { margin: 0; }
+    @media screen {
+    div.sourceCode { overflow: auto; }
+    }
+    @media print {
+    pre > code.sourceCode { white-space: pre-wrap; }
+    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+    }
+    pre.numberSource code
+      { counter-reset: source-line 0; }
+    pre.numberSource code > span
+      { position: relative; left: -4em; counter-increment: source-line; }
+    pre.numberSource code > span > a:first-child::before
+      { content: counter(source-line);
+        position: relative; left: -1em; text-align: right; vertical-align: baseline;
+        border: none; display: inline-block;
+        -webkit-touch-callout: none; -webkit-user-select: none;
+        -khtml-user-select: none; -moz-user-select: none;
+        -ms-user-select: none; user-select: none;
+        padding: 0 4px; width: 4em;
+        color: #aaaaaa;
+      }
+    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+    div.sourceCode
+      {   }
+    @media screen {
+    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+    }
+    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+    code span.at { color: #7d9029; } /* Attribute */
+    code span.bn { color: #40a070; } /* BaseN */
+    code span.bu { color: #008000; } /* BuiltIn */
+    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+    code span.ch { color: #4070a0; } /* Char */
+    code span.cn { color: #880000; } /* Constant */
+    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+    code span.dt { color: #902000; } /* DataType */
+    code span.dv { color: #40a070; } /* DecVal */
+    code span.er { color: #ff0000; font-weight: bold; } /* Error */
+    code span.ex { } /* Extension */
+    code span.fl { color: #40a070; } /* Float */
+    code span.fu { color: #06287e; } /* Function */
+    code span.im { color: #008000; font-weight: bold; } /* Import */
+    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+    code span.op { color: #666666; } /* Operator */
+    code span.ot { color: #007020; } /* Other */
+    code span.pp { color: #bc7a00; } /* Preprocessor */
+    code span.sc { color: #4070a0; } /* SpecialChar */
+    code span.ss { color: #bb6688; } /* SpecialString */
+    code span.st { color: #4070a0; } /* String */
+    code span.va { color: #19177c; } /* Variable */
+    code span.vs { color: #4070a0; } /* VerbatimString */
+    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+  </style>
+  <link rel="stylesheet" href="./styles/github-markdown.css" />
+  <!-- header.html -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
+  <!-- end header.html -->
+</head>
+<body>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#フォルダ一括圧縮アプリpdf画像対応版"
+id="toc-フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</a>
+<ul>
+<li><a href="#主な機能" id="toc-主な機能">主な機能</a></li>
+<li><a href="#動作環境と依存"
+id="toc-動作環境と依存">動作環境と依存</a></li>
+<li><a href="#使い方手順" id="toc-使い方手順">使い方（手順）</a></li>
+<li><a href="#モジュール構成"
+id="toc-モジュール構成">モジュール構成</a></li>
+<li><a href="#よくある質問" id="toc-よくある質問">よくある質問</a></li>
+<li><a href="#注意事項" id="toc-注意事項">注意事項</a></li>
+<li><a href="#開発者向けメモ" id="toc-開発者向けメモ">開発者向けメモ</a>
+<ul>
+<li><a href="#フローチャートなど"
+id="toc-フローチャートなど">フローチャートなど</a></li>
+</ul></li>
+<li><a href="#ライセンス" id="toc-ライセンス">ライセンス</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1
+id="フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</h1>
+<p>PDF、JPG、PNGファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。
+Ghostscriptがある環境では高品質な PDF 圧縮を行い、無い場合は
+pypdfによる圧縮へ自動フォールバックします。画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能。さらに画像の一括リサイズ（手動指定
+/
+長辺指定、アスペクト比保持）にも対応。並列処理により大量ファイルでも高速に処理できます。</p>
+<p>本アプリはモジュール分割され、GUIと圧縮ロジック、設定、サウンドユーティリティを分離しています。起動は
+<code>compressor_launcher.py</code> から行います（<code>ui_app.py</code>
+の <code>App</code> を起動）。</p>
+<h2 id="主な機能">主な機能</h2>
+<ul>
+<li>PDF 圧縮（Ghostscript推奨、pypdfフォールバック）
+<ul>
+<li>PDF圧縮エンジンは固定方針（Ghostscript優先 → pypdf → 圧縮不可）
+<ul>
+<li>システムに Ghostscriptが存在すれば
+Ghostscriptを使用（プリセット選択可）</li>
+<li>Ghostscriptが無い場合のみpypdfを使用（簡易圧縮）</li>
+<li>両方無い場合は PDF圧縮不可（UIに状態表示）</li>
+<li>エンジンの再検出はアプリ再起動にて行う仕様</li>
+</ul></li>
+<li>Ghostscriptプリセット選択（/screen /ebook /printer /prepress
+/default）</li>
+<li>PDF品質スライダー（任意）：ON時はGhostscript使用時にプリセットの画像DPIを上書き</li>
+</ul></li>
+<li>画像圧縮
+<ul>
+<li>JPG/PNGをPillowで圧縮（品質0-100）</li>
+<li>PNGをpngquantで不可逆圧縮（quality範囲自動設定）</li>
+<li>画像リサイズ（任意）：
+<ul>
+<li>モード選択（手動: 幅/高さ指定、または 長辺指定）</li>
+<li>長辺指定はプリセットドロップダウン（640/800/1024/1280/1600/1920/2048/2560/3840）から選択可能（任意入力も可）</li>
+<li>アスペクト比保持の選択</li>
+<li>パフォーマンス最適化：幅/高さの入力は処理開始時に一度だけ数値化し、空欄・非数値は0に自動補正（入力時の逐次検証は行わずUIを軽量化）</li>
+</ul></li>
+</ul></li>
+<li>高速・安定
+<ul>
+<li>圧縮前に入力フォルダ内のZIPアーカイブを自動的に再帰展開（最大25サイクルで打ち切り、循環ループを防止）</li>
+<li>ThreadPoolExecutorによる並列処理</li>
+<li>Before/Afterのファイルサイズをログに表示</li>
+<li>処理後に合計削減量と削減率を統計表示（PDF/JPG/PNGなど実際に圧縮を実施したファイルのみを集計）</li>
+<li>CSVログ出力（任意）：各ファイルの処理結果を
+<code>compression_log_YYYYMMDD_HHMMSS.csv</code>
+に保存（入力/出力パス、拡張子、処理方法、サイズ、削減量/率）</li>
+<li>大量ファイルでもUIが固まらないように処理は別スレッドで実行</li>
+</ul></li>
+<li>使いやすいUI
+<ul>
+<li>入力フォルダのドラッグ＆ドロップ</li>
+<li>入出力フォルダのクリーンアップ（.pdf/.jpg/.jpeg/.png
+限定、サブフォルダ含む。出力フォルダは.csvも対象）</li>
+<li>進捗バーと詳細ログ</li>
+<li>入力/出力フォルダの重なりを検知して自動リセット（警告とログを出力）</li>
+<li>PDFエンジンの状態表示（Ghostscript / pypdf /
+圧縮不可）をラベルで表示（再検出はアプリケーション再起動によって行う）</li>
+<li>Ghostscript未検出時のUI自動制御
+<ul>
+<li>Ghostscriptが無い場合、PDFプリセット選択とPDF品質スライダーは自動的に無効化（グレーアウト）されます</li>
+</ul></li>
+<li>リサイズ UI の動的無効化（視覚的にグレー化）
+<ul>
+<li>アプリ起動時は「画像を一括リサイズする」がOFFのため、幅/高さの入力、アスペクト比保持、手動/長辺指定ラジオ、長辺指定ドロップダウンはグレーアウト</li>
+<li>画像リサイズがOFFの場合、プリセットラジオと長辺指定ドロップダウンを無効化</li>
+<li>長辺指定モードでは、幅/高さ/アスペクト比保持の手動入力を無効化</li>
+<li>手動モードでは、長辺指定ドロップダウンを無効化</li>
+</ul></li>
+<li>pngquantトグルの自動無効化
+<ul>
+<li>システムに <code>pngquant</code>
+が無い場合、トグルは無効化され「未検出のため無効」と表示</li>
+</ul></li>
+</ul></li>
+</ul>
+<h2 id="動作環境と依存">動作環境と依存</h2>
+<ul>
+<li>Python 3.8+</li>
+<li>必須: Pillow</li>
+<li>推奨: Ghostscript（PDF高品質圧縮）,
+pypdf（Ghostscriptが無い場合の代替）</li>
+<li>任意: pngquant（PNG不可逆圧縮）, tkinterdnd2（ドラッグ＆ドロップ）,
+pygame（サウンド再生）</li>
+</ul>
+<p>仮想環境の作成を推奨します（PowerShell の例）:</p>
+<p>カレントディレクトリを <code>pdf_photo_compressor</code>
+フォルダに設定してから次のコマンドを入力してください。</p>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install Pillow pypdf tkinterdnd2 pygame</span></code></pre></div>
+<p>requirements.txt を利用する場合:</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">-</span>r requirements<span class="op">.</span><span class="fu">txt</span></span></code></pre></div>
+<p>システムツールのインストール:</p>
+<p>PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを使うのがおすすめです。</p>
+<ul>
+<li>pngquant: Windows: <code>choco install pngquant</code> / macOS:
+<code>brew install pngquant</code> / Ubuntu/Debian:
+<code>sudo apt install pngquant</code></li>
+<li>Ghostscript: Windows: <code>choco install ghostscript</code> /
+macOS: <code>brew install ghostscript</code> / Ubuntu/Debian:
+<code>sudo apt install ghostscript</code></li>
+</ul>
+<h2 id="使い方手順">使い方（手順）</h2>
+<ol type="1">
+<li>アプリを起動
+<ul>
+<li>カレントディレクトリをアプリフォルダにしてから仮想環境に入って、<code>python compressor_launcher.py</code></li>
+<li>仮想環境が用意されていれば、compressor_launcher.ps1をダブルクリックしても起動可能(PowerShellスクリプト)</li>
+</ul></li>
+<li>入力フォルダを指定
+<ul>
+<li>参照ボタンまたはドラッグ＆ドロップ</li>
+</ul></li>
+<li>出力フォルダを指定
+<ul>
+<li>Windows
+は初回起動時にデスクトップへ「圧縮済みファイル」フォルダ作成を提案</li>
+</ul></li>
+<li>圧縮設定
+<ul>
+<li>PDF:
+UIに表示される適用エンジン（Ghostscript優先）を確認し、Ghostscriptの場合はプリセットを選択
+<ul>
+<li>必要に応じて「PDF品質スライダー」をONにし、DPIを調整（Ghostscript使用時にプリセットの画像DPIを上書き）</li>
+</ul></li>
+<li>画像: JPG/PNGの品質（0-100）、PNGをpngquantで圧縮するか選択
+<ul>
+<li>画像リサイズを ON
+にして、モード（手動/長辺）とサイズ、アスペクト比保持を設定</li>
+<li>幅/高さが空欄や非数値の場合は自動で0に補正されます（処理開始時に一度だけ判定）。</li>
+<li>リサイズ設定値の小数点以下は処理開始時に切り捨てられます。</li>
+</ul></li>
+</ul></li>
+<li>圧縮開始
+<ul>
+<li>入力フォルダ内にZIPファイルがある場合、圧縮処理の前に自動的に展開されます（最大25サイクル、循環参照防止機能付き）</li>
+<li>進捗バー・ログで確認</li>
+<li>ファイルごとの Before/After サイズをログに表示</li>
+<li>出力フォルダ内にCSVログ（<code>compression_log_YYYYMMDD_HHMMSS.csv</code>）が作成されます</li>
+</ul></li>
+<li>統計の確認
+<ul>
+<li>合計サイズ、削減量、削減率を上部ラベルに表示（未対応拡張子など圧縮対象外のファイルは統計に含まれません）</li>
+</ul></li>
+<li>クリーンアップ（必要に応じて）
+<ul>
+<li>入力/出力フォルダの .pdf/.jpg/.jpeg/.png
+を削除（サブフォルダ含む。出力フォルダは.csvも対象）</li>
+<li>実行前に対象件数と注意書きを表示</li>
+</ul></li>
+</ol>
+<h2 id="モジュール構成">モジュール構成</h2>
+<ul>
+<li><code>compressor_launcher.py</code>:
+アプリの起動スクリプト（<code>App</code> を起動して mainloop 開始）</li>
+<li><code>ui_app.py</code>: TkinterベースのGUI。圧縮処理は
+<code>compressor_utils</code> の関数を呼び出して実行</li>
+<li><code>compressor_utils.py</code>: 圧縮ロジック・CSV
+ログ・クリーンアップなど（GUI 非依存）</li>
+<li><code>configs.py</code>:
+共有定数（Ghostscriptなどのプリセット、GUI既定値）</li>
+<li><code>sound_utils.py</code>:
+pygameを使った効果音再生（任意依存・初期化失敗時は警告のみ）</li>
+</ul>
+<h2 id="よくある質問">よくある質問</h2>
+<ul>
+<li>Q: Ghostscriptとpypdf のどちらが良いですか？
+<ul>
+<li>A:
+Ghostscriptが高品質かつ柔軟で推奨です。pypdfはGhostscriptが使えない環境の簡易代替です。おそらくほとんどの場合、pypdfでは満足な圧縮効果が得られません。</li>
+</ul></li>
+<li>Q: PDFの品質スライダーは何をしますか？
+<ul>
+<li>A: ONにすると、GhostscriptでPDFを圧縮する際にプリセットの画像 DPI
+を上書きします（Color/Gray/Monoの各画像解像度に適用）。</li>
+</ul></li>
+<li>Q: PNG を大幅に圧縮したいです。どのように設定すればよいですか？
+<ul>
+<li>A:
+pngquantでの圧縮をONにしてください。品質範囲（min-max）はスライダーの値をもとに設定されます（max=スライダー値、min=max-20）。</li>
+</ul></li>
+<li>Q: 画像のリサイズ設定はどのように動きますか？
+<ul>
+<li>A:
+手動モードでは幅/高さを指定可能、アスペクト比を保持するかどうかを選べます。アスペクト比を保持する場合は、片方の数値の入力で十分です。（もう一方は0でOK。）両方入力した場合は、小さいほうのピクセル数に合わせます。長辺モードでは長辺がドロップダウンの指定ピクセルになるように等比縮小します。
+<ul>
+<li>幅/高さが空欄や非数値の場合は自動で0に補正されます（処理開始時に一度だけ判定）。また、設定値の小数点以下は処理開始時に切り捨てられます。</li>
+<li>手動モードで幅/高さの両方を0にした場合はリサイズされません。長辺モードで長辺を0にした場合もリサイズされません。</li>
+</ul></li>
+</ul></li>
+<li>Q: CSVログには何が記録されますか？
+<ul>
+<li>A:
+各ファイルの入力/出力パス、拡張子、処理方法（Ghostscript/pypdf/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、削減率が記録されます。</li>
+</ul></li>
+<li>Q: CSVログの無効化や保存先の変更はできますか？
+<ul>
+<li>A:
+できます。設定画面の「CSVログを出力する」のチェックを外すと無効化。保存先を変更する場合はその右の入力欄にパスを直接入力するか「参照」ボタンから選択してください。未指定の場合は出力フォルダにタイムスタンプ付きファイルが作成されます。</li>
+</ul></li>
+<li>Q: クリーンアップで何が削除されますか？
+<ul>
+<li>A: .pdf/.jpg/.jpeg/.png
+が対象です。（<strong>出力フォルダはログ消去のために.csvも対象</strong>）サブフォルダ内の該当ファイルも削除されます。取り消し不可のため慎重に実行してください。</li>
+</ul></li>
+</ul>
+<h2 id="注意事項">注意事項</h2>
+<ul>
+<li>大量のファイルを扱う場合、並列処理で高速化しますが、ディスク I/O
+によるボトルネックは発生し得ます。</li>
+<li>PDFはGhostscript
+のプリセットで圧縮します。PDF品質スライダーをONにした場合は、Ghostscript
+使用時にプリセットの画像 DPIを上書きします。</li>
+<li>PDF圧縮エンジンは固定方針（Ghostscript優先 → pypdf →
+圧縮不可）。圧縮エンジンの再検出はアプリ再起動にて行う仕様です。</li>
+<li>Ghostscriptが未検出の環境では、PDFプリセット選択とPDF品質スライダーは自動的に無効化（グレーアウト）されます。</li>
+<li>pngquantやGhostscript
+は<strong>外部ソフトウェアとしてシステムにインストールする必要があります</strong>（pythonのpipモジュールではインストールできません）。</li>
+<li>入力フォルダと出力フォルダが重なる場合は、ファイル破損を避けるため自動的に両方ともデフォルトフォルダにリセットされ、警告とログが出ます。</li>
+</ul>
+<h2 id="開発者向けメモ">開発者向けメモ</h2>
+<ul>
+<li>入力検証の最適化:
+リサイズの幅/高さは処理開始時に一度だけ文字列から数値化し、空欄・非数値は0に補正。入力時の逐次検証を省きUIイベント負荷を低減。</li>
+<li>並列処理: <code>compress_folder()</code> は
+<code>ThreadPoolExecutor</code>
+を用いてファイル単位で並列化（<code>max(4, cpu_count())</code>）。大量ファイルでスループット改善。</li>
+<li>I/O ボトルネックについて:
+画像/PNG/PDFの読み書き速度はストレージのディスク I/O
+能力に依存します。CPUスレッドの並列度を上げてもディスク性能がボトルネックになる場合があります。</li>
+<li>UI分離:
+圧縮はバックグラウンドスレッドで実行し、Tkのメインスレッドはログと進捗更新のみを担当（UIのフリーズ防止）。</li>
+<li>実行時外部ツール検出と例外処理: Ghostscript/pngquantは実行時に
+<code>shutil.which</code>
+で検出し、未導入でも例外を致命化せずフォールバック（pypdf及びPillow）。</li>
+<li>PDF圧縮エンジン固定方針:
+実行時にGhostscriptを最優先。未検出時のみpypdfを使用。圧縮エンジンの再検出はアプリ再起動にて行う仕様です。</li>
+<li>CSVログ:
+1回のオープンで逐次追記し、行ごとにフラッシュを強制しない設計（過度な同期
+I/O を回避）。</li>
+<li>画像リサイズの計算:
+長辺指定時の比率計算は軽量で、Pillowのリサイズ/保存が主なコスト。不要な再計算を避けるため設定を一度だけ作成。</li>
+</ul>
+<p>備考:</p>
+<ul>
+<li>GUIと圧縮ロジックは分離され、<code>compressor_utils</code> は
+GUI非依存の関数群として再利用可能。</li>
+<li>共有定数（Ghostscript プリセット、既定フォルダなど）は
+<code>configs.py</code> に集約。</li>
+<li>効果音の操作関数は <code>sound_utils.py</code>
+に切り出し、pygameが無い環境でも動作継続可能（初期化失敗時は警告のみ）。</li>
+<li>アプリ起動時はリサイズ関連UIを無効化してグレーアウト。</li>
+</ul>
+<h3 id="フローチャートなど">フローチャートなど</h3>
+<p>こちらのドキュメントを参照してください: <a
+href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></p>
+<h2 id="ライセンス">ライセンス</h2>
+<p>このアプリケーションは自由に改変・利用可能です。ご利用環境に応じた依存関係のライセンス条項に従ってください。</p>
+<br><br>
+<div style="text-align: right">
+<p>2025年12月11日<br> 株式会社京都ダイケンビルサービス<br> 川﨑　翔</p>
+</div>
+</body>
+</html>
