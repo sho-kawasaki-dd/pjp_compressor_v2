@@ -6,7 +6,12 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[('sounds', 'sounds')],
-    hiddenimports=[],
+    hiddenimports=[
+        # PySide6 hidden imports (optional — include when building Qt version)
+        # 'PySide6.QtWidgets',
+        # 'PySide6.QtCore',
+        # 'PySide6.QtGui',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
