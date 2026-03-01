@@ -1,12 +1,10 @@
 # Core image/PDF processing
 Pillow
-pypdf
+PyMuPDF
+pikepdf
 
 # Optional: drag & drop support
 tkinterdnd2
 
 # Optional: sound effects
 pygame
-
-# Optional fallback (if pypdf unavailable)
-PyPDF2

@@ -7,7 +7,7 @@ configs.py
 目的:
 - GUI と圧縮ロジックの両方から同じ値を参照できるようにし、
     モジュール間の依存を低減する。
-- OS 依存のコマンド名（Ghostscript）やプリセット一覧、
+- PDF 圧縮設定（PyMuPDF + pikepdf）やプリセット一覧、
     GUI のレイアウト既定値、サウンドパスなどを一元管理する。
 
 注意:
@@ -15,20 +15,39 @@ configs.py
 """
 import os
 
-# Ghostscript のコマンド名（OSにより差異）
-GS_COMMAND = 'gswin64c' if os.name == 'nt' else 'gs'
-# Windows では `gswin64c`、UNIX 系では `gs` が一般的。
-# 実行可否の最終確認は呼び出し側（compressor_utils）で行う。
+# ---------------------------------------------------------------------------
+# PDF 圧縮設定（PyMuPDF + pikepdf）
+# ---------------------------------------------------------------------------
 
-# Ghostscript 圧縮プリセットの説明
-GS_OPTIONS = {
-    '/screen': '最小サイズ（低画質）',
-    '/ebook': 'やや強め圧縮（電子書籍向け）',
-    '/printer': '標準（印刷向け・中圧縮）',
-    '/prepress': '高画質（出版印刷向け・低圧縮）',
-    '/default': 'Ghostscript既定'
+# ユーザーが選択可能な圧縮モード（UI ラジオボタン用）
+PDF_COMPRESS_MODES = {
+    'lossy':    '非可逆（画像再圧縮）',
+    'lossless': '可逆（構造最適化）',
+    'both':     '両方',
 }
-# Ghostscript の `-dPDFSETTINGS` に渡すプリセット。説明文は UI 表示用。
+
+# 非可逆圧縮: 埋め込み画像リサンプル時の DPI 設定
+PDF_LOSSY_DPI_DEFAULT = 150
+PDF_LOSSY_DPI_RANGE = (36, 600)          # スライダーの min / max
+
+# 非可逆圧縮: JPEG 再圧縮時の品質（1–100）
+PDF_LOSSY_JPEG_QUALITY_DEFAULT = 75
+
+# 非可逆圧縮: 埋め込み PNG 画像を JPEG に変換するかどうかのデフォルト
+# False = PNG はリサイズのみ行い、フォーマットは維持する（安全側）
+PDF_LOSSY_PNG_TO_JPEG_DEFAULT = False
+
+# 可逆圧縮（pikepdf 構造最適化）のオプション既定値
+PDF_LOSSLESS_OPTIONS_DEFAULT = {
+    'linearize':         True,   # Web 最適化（Linearize）
+    'object_streams':    True,   # オブジェクトストリーム圧縮
+    'clean_metadata':    False,  # メタデータ除去
+    'remove_duplicates': True,   # 重複ストリーム除去
+}
+
+# ---------------------------------------------------------------------------
+# クリーンアップ対象拡張子
+# ---------------------------------------------------------------------------
 
 # 入力フォルダクリーンアップ対象拡張子
 INPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.zip'}
