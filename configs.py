@@ -39,10 +39,11 @@ PDF_LOSSY_PNG_TO_JPEG_DEFAULT = False
 
 # 可逆圧縮（pikepdf 構造最適化）のオプション既定値
 PDF_LOSSLESS_OPTIONS_DEFAULT = {
-    'linearize':         True,   # Web 最適化（Linearize）
-    'object_streams':    True,   # オブジェクトストリーム圧縮
-    'clean_metadata':    False,  # メタデータ除去
-    'remove_duplicates': True,   # 重複ストリーム除去
+    'linearize':            True,   # Web 最適化（Linearize）
+    'object_streams':       True,   # オブジェクトストリーム圧縮
+    'clean_metadata':       False,  # メタデータ除去
+    'recompress_streams':   True,   # 既存 Flate ストリームを最高圧縮率で再圧縮
+    'remove_unreferenced':  True,   # 孤立リソース（未参照オブジェクト）の削除
 }
 
 # ---------------------------------------------------------------------------

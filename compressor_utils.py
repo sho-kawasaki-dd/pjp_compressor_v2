@@ -267,14 +267,17 @@ def compress_pdf_lossy(input_path, output_path, target_dpi=PDF_LOSSY_DPI_DEFAULT
 def compress_pdf_lossless(input_path, output_path, options=None):
     """pikepdf を用いた PDF の構造最適化（可逆）。
 
+    with 文でファイルを開き、例外発生時も確実にハンドルを解放する。
+
     引数:
     - input_path: 入力 PDF パス
     - output_path: 出力 PDF パス
     - options: dict — 最適化オプション。キーは以下:
         - 'linearize': bool — Web 最適化（Linearize）
         - 'object_streams': bool — オブジェクトストリーム圧縮
-        - 'clean_metadata': bool — メタデータ除去
-        - 'remove_duplicates': bool — 重複ストリーム除去
+        - 'clean_metadata': bool — メタデータ除去（XMP + DocInfo）
+        - 'recompress_streams': bool — 既存 Flate ストリームを最高圧縮率で再圧縮
+        - 'remove_unreferenced': bool — 孤立リソース（未参照オブジェクト）の削除
 
     戻り値:
     - (bool, str): 成否とメッセージ
@@ -282,40 +285,44 @@ def compress_pdf_lossless(input_path, output_path, options=None):
     if options is None:
         options = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
     try:
-        pdf = pikepdf.open(input_path)
+        # with 文で開くことで、例外発生時も確実にファイルをクローズする
+        with pikepdf.open(input_path) as pdf:
 
-        # メタデータ除去
-        if options.get('clean_metadata', False):
-            with pdf.open_metadata() as meta:
-                # XMP メタデータをクリア
-                for key in list(meta.keys()):
+            # 1. 孤立リソースのパージ（未参照オブジェクトの削除）
+            if options.get('remove_unreferenced', True):
+                pdf.remove_unreferenced_resources()
+
+            # 2. メタデータ除去（PDF ツリーからの直接削除が最も確実）
+            if options.get('clean_metadata', False):
+                # XMP メタデータの削除
+                if '/Metadata' in pdf.Root:
+                    del pdf.Root.Metadata
+                # 従来の DocInfo の削除
+                if '/Info' in pdf.trailer:
                     try:
-                        del meta[key]
+                        del pdf.trailer['/Info']
                     except Exception:
                         pass
-            # DocInfo もクリア
-            if hasattr(pdf, 'docinfo'):
-                try:
-                    pdf.docinfo = pikepdf.Dictionary()
-                except Exception:
-                    pass
 
-        # オブジェクトストリームモード
-        if options.get('object_streams', True):
-            osm = pikepdf.ObjectStreamMode.generate
-        else:
-            osm = pikepdf.ObjectStreamMode.preserve
+            # 3. オブジェクトストリームモードの判定
+            if options.get('object_streams', True):
+                osm = pikepdf.ObjectStreamMode.generate
+            else:
+                osm = pikepdf.ObjectStreamMode.preserve
 
-        # 保存
-        pdf.save(
-            output_path,
-            linearize=options.get('linearize', True),
-            object_stream_mode=osm,
-            compress_streams=options.get('remove_duplicates', True),
-            recompress_flate=options.get('remove_duplicates', True),
-        )
-        pdf.close()
+            # 4. ストリーム再圧縮（CPU を消費するためオプション化）
+            do_recompress = options.get('recompress_streams', True)
 
+            # 保存
+            pdf.save(
+                output_path,
+                linearize=options.get('linearize', True),
+                object_stream_mode=osm,
+                compress_streams=True,              # 非圧縮ストリームの圧縮は常に ON
+                recompress_flate=do_recompress,      # 既存 Flate を最高圧縮率で再計算
+            )
+
+        # 適用した処理のロギング
         applied = []
         if options.get('linearize'):
             applied.append("Linearize")
@@ -323,8 +330,10 @@ def compress_pdf_lossless(input_path, output_path, options=None):
             applied.append("ObjStream圧縮")
         if options.get('clean_metadata'):
             applied.append("メタデータ除去")
-        if options.get('remove_duplicates'):
-            applied.append("ストリーム再圧縮")
+        if options.get('recompress_streams'):
+            applied.append("Flate再圧縮")
+        if options.get('remove_unreferenced'):
+            applied.append("孤立リソース削除")
         opts_str = ", ".join(applied) if applied else "なし"
         return True, f"PDF可逆圧縮(pikepdf): {os.path.basename(input_path)} → OK ({opts_str})"
     except Exception as e:
