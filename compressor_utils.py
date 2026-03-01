@@ -46,6 +46,8 @@ from configs import (
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
+    GS_PRESETS,
+    GS_DEFAULT_PRESET,
 )
 
 def human_readable(n):
@@ -187,6 +189,13 @@ def compress_pdf_lossy(input_path, output_path, target_dpi=PDF_LOSSY_DPI_DEFAULT
                 img_bytes = base_image["image"]
                 img_ext = base_image.get("ext", "").lower()
                 orig_size = len(img_bytes)
+
+                # ▼▼▼ 追加: 既に高効率な特殊フォーマットは触らない ▼▼▼
+                if img_ext in ("jbig2", "tiff", "tif", "jpx"):
+                    compressed_cache[xref] = None
+                    skipped_count += 1
+                    continue
+                # ▲▲▲ 追加ここまで ▲▲▲
 
                 try:
                     pil_img = Image.open(io.BytesIO(img_bytes))
@@ -339,13 +348,80 @@ def compress_pdf_lossless(input_path, output_path, options=None):
     except Exception as e:
         return False, f"PDF可逆圧縮失敗: {os.path.basename(input_path)} ({e})"
 
+def get_ghostscript_path():
+    """OSに応じてGhostscriptの実行パスを取得する。"""
+    candidates = ['gswin64c', 'gswin32c', 'gs']
+    for cmd in candidates:
+        path = shutil.which(cmd)
+        if path:
+            return path
+    return None
 
-def compress_pdf(input_path, output_path, mode='both',
+def compress_pdf_ghostscript(input_path, output_path, preset="ebook", custom_dpi=None):
+    """Ghostscriptを利用してPDFを再蒸留・圧縮する。"""
+    gs_exe = get_ghostscript_path()
+    if not gs_exe:
+        return False, "Ghostscriptが見つかりません。インストールされているか確認してください。"
+
+    cmd = [
+        gs_exe,
+        "-sDEVICE=pdfwrite",
+        "-dCompatibilityLevel=1.4",
+        "-dNOPAUSE",
+        "-dQUIET",
+        "-dBATCH",
+    ]
+
+    if preset == "custom" and custom_dpi:
+        # カスタム解像度設定（モノクロは文字の可読性を守るため高めに設定）
+        cmd.extend([
+            "-dColorImageDownsampleType=/Bicubic",
+            f"-dColorImageResolution={custom_dpi}",
+            "-dGrayImageDownsampleType=/Bicubic",
+            f"-dGrayImageResolution={custom_dpi}",
+            "-dMonoImageDownsampleType=/Bicubic",
+            f"-dMonoImageResolution={custom_dpi * 2}", 
+        ])
+    else:
+        # プリセット設定
+        valid_presets = ["screen", "ebook", "printer", "prepress", "default"]
+        safe_preset = preset if preset in valid_presets else "ebook"
+        cmd.append(f"-dPDFSETTINGS=/{safe_preset}")
+
+    cmd.extend([
+        f"-sOutputFile={output_path}",
+        input_path
+    ])
+
+    try:
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        
+        if result.returncode == 0 and os.path.exists(output_path):
+            orig_size = os.path.getsize(input_path)
+            out_size = os.path.getsize(output_path)
+            
+            # GSの仕様上、元のファイルより大きくなる現象（圧縮太り）を防止
+            if out_size >= orig_size:
+                shutil.copy2(input_path, output_path)
+                return True, f"PDF圧縮(GS): {os.path.basename(input_path)} → 圧縮効果なし（元ファイルを維持）"
+                
+            mode_str = f"custom_dpi={custom_dpi}" if preset == "custom" else f"preset={preset}"
+            return True, f"PDF圧縮(GS): {os.path.basename(input_path)} → OK ({mode_str})"
+        else:
+            return False, f"PDF圧縮(GS) エラー: {result.stderr.strip()}"
+            
+    except Exception as e:
+        return False, f"PDF圧縮(GS) 実行失敗: {e}"
+
+
+def compress_pdf_native(input_path, output_path, mode='both',
                  target_dpi=PDF_LOSSY_DPI_DEFAULT,
                  jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
                  png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
                  lossless_options=None):
-    """PDF 圧縮の統合関数。モードに応じて非可逆 / 可逆 / 両方を実行する。
+    """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。
+
+    モードに応じて非可逆 / 可逆 / 両方を実行する。
 
     引数:
     - mode: 'lossy' | 'lossless' | 'both'
@@ -390,6 +466,49 @@ def compress_pdf(input_path, output_path, mode='both',
                 pass
 
 
+def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET,
+                    custom_dpi=None, lossless_options=None):
+    """GhostScript による PDF 再蒸留 + オプションで pikepdf 構造最適化。
+
+    GhostScript が未インストールの場合はエラーを返す。
+    lossless_options が指定されている場合は GS 出力に対して compress_pdf_lossless() を
+    直列適用する（GS → pikepdf の 2 段パイプライン）。
+
+    引数:
+    - input_path: 入力 PDF パス
+    - output_path: 出力 PDF パス
+    - preset: GS プリセット名（'screen'/'ebook'/'printer'/'prepress'/'default'/'custom'）
+    - custom_dpi: preset='custom' 時のカスタム DPI（int or None）
+    - lossless_options: pikepdf 可逆オプション dict。None の場合は GS のみ実行
+
+    戻り値:
+    - (bool, str): 成否とメッセージ
+    """
+    if lossless_options:
+        # GS → lossless の 2 段パイプライン
+        tmp_path = output_path + ".tmp_gs.pdf"
+        try:
+            ok_gs, msg_gs = compress_pdf_ghostscript(input_path, tmp_path, preset, custom_dpi)
+            if not ok_gs:
+                return False, msg_gs
+
+            ok_ll, msg_ll = compress_pdf_lossless(tmp_path, output_path, lossless_options)
+            if not ok_ll:
+                # 可逆段失敗時は GS 結果をそのまま使う
+                shutil.copy2(tmp_path, output_path)
+                return True, f"{msg_gs} / {msg_ll}（可逆段失敗、GS結果を採用）"
+
+            return True, f"{msg_gs} / {msg_ll}"
+        finally:
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+    else:
+        return compress_pdf_ghostscript(input_path, output_path, preset, custom_dpi)
+
+
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。
 
@@ -409,7 +528,7 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
                     scale = target / long
                     new_w = max(1, int(orig_w * scale))
                     new_h = max(1, int(orig_h * scale))
-                    img = img.resize((new_w, new_h), Image.LANCZOS)
+                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
             else:
                 w = int(resize_cfg.get('width', 0) or 0)
                 h = int(resize_cfg.get('height', 0) or 0)
@@ -432,7 +551,7 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
                     else:
                         new_w = w if w > 0 else orig_w
                         new_h = h if h > 0 else orig_h
-                    img = img.resize((new_w, new_h), Image.LANCZOS)
+                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
         img.save(output_path, optimize=True, quality=quality)
         msg_extra = ""
         if resize_cfg and resize_cfg.get('enabled'):
@@ -446,7 +565,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
     """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。"""
     pngquant_exe = shutil.which("pngquant")
     if not pngquant_exe:
-        return compress_image_pillow(input_path, output_path, quality_max)
+        return compress_image_pillow(input_path, output_path, quality_max,resize_cfg=resize_cfg)
     try:
         qarg = f"{quality_min}-{quality_max}"
         src_path = input_path
@@ -465,7 +584,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                         scale = target / long
                         new_w = max(1, int(orig_w * scale))
                         new_h = max(1, int(orig_h * scale))
-                        img = img.resize((new_w, new_h), Image.LANCZOS)
+                        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                         resized_wh = (new_w, new_h)
                 else:
                     w = int(resize_cfg.get('width', 0) or 0)
@@ -488,7 +607,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                         else:
                             new_w = w if w > 0 else orig_w
                             new_h = h if h > 0 else orig_h
-                        img = img.resize((new_w, new_h), Image.LANCZOS)
+                        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                         resized_wh = (new_w, new_h)
                 img.save(tmp_path, optimize=True)
                 src_path = tmp_path
@@ -522,9 +641,19 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
 
 
 def process_single_file(args):
-    """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。"""
+    """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。
+
+    args タプル構造:
     (inpath, outpath, ext,
-     pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, pdf_lossless_options,
+     pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, pdf_lossless_options,
+     gs_preset, gs_custom_dpi,
+     jpg_quality, png_quality, use_pngquant, resize_cfg)
+
+    pdf_engine: 'native' (PyMuPDF+pikepdf) or 'gs' (GhostScript)
+    """
+    (inpath, outpath, ext,
+     pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, pdf_lossless_options,
+     gs_preset, gs_custom_dpi,
      jpg_quality, png_quality, use_pngquant, resize_cfg) = args
     try:
         orig_size = os.path.getsize(inpath)
@@ -536,10 +665,15 @@ def process_single_file(args):
     processed = False
     if ext == "pdf":
         processed = True
-        _, base_msg = compress_pdf(inpath, outpath, mode=pdf_mode,
-                                   target_dpi=pdf_dpi, jpeg_quality=pdf_jpeg_quality,
-                                   png_to_jpeg=pdf_png_to_jpeg,
-                                   lossless_options=pdf_lossless_options)
+        if pdf_engine == 'gs':
+            _, base_msg = compress_pdf_gs(inpath, outpath,
+                                          preset=gs_preset, custom_dpi=gs_custom_dpi,
+                                          lossless_options=pdf_lossless_options)
+        else:
+            _, base_msg = compress_pdf_native(inpath, outpath, mode=pdf_mode,
+                                              target_dpi=pdf_dpi, jpeg_quality=pdf_jpeg_quality,
+                                              png_to_jpeg=pdf_png_to_jpeg,
+                                              lossless_options=pdf_lossless_options)
     elif ext in ["jpg", "jpeg"]:
         processed = True
         _, base_msg = compress_image_pillow(inpath, outpath, jpg_quality, resize_cfg=resize_cfg)
@@ -577,13 +711,18 @@ def process_single_file(args):
 
 def compress_folder(input_dir, output_dir, jpg_quality, png_quality, use_pngquant,
                     log_func, progress_func, stats_func,
+                    pdf_engine='native',
                     pdf_mode='both', pdf_dpi=PDF_LOSSY_DPI_DEFAULT,
                     pdf_jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
                     pdf_png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
                     pdf_lossless_options=None,
+                    gs_preset=GS_DEFAULT_PRESET, gs_custom_dpi=None,
                     resize_enabled=False, resize_width=0, resize_height=0,
                     csv_enable=True, csv_path=None, extract_zip=False):
-    """フォルダ全体を並列処理で圧縮。必要なら ZIP 展開と併用可。"""
+    """フォルダ全体を並列処理で圧縮。必要なら ZIP 展開と併用可。
+
+    pdf_engine: 'native' (PyMuPDF+pikepdf) or 'gs' (GhostScript+pikepdf)
+    """
     if extract_zip:
         log_func("ZIPファイルを展開してから圧縮を行います…")
         extracted_cnt, failed_cnt = extract_zip_archives(input_dir, log_func)
@@ -596,6 +735,9 @@ def compress_folder(input_dir, output_dir, jpg_quality, png_quality, use_pngquan
     total_files = []
     for root, _, files in os.walk(input_dir):
         for fname in files:
+            # ZIPなど明らかに処理対象外のファイルはキューに入れない
+            if fname.lower().endswith('.zip'):
+                continue
             total_files.append((root, fname))
     total_len = len(total_files)
     if total_len == 0:
@@ -622,7 +764,8 @@ def compress_folder(input_dir, output_dir, jpg_quality, png_quality, use_pngquan
             if resize_enabled and (resize_width > 0 or resize_height > 0):
                 rcfg = { 'enabled': True, 'mode': 'manual', 'width': int(resize_width), 'height': int(resize_height), 'keep_aspect': True }
         tasks.append((inpath, outpath, ext,
-                       pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, ll_opts,
+                       pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, ll_opts,
+                       gs_preset, gs_custom_dpi,
                        jpg_quality, png_quality, use_pngquant, rcfg))
     max_workers = max(4, multiprocessing.cpu_count())
     log_func(f"並列処理開始（ワーカー数: {max_workers}、ファイル数: {total_len}）")
