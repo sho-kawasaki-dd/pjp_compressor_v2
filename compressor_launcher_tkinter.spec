@@ -2,16 +2,11 @@
 
 
 a = Analysis(
-    ['compressor_launcher.py'],
+    ['compressor_launcher_tkinter.py'],
     pathex=[],
     binaries=[],
     datas=[('sounds', 'sounds')],
-    hiddenimports=[
-        # PySide6 hidden imports (optional — include when building Qt version)
-        # 'PySide6.QtWidgets',
-        # 'PySide6.QtCore',
-        # 'PySide6.QtGui',
-    ],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -26,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='compressor_launcher',
+    name='compressor_launcher_tkinter',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
