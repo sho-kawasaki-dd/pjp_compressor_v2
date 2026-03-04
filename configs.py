@@ -14,6 +14,17 @@ configs.py
 - 値のみを提供し、副作用（ファイル作成・外部コマンド検出）は行わない。
 """
 import os
+import sys
+
+
+def _runtime_base_dir() -> str:
+    """実行時の基準ディレクトリ（exe優先、通常実行は本ファイル基準）を返す。"""
+    if getattr(sys, 'frozen', False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+APP_BASE_DIR = _runtime_base_dir()
 
 # ---------------------------------------------------------------------------
 # PDF 圧縮設定（PyMuPDF + pikepdf）
@@ -71,11 +82,11 @@ OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv'}
 # 出力フォルダのクリーンアップ対象拡張子。CSV はログファイルを含むため注意。
 
 # アプリ起動時のデフォルト入力フォルダ
-APP_DEFAULT_INPUT_DIR = r".\input_files"
+APP_DEFAULT_INPUT_DIR = os.path.join(APP_BASE_DIR, "input_files")
 # 起動時に UI から参照され、存在しない場合は UI 側で作成される。
 
 # アプリ起動時のデフォルト出力フォルダ
-APP_DEFAULT_OUTPUT_DIR = r".\output_files"
+APP_DEFAULT_OUTPUT_DIR = os.path.join(APP_BASE_DIR, "output_files")
 # 既定出力フォルダ。Windows の場合は UI 側でデスクトップ配下の作成を促す。
 
 # GUI ウィンドウのデフォルトサイズ
@@ -83,7 +94,7 @@ APP_DEFAULT_WINDOW_SIZE = "750x850"
 # Tk ウィンドウのサイズ指定（幅x高さ）。
 
 # サウンドファイル格納ディレクトリ
-SOUNDS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sounds")
+SOUNDS_DIR = os.path.join(APP_BASE_DIR, "sounds")
 # 効果音ファイルの配置ディレクトリ。存在しなくても致命的ではない。
 
 LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]

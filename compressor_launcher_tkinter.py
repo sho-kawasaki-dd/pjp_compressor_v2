@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-compressor_launcher.py
+compressor_launcher_tkinter.py
 
 tkinter 版 GUI のエントリポイント（起動スクリプト）。
 
@@ -16,13 +16,74 @@ tkinter 版 GUI のエントリポイント（起動スクリプト）。
 - PySide6 版は `compressor_launcher_pyside.py` を使用してください。
 """
 import os
+import sys
+import traceback
+from datetime import datetime
+from pathlib import Path
+from tkinter import messagebox, Tk
 
-from ui_tkinter import App
-from sound_utils import play_sound
-from configs import SOUNDS_DIR
+
+def _runtime_base_dir() -> Path:
+    """実行体の基準ディレクトリを返す（exe優先、通常実行時は本ファイル基準）。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
+def _write_crash_log(exc: BaseException) -> Path | None:
+    """起動失敗時にクラッシュログを保存する。"""
+    base_dir = _runtime_base_dir()
+    log_dir = base_dir / "logs"
+    log_path = log_dir / "launcher_crash.log"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    details = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+    log_text = f"[{timestamp}] Fatal startup error\n{details}\n"
+
+    try:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write(log_text)
+        return log_path
+    except Exception:
+        return None
+
+
+def _show_startup_error(exc: BaseException, log_path: Path | None) -> None:
+    """コンソール非表示環境向けに起動失敗メッセージを表示する。"""
+    log_hint = f"\n\n詳細ログ: {log_path}" if log_path else "\n\n詳細ログの保存にも失敗しました。"
+    message = (
+        "アプリの起動中に致命的なエラーが発生しました。\n"
+        f"{type(exc).__name__}: {exc}"
+        f"{log_hint}"
+    )
+
+    try:
+        root = Tk()
+        root.withdraw()
+        messagebox.showerror("起動エラー", message)
+        root.destroy()
+    except Exception:
+        pass
+
+
+def main() -> int:
+    """tkinter アプリを安全に起動する。"""
+    try:
+        from ui_tkinter import App
+        from sound_utils import play_sound
+        from configs import SOUNDS_DIR
+
+        app = App()
+        startup_sound = os.path.join(SOUNDS_DIR, "open_window.wav")
+
+        app.after(120, lambda: play_sound(startup_sound))
+        app.mainloop()
+        return 0
+    except Exception as exc:
+        log_path = _write_crash_log(exc)
+        _show_startup_error(exc, log_path)
+        return 1
 
 # ------------- アプリ起動 -------------
 if __name__ == "__main__":
-    app = App()
-    play_sound(os.path.join(SOUNDS_DIR, 'open_window.wav'))
-    app.mainloop()
+    raise SystemExit(main())

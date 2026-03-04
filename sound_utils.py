@@ -73,6 +73,9 @@ def play_sound(sound_file):
 # ------------- PyInstaller リソースパスヘルパー -------------
 def resource_path(relative_path):
     """PyInstallerがパッケージ化した時でも外部リソースにアクセス可能にするヘルパー関数"""
+    if os.path.isabs(relative_path):
+        return relative_path
     if hasattr(sys, '_MEIPASS'):
         return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_dir, relative_path)
