@@ -86,30 +86,50 @@ os.makedirs(APP_DEFAULT_INPUT_DIR, exist_ok=True)
 os.makedirs(APP_DEFAULT_OUTPUT_DIR, exist_ok=True)
 
 
-def get_default_output_dir():
-    """デフォルト出力フォルダを返す。Windows ならデスクトップ配下に作成を試みる。"""
-    if os.name == 'nt':
-        desktop = os.path.join(os.environ['USERPROFILE'], 'Desktop')
-        output_dir = os.path.join(desktop, '圧縮済みファイル')
-        if not os.path.exists(output_dir):
-            play_sound(os.path.join(SOUNDS_DIR, 'notice.wav'))
-            if messagebox.askquestion(
-                "「圧縮済みファイル」フォルダ作成",
-                "デスクトップに「圧縮済みファイル」フォルダを作成してよいですか？"
-            ) == 'yes':
+def get_default_dirs():
+    """デフォルト入出力フォルダを返す。Windows では Desktop 配下を優先する。"""
+    default_input = APP_DEFAULT_INPUT_DIR
+    default_output = APP_DEFAULT_OUTPUT_DIR
+
+    if os.name != 'nt':
+        return default_input, default_output
+
+    user_profile = os.environ.get('USERPROFILE')
+    if not user_profile:
+        return default_input, default_output
+
+    desktop = os.path.join(user_profile, 'Desktop')
+    input_dir = os.path.join(desktop, 'これから圧縮')
+    output_dir = os.path.join(desktop, '圧縮済みファイル')
+
+    missing_targets = []
+    if not os.path.exists(input_dir):
+        missing_targets.append(('これから圧縮', input_dir))
+    if not os.path.exists(output_dir):
+        missing_targets.append(('圧縮済みファイル', output_dir))
+
+    if missing_targets:
+        missing_names = '」「'.join(name for name, _ in missing_targets)
+        play_sound(os.path.join(SOUNDS_DIR, 'notice.wav'))
+        if messagebox.askquestion(
+            "Desktopフォルダ作成",
+            f"デスクトップに「{missing_names}」フォルダを作成してよいですか？"
+        ) == 'yes':
+            for _, path in missing_targets:
                 try:
-                    os.makedirs(output_dir, exist_ok=True)
+                    os.makedirs(path, exist_ok=True)
                 except Exception:
-                    output_dir = APP_DEFAULT_OUTPUT_DIR
-            else:
-                output_dir = APP_DEFAULT_OUTPUT_DIR
-        return output_dir
-    else:
-        return APP_DEFAULT_OUTPUT_DIR
+                    pass
+
+    if os.path.exists(input_dir):
+        default_input = input_dir
+    if os.path.exists(output_dir):
+        default_output = output_dir
+
+    return default_input, default_output
 
 
-DEFAULT_INPUT_DIR = APP_DEFAULT_INPUT_DIR
-DEFAULT_OUTPUT_DIR = get_default_output_dir()
+DEFAULT_INPUT_DIR, DEFAULT_OUTPUT_DIR = get_default_dirs()
 
 
 # =============================================================================
