@@ -104,7 +104,7 @@ class App(
     def __init__(self):
         super().__init__()
         self.title("フォルダ一括圧縮アプリ v2")
-        self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 60))
+        self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 120))
 
         self.threads: list[threading.Thread] = []
         self._initialize_runtime_side_effects()

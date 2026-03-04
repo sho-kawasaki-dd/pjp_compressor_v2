@@ -5,17 +5,16 @@
 ```mermaid
 flowchart TD
   A[アプリ起動] --> B[入力フォルダを指定]
+    A --> A1[依存可用性を検出しUIへ反映]
   B --> C[出力フォルダを指定]
   C --> D[圧縮設定]
   D --> E[圧縮開始]
   E --> F[入力フォルダのZIPを自動展開 最大25サイクル]
   F --> G[ファイル一覧取得]
   G --> H{拡張子判定}
-  H -- PDF --> I{Ghostscript利用可能?}
-  I -- はい --> J[GhostscriptでPDF圧縮]
-    I -- いいえ --> K{ネイティブPDF利用可能?}
-    K -- はい --> L[PyMuPDF + pikepdfでPDF圧縮]
-  K -- いいえ --> M[PDF圧縮不可]
+    H -- PDF --> I{UIで選択したエンジン}
+    I -- Ghostscript --> J[GhostscriptでPDF圧縮]
+    I -- ネイティブ --> L[PyMuPDF + pikepdfでPDF圧縮]
   H -- JPG/JPEG --> N[Pillowで画像圧縮]
   H -- PNG --> O{pngquant使用?}
   O -- はい --> P[pngquantで圧縮]
@@ -23,7 +22,6 @@ flowchart TD
   H -- その他 --> R[入力フォルダに残す]
   J --> S[ログ記録・進捗更新]
   L --> S
-  M --> S
   N --> S
   P --> S
   Q --> S
@@ -39,6 +37,7 @@ flowchart TD
 sequenceDiagram
     participant User as ユーザー
     participant GUI as GUI(App)
+    participant Cap as CapabilityDetector
     participant FS as ファイルシステム
     participant Worker as 圧縮ワーカー（ThreadPool）
     participant GS as Ghostscript
@@ -46,6 +45,8 @@ sequenceDiagram
     participant PNGQ as pngquant
     participant PIL as Pillow
 
+    GUI->>Cap: 依存可用性を検出
+    Cap-->>GUI: エンジン状態を返却（UI制御に利用）
     User->>GUI: 入力/出力フォルダ・圧縮設定
     User->>GUI: 圧縮開始クリック
     GUI->>FS: ZIPファイルを自動的に再帰展開（最大25サイクル）
@@ -56,14 +57,12 @@ sequenceDiagram
         Worker->>FS: 入力ファイルサイズ取得
 
         alt PDF
-            alt Ghostscript利用可能
+            alt UI設定がGhostscript
                 Worker->>GS: PDF圧縮
                 GS-->>Worker: 出力PDF
-            else ネイティブPDF利用可能
+            else UI設定がネイティブ
                 Worker->>Native: PDF圧縮
                 Native-->>Worker: 出力PDF
-            else どちらも不可
-                Worker->>GUI: 圧縮不可ログ
             end
         else JPG/PNG
             alt PNG & pngquant選択
@@ -92,8 +91,12 @@ classDiagram
     class App {
         +input_dir: StringVar
         +output_dir: StringVar
-        +gs_quality: StringVar
-        +pdf_quality: IntVar
+        +pdf_engine: StringVar
+        +pdf_mode: StringVar
+        +pdf_dpi: IntVar
+        +pdf_jpeg_quality: IntVar
+        +gs_preset: StringVar
+        +gs_custom_dpi: IntVar
         +jpg_quality: IntVar
         +png_quality: IntVar
         +use_pngquant: BooleanVar
@@ -104,11 +107,6 @@ classDiagram
         +cleanup_input()
         +cleanup_output()
         +log()
-    }
-
-    class UIApp {
-        +start_compress()
-        +_on_progress_event()
     }
 
     class TkUiStateMixin {
@@ -159,12 +157,12 @@ classDiagram
         +Pillow
     }
 
-    UIApp --> Contracts : Request/Eventを利用
-    UIApp --> TkUiStateMixin : 状態初期化
-    UIApp --> TkUiViewMixin : 画面構築
-    UIApp --> TkUiControllerMixin : イベント処理
+    App --> Contracts : Request/Eventを利用
+    App --> TkUiStateMixin : 状態初期化
+    App --> TkUiViewMixin : 画面構築
+    App --> TkUiControllerMixin : イベント処理
     TkUiControllerMixin --> RequestMapper : DTO変換
-    UIApp --> JobRunner : 圧縮要求
+    App --> JobRunner : 圧縮要求
     JobRunner --> Services : 処理委譲
     App --> Cleanup : 呼び出し
     Services --> ExternalTools : 利用
@@ -191,3 +189,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 -->
+
+## 関連ドキュメント
+
+- [README（HTML）](./README.html)
