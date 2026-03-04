@@ -1,0 +1,36 @@
+[2026-03-05 00:21:27] Fatal startup error
+Traceback (most recent call last):
+  File "D:\programming\pjp_compressor_v2\compressor_launcher_tkinter.py", line 76, in main
+    app = App()
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 181, in __init__
+    self._build_notebook()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 238, in _build_notebook
+    self._build_settings_tab()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 257, in _build_settings_tab
+    self._build_pdf_section(pdf_container)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 277, in _build_pdf_section
+    engine_frame = ttk.Frame(pdf_lf)
+                             ^^^^^^
+NameError: name 'pdf_lf' is not defined
+
+[2026-03-05 00:22:06] Fatal startup error
+Traceback (most recent call last):
+  File "D:\programming\pjp_compressor_v2\compressor_launcher_tkinter.py", line 76, in main
+    app = App()
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 181, in __init__
+    self._build_notebook()
+    ~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 238, in _build_notebook
+    self._build_settings_tab()
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 257, in _build_settings_tab
+    self._build_pdf_section(pdf_container)
+    ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
+  File "D:\programming\pjp_compressor_v2\ui_tkinter.py", line 277, in _build_pdf_section
+    engine_frame = ttk.Frame(pdf_lf)
+                             ^^^^^^
+NameError: name 'pdf_lf' is not defined
+
