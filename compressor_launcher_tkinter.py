@@ -6,21 +6,21 @@ compressor_launcher_tkinter.py
 tkinter 版 GUI のエントリポイント（起動スクリプト）。
 
 背後の構成:
-- GUI ロジック: `ui_tkinter.py`
-- 圧縮ロジック: `compressor_utils.py`
-- 設定・定数: `configs.py`
-- 効果音ユーティリティ: `sound_utils.py`
+- GUI ロジック: `frontend/ui_tkinter.py`
+- 圧縮ロジック: `backend/core/compressor_utils.py`
+- 設定・定数: `shared/configs.py`
+- 効果音ユーティリティ: `frontend/sound_utils.py`
 
 注意:
 - 本ファイルは最小限の起動処理のみを行い、設定や検証は各モジュールに委譲する。
 - PySide6 版は `compressor_launcher_pyside.py` を使用してください。
 """
-import os
 import sys
 import traceback
 from datetime import datetime
 from pathlib import Path
 from tkinter import messagebox, Tk
+from frontend.bootstrap import run_tkinter_app
 
 
 def _runtime_base_dir() -> Path:
@@ -69,16 +69,7 @@ def _show_startup_error(exc: BaseException, log_path: Path | None) -> None:
 def main() -> int:
     """tkinter アプリを安全に起動する。"""
     try:
-        from ui_tkinter import App
-        from sound_utils import play_sound
-        from configs import SOUNDS_DIR
-
-        app = App()
-        startup_sound = os.path.join(SOUNDS_DIR, "open_window.wav")
-
-        app.after(120, lambda: play_sound(startup_sound))
-        app.mainloop()
-        return 0
+        return run_tkinter_app()
     except Exception as exc:
         log_path = _write_crash_log(exc)
         _show_startup_error(exc, log_path)

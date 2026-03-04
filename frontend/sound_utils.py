@@ -1,7 +1,6 @@
 import os
 import sys
 import threading
-from tkinter import messagebox
 """
 sound_utils.py
 
@@ -12,7 +11,7 @@ pygame を使った簡易な効果音再生ユーティリティ。
 
 注意:
 - 本モジュールは pygame の初期化に失敗しても例外を外へ投げず、
-    代わりに Tk の `messagebox` で警告を表示し、サウンドを無効化する。
+    戻り値で状態を返し、警告表示などのUI責務は呼び出し側に委譲する。
 """
 
 # pygame は任意依存。未インストールでも動作可能にする。
@@ -27,17 +26,14 @@ except Exception:
 def init_mixer():
     """pygame ミキサーの初期化。"""
     if not PYGAME_AVAILABLE:
-        return
+        return False, "pygame が利用できないため、サウンド再生は無効化されます。"
     try:
         # pre_init: 44100Hz, 16bit, ステレオ, バッファ512
         pygame.mixer.pre_init(44100, -16, 2, 512)
         pygame.mixer.init()
+        return True, None
     except Exception:
-        try:
-            messagebox.showwarning("警告", "pygame ミキサーの初期化に失敗しました。サウンド再生は無効化されます。")
-        except Exception:
-            pass
-        pass
+        return False, "pygame ミキサーの初期化に失敗しました。サウンド再生は無効化されます。"
 def play_sound(sound_file):
     """
     指定されたサウンドファイルを非同期で再生。

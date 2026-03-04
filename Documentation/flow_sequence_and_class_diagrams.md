@@ -13,8 +13,8 @@ flowchart TD
   G --> H{拡張子判定}
   H -- PDF --> I{Ghostscript利用可能?}
   I -- はい --> J[GhostscriptでPDF圧縮]
-  I -- いいえ --> K{pypdf利用可能?}
-  K -- はい --> L[pypdfでPDF圧縮]
+    I -- いいえ --> K{ネイティブPDF利用可能?}
+    K -- はい --> L[PyMuPDF + pikepdfでPDF圧縮]
   K -- いいえ --> M[PDF圧縮不可]
   H -- JPG/JPEG --> N[Pillowで画像圧縮]
   H -- PNG --> O{pngquant使用?}
@@ -42,7 +42,7 @@ sequenceDiagram
     participant FS as ファイルシステム
     participant Worker as 圧縮ワーカー（ThreadPool）
     participant GS as Ghostscript
-    participant PYPDF as pypdf
+    participant Native as Native PDF(PyMuPDF+pikepdf)
     participant PNGQ as pngquant
     participant PIL as Pillow
 
@@ -54,14 +54,14 @@ sequenceDiagram
 
     loop 各ファイル処理
         Worker->>FS: 入力ファイルサイズ取得
-        
+
         alt PDF
             alt Ghostscript利用可能
                 Worker->>GS: PDF圧縮
                 GS-->>Worker: 出力PDF
-            else pypdf利用可能
-                Worker->>PYPDF: PDF圧縮
-                PYPDF-->>Worker: 出力PDF
+            else ネイティブPDF利用可能
+                Worker->>Native: PDF圧縮
+                Native-->>Worker: 出力PDF
             else どちらも不可
                 Worker->>GUI: 圧縮不可ログ
             end
@@ -76,7 +76,7 @@ sequenceDiagram
         else その他
             Worker->>Worker: 入力フォルダに残す
         end
-        
+
         Worker->>FS: 出力サイズ取得
         Worker->>GUI: ログ・進捗更新
     end
@@ -106,13 +106,44 @@ classDiagram
         +log()
     }
 
-    class Compressor {
-        +compress_folder()
-        +extract_zip_archives()
-        +process_single_file()
-        +compress_pdf()
-        +compress_image_pillow()
-        +compress_png_pngquant()
+    class UIApp {
+        +start_compress()
+        +_on_progress_event()
+    }
+
+    class TkUiStateMixin {
+        +initialize_ui_state()
+    }
+
+    class TkUiViewMixin {
+        +build_layout()
+    }
+
+    class TkUiControllerMixin {
+        +start_compress()
+        +_on_progress_event()
+    }
+
+    class RequestMapper {
+        +build_compression_request()
+    }
+
+    class Contracts {
+        +CompressionRequest
+        +ProgressEvent
+        +CapabilityReport
+    }
+
+    class JobRunner {
+        +run_compression_request()
+        +run_compression_job()
+    }
+
+    class Services {
+        +pdf_service
+        +image_service
+        +archive_service
+        +cleanup_service
     }
 
     class Cleanup {
@@ -122,14 +153,21 @@ classDiagram
 
     class ExternalTools {
         +Ghostscript
-        +pypdf
+        +PyMuPDF
+        +pikepdf
         +pngquant
         +Pillow
     }
 
-    App --> Compressor : 呼び出し
+    UIApp --> Contracts : Request/Eventを利用
+    UIApp --> TkUiStateMixin : 状態初期化
+    UIApp --> TkUiViewMixin : 画面構築
+    UIApp --> TkUiControllerMixin : イベント処理
+    TkUiControllerMixin --> RequestMapper : DTO変換
+    UIApp --> JobRunner : 圧縮要求
+    JobRunner --> Services : 処理委譲
     App --> Cleanup : 呼び出し
-    Compressor --> ExternalTools : 利用
+    Services --> ExternalTools : 利用
 ```
 
 <!--

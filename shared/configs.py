@@ -21,7 +21,7 @@ def _runtime_base_dir() -> str:
     """実行時の基準ディレクトリ（exe優先、通常実行は本ファイル基準）を返す。"""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.abspath(__file__))
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 APP_BASE_DIR = _runtime_base_dir()

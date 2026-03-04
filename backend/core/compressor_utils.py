@@ -40,7 +40,7 @@ import multiprocessing
 from PIL import Image
 import fitz          # PyMuPDF
 import pikepdf
-from configs import (
+from shared.configs import (
     PDF_COMPRESS_MODES,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
@@ -49,6 +49,21 @@ from configs import (
     GS_PRESETS,
     GS_DEFAULT_PRESET,
 )
+
+PUBLIC_BACKEND_API = (
+    'compress_folder',
+    'cleanup_folder',
+    'count_target_files',
+    'human_readable',
+    'get_ghostscript_path',
+)
+
+__all__ = list(PUBLIC_BACKEND_API)
+
+
+def get_public_api_symbols():
+    """互換維持対象の公開APIシンボル一覧を返す。"""
+    return PUBLIC_BACKEND_API
 
 def human_readable(n):
     """バイト数を人間可読な単位へ変換する補助関数。"""
@@ -723,111 +738,32 @@ def compress_folder(input_dir, output_dir, jpg_quality, png_quality, use_pngquan
 
     pdf_engine: 'native' (PyMuPDF+pikepdf) or 'gs' (GhostScript+pikepdf)
     """
-    if extract_zip:
-        log_func("ZIPファイルを展開してから圧縮を行います…")
-        extracted_cnt, failed_cnt = extract_zip_archives(input_dir, log_func)
-        if extracted_cnt == 0 and failed_cnt == 0:
-            log_func("ZIPファイルは検出されませんでした。")
-        elif failed_cnt > 0:
-            log_func(f"ZIP展開結果: 成功 {extracted_cnt} 件 / 失敗 {failed_cnt} 件")
-        else:
-            log_func(f"ZIP展開結果: {extracted_cnt} 件の ZIP を展開しました。")
-    total_files = []
-    for root, _, files in os.walk(input_dir):
-        for fname in files:
-            # ZIPなど明らかに処理対象外のファイルはキューに入れない
-            if fname.lower().endswith('.zip'):
-                continue
-            total_files.append((root, fname))
-    total_len = len(total_files)
-    if total_len == 0:
-        log_func("入力フォルダにファイルが見つかりませんでした。")
-        log_func("完了！")
-        progress_func(1, 1)
-        stats_func(0, 0, 0, 0.0)
-        return
-    tasks = []
-    for root, fname in total_files:
-        inpath = os.path.join(root, fname)
-        ext = fname.lower().split('.')[-1]
-        rel_dir = os.path.relpath(root, input_dir)
-        outdir = os.path.join(output_dir, rel_dir)
-        outpath = os.path.join(outdir, fname)
-        if pdf_lossless_options is None:
-            ll_opts = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
-        else:
-            ll_opts = pdf_lossless_options
-        rcfg = None
-        if isinstance(resize_enabled, dict):
-            rcfg = resize_enabled
-        else:
-            if resize_enabled and (resize_width > 0 or resize_height > 0):
-                rcfg = { 'enabled': True, 'mode': 'manual', 'width': int(resize_width), 'height': int(resize_height), 'keep_aspect': True }
-        tasks.append((inpath, outpath, ext,
-                       pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg, ll_opts,
-                       gs_preset, gs_custom_dpi,
-                       jpg_quality, png_quality, use_pngquant, rcfg))
-    max_workers = max(4, multiprocessing.cpu_count())
-    log_func(f"並列処理開始（ワーカー数: {max_workers}、ファイル数: {total_len}）")
-    csv_file = None
-    csv_writer = None
-    if csv_enable:
-        try:
-            if not csv_path:
-                ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                csv_path = os.path.join(output_dir, f"compression_log_{ts}.csv")
-            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-            csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
-            csv_writer = csv.writer(csv_file)
-            csv_writer.writerow(['timestamp','input_path','output_path','ext','action','orig_size','out_size','saved_bytes','saved_pct','notes'])
-            log_func(f"CSVログ出力: {csv_path}")
-        except Exception as e:
-            log_func(f"CSVログの作成に失敗しました: {e}")
-            csv_file = None
-            csv_writer = None
-    cnt = 0
-    orig_total = 0
-    out_total = 0
-    processed_files = 0
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(process_single_file, task): task for task in tasks}
-        for future in as_completed(futures):
-            try:
-                msg, orig_size, out_size, processed_flag = future.result()
-                if processed_flag:
-                    orig_total += orig_size
-                    out_total += out_size
-                    processed_files += 1
-                cnt += 1
-                log_func(msg)
-                try:
-                    if csv_writer:
-                        action = msg.split(' | ')[0]
-                        saved = orig_size - out_size
-                        saved_pct = (saved / orig_size * 100) if orig_size > 0 else 0.0
-                        timestamp = datetime.now().isoformat()
-                        task = futures[future]
-                        inpath_task = task[0]
-                        outpath_task = task[1]
-                        ext_task = task[2]
-                        csv_writer.writerow([timestamp, os.path.relpath(inpath_task, input_dir), os.path.relpath(outpath_task, output_dir), ext_task, action, orig_size, out_size, saved, f"{saved_pct:.1f}", ''])
-                except Exception:
-                    pass
-                progress_func(cnt, total_len)
-            except Exception as e:
-                log_func(f"処理中にエラー発生: {e}")
-                cnt += 1
-                progress_func(cnt, total_len)
-    try:
-        if csv_file:
-            csv_file.close()
-    except Exception:
-        pass
-    saved = orig_total - out_total
-    saved_pct = (saved / orig_total * 100) if orig_total > 0 else 0.0
-    log_func("完了！")
-    log_func(f"統計（圧縮対象 {processed_files} 件）: 元合計={human_readable(orig_total)}, 出力合計={human_readable(out_total)}, 削減={human_readable(saved)} ({saved_pct:.1f}%)")
-    stats_func(orig_total, out_total, saved, saved_pct)
+    from backend.orchestrator.job_runner import run_compression_job
+
+    return run_compression_job(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        jpg_quality=jpg_quality,
+        png_quality=png_quality,
+        use_pngquant=use_pngquant,
+        log_func=log_func,
+        progress_func=progress_func,
+        stats_func=stats_func,
+        pdf_engine=pdf_engine,
+        pdf_mode=pdf_mode,
+        pdf_dpi=pdf_dpi,
+        pdf_jpeg_quality=pdf_jpeg_quality,
+        pdf_png_to_jpeg=pdf_png_to_jpeg,
+        pdf_lossless_options=pdf_lossless_options,
+        gs_preset=gs_preset,
+        gs_custom_dpi=gs_custom_dpi,
+        resize_enabled=resize_enabled,
+        resize_width=resize_width,
+        resize_height=resize_height,
+        csv_enable=csv_enable,
+        csv_path=csv_path,
+        extract_zip=extract_zip,
+    )
 
 
 def count_target_files(target_dir, target_extensions):
