@@ -1,0 +1,93 @@
+from __future__ import annotations
+
+import os
+
+from backend.core.format_utils import human_readable
+from backend.core.image_utils import compress_image_pillow, compress_png_pngquant
+from backend.core.pdf_utils import compress_pdf_gs, compress_pdf_native
+
+
+def process_single_file(args):
+    """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。"""
+    (
+        inpath,
+        outpath,
+        ext,
+        pdf_engine,
+        pdf_mode,
+        pdf_dpi,
+        pdf_jpeg_quality,
+        pdf_png_to_jpeg,
+        pdf_lossless_options,
+        gs_preset,
+        gs_custom_dpi,
+        jpg_quality,
+        png_quality,
+        use_pngquant,
+        resize_cfg,
+    ) = args
+
+    try:
+        orig_size = os.path.getsize(inpath)
+    except Exception:
+        orig_size = 0
+
+    outdir = os.path.dirname(outpath)
+    if not os.path.exists(outdir):
+        os.makedirs(outdir, exist_ok=True)
+
+    processed = False
+    if ext == 'pdf':
+        processed = True
+        if pdf_engine == 'gs':
+            _, base_msg = compress_pdf_gs(
+                inpath,
+                outpath,
+                preset=gs_preset,
+                custom_dpi=gs_custom_dpi,
+                lossless_options=pdf_lossless_options,
+            )
+        else:
+            _, base_msg = compress_pdf_native(
+                inpath,
+                outpath,
+                mode=pdf_mode,
+                target_dpi=pdf_dpi,
+                jpeg_quality=pdf_jpeg_quality,
+                png_to_jpeg=pdf_png_to_jpeg,
+                lossless_options=pdf_lossless_options,
+            )
+    elif ext in ['jpg', 'jpeg']:
+        processed = True
+        _, base_msg = compress_image_pillow(inpath, outpath, jpg_quality, resize_cfg=resize_cfg)
+    elif ext == 'png':
+        processed = True
+        if use_pngquant:
+            qmin = max(0, png_quality - 20)
+            qmax = png_quality
+            _, base_msg = compress_png_pngquant(inpath, outpath, qmin, qmax, speed=3, resize_cfg=resize_cfg)
+        else:
+            _, base_msg = compress_image_pillow(inpath, outpath, png_quality, resize_cfg=resize_cfg)
+    else:
+        try:
+            base_msg = f"未対応: {os.path.basename(inpath)}（Left in the input folder）"
+        except Exception as e:
+            base_msg = f"未対応ファイル失敗: {os.path.basename(inpath)} ({e})"
+
+    try:
+        out_size = os.path.getsize(outpath) if os.path.exists(outpath) else orig_size
+    except Exception:
+        out_size = orig_size
+
+    saved_size = orig_size - out_size
+    saved_pct = (saved_size / orig_size * 100) if orig_size > 0 else 0.0
+    size_info = f" | Before: {human_readable(orig_size)} → After: {human_readable(out_size)}"
+    if saved_size > 0:
+        size_info += f" (削減: {human_readable(saved_size)}, -{saved_pct:.1f}%)"
+    elif saved_size < 0:
+        size_info += f" (増加: {human_readable(-saved_size)}, +{-saved_pct:.1f}%)"
+    else:
+        size_info += ' (変化なし)'
+
+    msg = base_msg + size_info
+    return msg, orig_size, out_size, processed

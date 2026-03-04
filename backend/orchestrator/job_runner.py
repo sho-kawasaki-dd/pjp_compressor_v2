@@ -43,7 +43,8 @@ def run_compression_job(
     csv_path: str | None = None,
     extract_zip: bool = False,
 ) -> None:
-    from backend.core.compressor_utils import human_readable, process_single_file
+    from backend.core.format_utils import human_readable
+    from backend.core.worker_ops import process_single_file
 
     if extract_zip:
         log_func("ZIPファイルを展開してから圧縮を行います…")

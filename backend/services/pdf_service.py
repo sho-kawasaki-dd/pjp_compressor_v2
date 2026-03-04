@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-from backend.core.compressor_utils import (
-    compress_pdf,
+from backend.core.pdf_utils import (
     compress_pdf_ghostscript,
     compress_pdf_lossless,
     compress_pdf_lossy,
@@ -10,7 +9,6 @@ from backend.core.compressor_utils import (
 )
 
 __all__ = [
-    'compress_pdf',
     'compress_pdf_ghostscript',
     'compress_pdf_lossless',
     'compress_pdf_lossy',

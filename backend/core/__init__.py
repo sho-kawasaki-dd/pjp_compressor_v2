@@ -1,1 +1,1 @@
-"""Core backend processing implementations."""
+"""Core backend processing implementations split by responsibility."""
