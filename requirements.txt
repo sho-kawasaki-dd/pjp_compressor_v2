@@ -1,10 +1,13 @@
 # Core image/PDF processing
-Pillow
-PyMuPDF
-pikepdf
+Pillow>=10.0.0
+PyMuPDF>=1.24.0
+pikepdf>=9.0.0
 
-# Optional: drag & drop support
-tkinterdnd2
+# Required: drag & drop support
+tkinterdnd2>=0.4.3
 
 # Optional: sound effects
-pygame
+pygame>=2.3.0
+
+# Optional: executable build
+pyinstaller>=6.0.0

@@ -5,8 +5,6 @@ import os
 import shutil
 import subprocess
 
-import fitz
-import pikepdf
 from PIL import Image
 
 from shared.configs import (
@@ -19,6 +17,24 @@ from shared.configs import (
 )
 
 
+def _import_fitz():
+    try:
+        import fitz as fitz_module
+
+        return fitz_module, None
+    except Exception as e:
+        return None, e
+
+
+def _import_pikepdf():
+    try:
+        import pikepdf as pikepdf_module
+
+        return pikepdf_module, None
+    except Exception as e:
+        return None, e
+
+
 def compress_pdf_lossy(
     input_path,
     output_path,
@@ -27,8 +43,12 @@ def compress_pdf_lossy(
     png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
 ):
     """PyMuPDF で PDF 内の全埋め込み画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
+    fitz_module, fitz_error = _import_fitz()
+    if fitz_module is None:
+        return False, f"PDF非可逆圧縮失敗: {os.path.basename(input_path)} (PyMuPDF(fitz)が利用できません: {fitz_error})"
+
     try:
-        doc = fitz.open(input_path)
+        doc = fitz_module.open(input_path)
         replaced_count = 0
         skipped_count = 0
         compressed_cache: dict[int, bytes | None] = {}
@@ -140,8 +160,13 @@ def compress_pdf_lossless(input_path, output_path, options=None):
     """pikepdf を用いた PDF の構造最適化（可逆）。"""
     if options is None:
         options = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
+
+    pikepdf_module, pikepdf_error = _import_pikepdf()
+    if pikepdf_module is None:
+        return False, f"PDF可逆圧縮失敗: {os.path.basename(input_path)} (pikepdfが利用できません: {pikepdf_error})"
+
     try:
-        with pikepdf.open(input_path) as pdf:
+        with pikepdf_module.open(input_path) as pdf:
             if options.get('remove_unreferenced', True):
                 pdf.remove_unreferenced_resources()
 
@@ -155,9 +180,9 @@ def compress_pdf_lossless(input_path, output_path, options=None):
                         pass
 
             if options.get('object_streams', True):
-                osm = pikepdf.ObjectStreamMode.generate
+                osm = pikepdf_module.ObjectStreamMode.generate
             else:
-                osm = pikepdf.ObjectStreamMode.preserve
+                osm = pikepdf_module.ObjectStreamMode.preserve
 
             do_recompress = options.get('recompress_streams', True)
 

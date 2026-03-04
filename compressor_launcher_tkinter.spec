@@ -1,11 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
+
+tkdnd_datas = collect_data_files('tkinterdnd2')
+tkdnd_hiddenimports = collect_submodules('tkinterdnd2')
+
 
 a = Analysis(
     ['compressor_launcher_tkinter.py'],
     pathex=[],
     binaries=[],
-    datas=[('sounds', 'sounds')],
+    datas=[('sounds', 'sounds'), *tkdnd_datas],
     hiddenimports=[
         'frontend.bootstrap',
         'backend.contracts',
@@ -15,11 +21,16 @@ a = Analysis(
         'backend.services.image_service',
         'backend.services.archive_service',
         'backend.services.cleanup_service',
+        'backend.core.pdf_utils',
+        'backend.core.image_utils',
+        'backend.core.worker_ops',
+        'tkinterdnd2',
+        *tkdnd_hiddenimports,
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PySide6'],
     noarchive=False,
     optimize=0,
 )
@@ -35,7 +46,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

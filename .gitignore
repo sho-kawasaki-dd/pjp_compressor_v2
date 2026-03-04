@@ -4,5 +4,9 @@ __pycache__/
 *.pyo
 *.pyd
 sounds/
-input/
-output/
+input_files/
+output_files/
+logs/
+dist/
+build/
+*.egg-info/

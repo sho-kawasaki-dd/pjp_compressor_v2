@@ -24,7 +24,15 @@ def _runtime_base_dir() -> str:
     return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _resource_base_dir() -> str:
+    """同梱リソース探索の基準ディレクトリを返す。"""
+    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+        return getattr(sys, '_MEIPASS')
+    return _runtime_base_dir()
+
+
 APP_BASE_DIR = _runtime_base_dir()
+RESOURCE_BASE_DIR = _resource_base_dir()
 
 # ---------------------------------------------------------------------------
 # PDF 圧縮設定（PyMuPDF + pikepdf）
@@ -94,7 +102,7 @@ APP_DEFAULT_WINDOW_SIZE = "750x850"
 # Tk ウィンドウのサイズ指定（幅x高さ）。
 
 # サウンドファイル格納ディレクトリ
-SOUNDS_DIR = os.path.join(APP_BASE_DIR, "sounds")
+SOUNDS_DIR = os.path.join(RESOURCE_BASE_DIR, "sounds")
 # 効果音ファイルの配置ディレクトリ。存在しなくても致命的ではない。
 
 LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]

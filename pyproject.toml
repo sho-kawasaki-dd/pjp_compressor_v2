@@ -8,8 +8,12 @@ dependencies = [
     "Pillow",
     "PyMuPDF",
     "pikepdf",
-    "pyside6>=6.10.2",
     "tkinterdnd2>=0.4.3",
     "pygame>=2.3.0",
+]
+
+[project.optional-dependencies]
+build = [
+    "pyinstaller>=6.0.0",
 ]
 
