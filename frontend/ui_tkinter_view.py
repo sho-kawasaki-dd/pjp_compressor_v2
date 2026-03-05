@@ -14,13 +14,71 @@ from shared.configs import (
 
 class TkUiViewMixin:
     def build_layout(self) -> None:
+        self._build_root_scroll_container()
         self._build_folder_section()
         self._build_notebook()
-        self._build_progress_section()
         self._build_action_buttons()
+        self._bind_root_mousewheel()
+
+    def _build_root_scroll_container(self):
+        root_frame = ttk.Frame(self)
+        root_frame.pack(fill='both', expand=True)
+
+        self.main_canvas = tk.Canvas(root_frame, highlightthickness=0)
+        self.main_canvas.pack(side='left', fill='both', expand=True)
+
+        self.main_scrollbar = ttk.Scrollbar(root_frame, orient='vertical', command=self.main_canvas.yview)
+        self.main_scrollbar.pack(side='right', fill='y')
+        self.main_canvas.configure(yscrollcommand=self.main_scrollbar.set)
+
+        self.main_container = ttk.Frame(self.main_canvas)
+        self.main_container_window = self.main_canvas.create_window((0, 0), window=self.main_container, anchor='nw')
+
+        self.main_container.bind('<Configure>', self._on_main_container_configure)
+        self.main_canvas.bind('<Configure>', self._on_main_canvas_configure)
+
+    def _on_main_container_configure(self, _event):
+        self.main_canvas.configure(scrollregion=self.main_canvas.bbox('all'))
+
+    def _on_main_canvas_configure(self, event):
+        self.main_canvas.itemconfigure(self.main_container_window, width=event.width)
+
+    def _bind_root_mousewheel(self):
+        self.bind_all('<MouseWheel>', self._on_root_mousewheel, add='+')
+
+    def _on_root_mousewheel(self, event):
+        # Keep Text widget wheel behavior unchanged (log area scrolls itself).
+        target = self.winfo_containing(event.x_root, event.y_root)
+        if target is not None and self._is_inside_widget(target, self.log_text):
+            return
+
+        delta = event.delta
+        if delta == 0:
+            return
+        steps = int(-delta / 120)
+        if steps == 0:
+            steps = -1 if delta > 0 else 1
+        self.main_canvas.yview_scroll(steps, 'units')
+
+    def _is_inside_widget(self, child, parent) -> bool:
+        widget = child
+        while widget is not None:
+            if widget == parent:
+                return True
+            try:
+                parent_name = widget.winfo_parent()
+            except Exception:
+                return False
+            if not parent_name:
+                return False
+            try:
+                widget = widget.nametowidget(parent_name)
+            except Exception:
+                return False
+        return False
 
     def _build_folder_section(self):
-        folder_frame = ttk.Frame(self)
+        folder_frame = ttk.Frame(self.main_container)
         folder_frame.pack(fill='x', padx=14, pady=(12, 8))
 
         row_in = ttk.Frame(folder_frame)
@@ -46,7 +104,7 @@ class TkUiViewMixin:
         tk.Button(row_out, text='クリーンアップ', command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
 
     def _build_notebook(self):
-        self.notebook = ttk.Notebook(self)
+        self.notebook = ttk.Notebook(self.main_container)
         self.notebook.pack(fill='both', expand=True, padx=14, pady=8)
 
         self.settings_tab = ttk.Frame(self.notebook)
@@ -365,8 +423,13 @@ class TkUiViewMixin:
         log_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(log_row, text='圧縮開始時にログタブへ自動切替', variable=self.auto_switch_log_tab).pack(side='left')
 
-    def _build_progress_section(self):
-        progress_lf = ttk.LabelFrame(self, text=' 進捗 ')
+    def _build_log_tab(self):
+        stats_frame = ttk.Frame(self.log_tab)
+        stats_frame.pack(fill='x', padx=14, pady=(12, 8))
+        self.stats_var = tk.StringVar(value='統計: 処理前')
+        ttk.Label(stats_frame, textvariable=self.stats_var, foreground='blue', font=('Arial', 10, 'bold')).pack(side='left')
+
+        progress_lf = ttk.LabelFrame(self.log_tab, text=' 進捗 ')
         progress_lf.pack(fill='x', padx=14, pady=(0, 8))
 
         status_row = ttk.Frame(progress_lf)
@@ -377,12 +440,6 @@ class TkUiViewMixin:
         self.progress = ttk.Progressbar(progress_lf, maximum=100, mode='determinate')
         self.progress.pack(fill='x', padx=10, pady=(0, 10))
 
-    def _build_log_tab(self):
-        stats_frame = ttk.Frame(self.log_tab)
-        stats_frame.pack(fill='x', padx=14, pady=(12, 8))
-        self.stats_var = tk.StringVar(value='統計: 処理前')
-        ttk.Label(stats_frame, textvariable=self.stats_var, foreground='blue', font=('Arial', 10, 'bold')).pack(side='left')
-
         log_frame = ttk.Frame(self.log_tab)
         log_frame.pack(fill='both', expand=True, padx=14, pady=(0, 12))
         scrollbar = ttk.Scrollbar(log_frame)
@@ -392,7 +449,7 @@ class TkUiViewMixin:
         scrollbar.config(command=self.log_text.yview)
 
     def _build_action_buttons(self):
-        frame = ttk.Frame(self)
+        frame = ttk.Frame(self.main_container)
         frame.pack(fill='x', padx=14, pady=(6, 12))
         inner = ttk.Frame(frame)
         inner.pack(anchor='center')
