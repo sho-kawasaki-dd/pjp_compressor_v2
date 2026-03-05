@@ -142,7 +142,7 @@ class TkUiViewMixin:
         image_container.pack(fill='x', padx=8, pady=(5, 8))
         self._build_image_section(image_container)
         self._build_resize_section(image_container)
-        self._build_output_section(image_container)
+        self._build_output_section(self.settings_tab)
 
     def _build_pdf_section(self, parent):
         engine_frame = ttk.Frame(parent)
