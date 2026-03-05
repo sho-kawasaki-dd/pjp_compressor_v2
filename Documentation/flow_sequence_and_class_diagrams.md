@@ -1,34 +1,44 @@
 # 追加図面：フロー図、シーケンス図およびクラス図
 
+## 関連ドキュメント
+
+- README（HTML）: [README.html](./README.html)
+- README（Markdown）: [README.md](./README.md)
+
 ## 処理フロー（図）
 
 ```mermaid
 flowchart TD
-  A[アプリ起動] --> B[入力フォルダを指定]
-    A --> A1[依存可用性を検出しUIへ反映]
-  B --> C[出力フォルダを指定]
-  C --> D[圧縮設定]
-  D --> E[圧縮開始]
-  E --> F[入力フォルダのZIPを自動展開 最大25サイクル]
-  F --> G[ファイル一覧取得]
-  G --> H{拡張子判定}
-    H -- PDF --> I{UIで選択したエンジン}
-    I -- Ghostscript --> J[GhostscriptでPDF圧縮]
-    I -- ネイティブ --> L[PyMuPDF + pikepdfでPDF圧縮]
-  H -- JPG/JPEG --> N[Pillowで画像圧縮]
-  H -- PNG --> O{pngquant使用?}
-  O -- はい --> P[pngquantで圧縮]
-  O -- いいえ --> Q[Pillowで圧縮]
-  H -- その他 --> R[入力フォルダに残す]
-  J --> S[ログ記録・進捗更新]
-  L --> S
-  N --> S
-  P --> S
-  Q --> S
-  R --> S
-  S --> T{全ファイル完了?}
-  T -- いいえ --> H
-  T -- はい --> U[統計表示 圧縮対象のみ集計]
+    A[アプリ起動] --> A1[detect_capabilities 実行]
+    A1 --> A2[CapabilityReportでUI状態を制御]
+    A2 --> B[入力フォルダを指定]
+    B --> C[出力フォルダを指定]
+    C --> D[圧縮設定]
+    D --> E[CompressionRequest を組み立て]
+    E --> F[run_compression_request 呼び出し]
+    F --> G[run_compression_job 実行]
+    G --> H[ZIP自動展開 任意 最大25サイクル]
+    H --> I[入力ファイルを再帰走査]
+    I --> J[ファイル単位タスク化]
+    J --> K[ThreadPoolExecutorで並列処理]
+    K --> L{worker_opsで拡張子分岐}
+    L -- PDF --> M{pdf_engine}
+    M -- ghostscript --> N[Ghostscript圧縮]
+    M -- native --> O[PyMuPDF + pikepdf]
+    L -- JPG/JPEG --> P[Pillow圧縮]
+    L -- PNG --> Q{use_pngquant}
+    Q -- true --> R[pngquant圧縮]
+    Q -- false --> S[Pillow圧縮]
+    L -- その他 --> T[圧縮対象外として通過]
+    N --> U[ProgressEvent log/progress]
+    O --> U
+    P --> U
+    R --> U
+    S --> U
+    T --> U
+    U --> V{全タスク完了?}
+    V -- いいえ --> L
+    V -- はい --> W[ProgressEvent stats とCSV出力]
 ```
 
 ## シーケンス図（圧縮処理の全体フロー）
@@ -36,40 +46,52 @@ flowchart TD
 ```mermaid
 sequenceDiagram
     participant User as ユーザー
-    participant GUI as GUI(App)
+    participant App as GUI(App)
+    participant Ctrl as Controller
+    participant Mapper as RequestMapper
     participant Cap as CapabilityDetector
+    participant Ctr as Contracts
+    participant Runner as JobRunner
     participant FS as ファイルシステム
-    participant Worker as 圧縮ワーカー（ThreadPool）
+    participant Worker as WorkerOps(ThreadPool)
+    participant Svc as Services
     participant GS as Ghostscript
-    participant Native as Native PDF(PyMuPDF+pikepdf)
+    participant Native as NativePDF(PyMuPDF+pikepdf)
     participant PNGQ as pngquant
     participant PIL as Pillow
 
-    GUI->>Cap: 依存可用性を検出
-    Cap-->>GUI: エンジン状態を返却（UI制御に利用）
-    User->>GUI: 入力/出力フォルダ・圧縮設定
-    User->>GUI: 圧縮開始クリック
-    GUI->>FS: ZIPファイルを自動的に再帰展開（最大25サイクル）
-    GUI->>FS: ファイル一覧取得
-    GUI->>Worker: 並列タスク投入
+    App->>Cap: detect_capabilities()
+    Cap-->>App: CapabilityReport
+    User->>App: 入力/出力フォルダ・圧縮設定
+    User->>Ctrl: 圧縮開始クリック
+    Ctrl->>Mapper: build_compression_request()
+    Mapper-->>Ctrl: CompressionRequest
+    Ctrl->>Runner: run_compression_request(request)
+    Runner->>FS: ZIP自動展開（任意）
+    Runner->>FS: ファイル一覧取得
+    Runner->>Worker: 並列タスク投入
 
     loop 各ファイル処理
         Worker->>FS: 入力ファイルサイズ取得
 
         alt PDF
-            alt UI設定がGhostscript
-                Worker->>GS: PDF圧縮
+            alt request.pdf_engine == ghostscript
+                Worker->>Svc: pdf_service
+                Svc->>GS: PDF圧縮
                 GS-->>Worker: 出力PDF
-            else UI設定がネイティブ
-                Worker->>Native: PDF圧縮
+            else request.pdf_engine == native
+                Worker->>Svc: pdf_service
+                Svc->>Native: PDF圧縮
                 Native-->>Worker: 出力PDF
             end
         else JPG/PNG
-            alt PNG & pngquant選択
-                Worker->>PNGQ: PNG圧縮
+            alt PNG and request.use_pngquant
+                Worker->>Svc: image_service
+                Svc->>PNGQ: PNG圧縮
                 PNGQ-->>Worker: 出力PNG
             else JPG or Pillow使用
-                Worker->>PIL: 画像圧縮
+                Worker->>Svc: image_service
+                Svc->>PIL: 画像圧縮
                 PIL-->>Worker: 出力画像
             end
         else その他
@@ -77,11 +99,14 @@ sequenceDiagram
         end
 
         Worker->>FS: 出力サイズ取得
-        Worker->>GUI: ログ・進捗更新
+        Worker-->>Runner: 単一ファイル結果
+        Runner->>Ctr: ProgressEvent(kind=log/progress)
+        Ctr-->>App: イベント通知
     end
 
-    GUI->>GUI: 統計計算（圧縮対象のみ）
-    GUI-->>User: 完了・統計表示
+    Runner->>Ctr: ProgressEvent(kind=stats)
+    Ctr-->>App: 統計イベント通知
+    App-->>User: 完了・統計表示
 ```
 
 ## クラス図（主要コンポーネントと責務）
@@ -109,6 +134,17 @@ classDiagram
         +log()
     }
 
+    class CapabilityDetector {
+        +detect_capabilities()
+    }
+
+    class CapabilityReport {
+        +fitz_available
+        +pikepdf_available
+        +ghostscript_path
+        +pngquant_path
+    }
+
     class TkUiStateMixin {
         +initialize_ui_state()
     }
@@ -132,6 +168,28 @@ classDiagram
         +CapabilityReport
     }
 
+    class CompressionRequest {
+        +input_dir
+        +output_dir
+        +pdf_engine
+        +pdf_mode
+        +use_pngquant
+        +resize_config
+        +csv_enable
+        +extract_zip
+    }
+
+    class ProgressEvent {
+        +kind
+        +message
+        +current
+        +total
+        +orig_total
+        +out_total
+        +saved
+        +saved_pct
+    }
+
     class JobRunner {
         +run_compression_request()
         +run_compression_job()
@@ -149,6 +207,10 @@ classDiagram
         +count_target_files()
     }
 
+    class WorkerOps {
+        +process_single_file()
+    }
+
     class ExternalTools {
         +Ghostscript
         +PyMuPDF
@@ -157,13 +219,18 @@ classDiagram
         +Pillow
     }
 
+    App --> CapabilityDetector : 起動時に実行
+    CapabilityDetector --> CapabilityReport : 返却
     App --> Contracts : Request/Eventを利用
     App --> TkUiStateMixin : 状態初期化
     App --> TkUiViewMixin : 画面構築
     App --> TkUiControllerMixin : イベント処理
     TkUiControllerMixin --> RequestMapper : DTO変換
+    RequestMapper --> CompressionRequest : 生成
     App --> JobRunner : 圧縮要求
+    JobRunner --> ProgressEvent : 発行
     JobRunner --> Services : 処理委譲
+    JobRunner --> WorkerOps : ファイル単位処理
     App --> Cleanup : 呼び出し
     Services --> ExternalTools : 利用
 ```
@@ -193,3 +260,4 @@ document.addEventListener("DOMContentLoaded", function () {
 ## 関連ドキュメント
 
 - [README（HTML）](./README.html)
+- [README（Markdown）](./README.md)

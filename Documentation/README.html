@@ -101,13 +101,29 @@
 <li><a href="#フォルダ一括圧縮アプリpdf画像対応版"
 id="toc-フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</a>
 <ul>
+<li><a href="#関連ドキュメント"
+id="toc-関連ドキュメント">関連ドキュメント</a></li>
 <li><a href="#主な機能" id="toc-主な機能">主な機能</a></li>
 <li><a href="#動作環境と依存"
 id="toc-動作環境と依存">動作環境と依存</a></li>
+<li><a href="#実行ファイル化pyinstaller-one-folder"
+id="toc-実行ファイル化pyinstaller-one-folder">実行ファイル化（PyInstaller
+/ one-folder）</a></li>
 <li><a href="#使い方手順" id="toc-使い方手順">使い方（手順）</a></li>
-<li><a href="#モジュール構成"
-id="toc-モジュール構成">モジュール構成</a></li>
+<li><a href="#モジュール構成" id="toc-モジュール構成">モジュール構成</a>
+<ul>
+<li><a href="#起動とフロントエンド"
+id="toc-起動とフロントエンド">起動とフロントエンド</a></li>
+<li><a href="#契約とオーケストレーション"
+id="toc-契約とオーケストレーション">契約とオーケストレーション</a></li>
+<li><a href="#サービス層とコア処理"
+id="toc-サービス層とコア処理">サービス層とコア処理</a></li>
+<li><a href="#実行パイプライン要約"
+id="toc-実行パイプライン要約">実行パイプライン（要約）</a></li>
+</ul></li>
 <li><a href="#よくある質問" id="toc-よくある質問">よくある質問</a></li>
+<li><a href="#手動回帰チェック5分版"
+id="toc-手動回帰チェック5分版">手動回帰チェック（5分版）</a></li>
 <li><a href="#注意事項" id="toc-注意事項">注意事項</a></li>
 <li><a href="#開発者向けメモ" id="toc-開発者向けメモ">開発者向けメモ</a>
 <ul>
@@ -115,34 +131,43 @@ id="toc-モジュール構成">モジュール構成</a></li>
 id="toc-フローチャートなど">フローチャートなど</a></li>
 </ul></li>
 <li><a href="#ライセンス" id="toc-ライセンス">ライセンス</a></li>
+<li><a href="#バージョン情報"
+id="toc-バージョン情報">バージョン情報</a></li>
 </ul></li>
 </ul>
 </nav>
 <h1
 id="フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</h1>
 <p>PDF、JPG、PNGファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。
-Ghostscriptがある環境では高品質な PDF 圧縮を行い、無い場合は
-pypdfによる圧縮へ自動フォールバックします。画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能。さらに画像の一括リサイズ（手動指定
+PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuPDF +
+pikepdf）を利用し、画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能です。さらに画像の一括リサイズ（手動指定
 /
-長辺指定、アスペクト比保持）にも対応。並列処理により大量ファイルでも高速に処理できます。</p>
-<p>本アプリはモジュール分割され、GUIと圧縮ロジック、設定、サウンドユーティリティを分離しています。起動は
-<code>compressor_launcher.py</code> から行います（<code>ui_app.py</code>
-の <code>App</code> を起動）。</p>
+長辺指定、アスペクト比保持）にも対応し、並列処理で大量ファイルにも対応します。</p>
+<p>本アプリはフロントエンド/バックエンド分離構成で、起動は
+<code>compressor_launcher_tkinter.py</code> →
+<code>frontend/bootstrap.py</code> → <code>frontend/ui_tkinter.py</code>
+の順で行います。圧縮処理は <code>backend</code>
+配下の契約・オーケストレータ経由で実行されます。</p>
+<h2 id="関連ドキュメント">関連ドキュメント</h2>
+<ul>
+<li>画面と処理の全体像（HTML）: <a
+href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></li>
+<li>画面と処理の全体像（Markdown）: <a
+href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md</a></li>
+</ul>
 <h2 id="主な機能">主な機能</h2>
 <ul>
-<li>PDF 圧縮（Ghostscript推奨、pypdfフォールバック）
+<li>PDF 圧縮（Ghostscript / ネイティブエンジンを選択可能）
 <ul>
-<li>PDF圧縮エンジンは固定方針（Ghostscript優先 → pypdf → 圧縮不可）
-<ul>
-<li>システムに Ghostscriptが存在すれば
-Ghostscriptを使用（プリセット選択可）</li>
-<li>Ghostscriptが無い場合のみpypdfを使用（簡易圧縮）</li>
-<li>両方無い場合は PDF圧縮不可（UIに状態表示）</li>
-<li>エンジンの再検出はアプリ再起動にて行う仕様</li>
-</ul></li>
-<li>Ghostscriptプリセット選択（/screen /ebook /printer /prepress
-/default）</li>
-<li>PDF品質スライダー（任意）：ON時はGhostscript使用時にプリセットの画像DPIを上書き</li>
+<li>Ghostscript: PDF再蒸留（プリセット選択可）</li>
+<li>ネイティブ: PyMuPDF（画像再圧縮）+ pikepdf（可逆最適化）</li>
+<li>外部ツール依存（Ghostscript/pngquant）欠落時は機能単位で劣化起動（アプリは起動継続）</li>
+<li>エンジン可用性の再検出はアプリ再起動にて行う仕様</li>
+<li>Ghostscript設定: プリセット選択（/screen /ebook /printer /prepress
+/default）またはカスタムDPI指定</li>
+<li>Ghostscript設定: pikepdf構造最適化（可逆）を併用可能</li>
+<li>ネイティブ設定: モード選択（非可逆 / 可逆 /
+両方）、DPI、JPEG品質、PNG→JPEG変換、可逆オプション</li>
 </ul></li>
 <li>画像圧縮
 <ul>
@@ -170,20 +195,21 @@ Ghostscriptを使用（プリセット選択可）</li>
 <li>使いやすいUI
 <ul>
 <li>入力フォルダのドラッグ＆ドロップ</li>
-<li>入出力フォルダのクリーンアップ（.pdf/.jpg/.jpeg/.png
-限定、サブフォルダ含む。出力フォルダは.csvも対象）</li>
+<li>入出力フォルダのクリーンアップ（入力:
+.pdf/.jpg/.jpeg/.png/.zip、出力:
+.pdf/.jpg/.jpeg/.png/.csv。サブフォルダ含む）</li>
 <li>進捗バーと詳細ログ</li>
 <li>入力/出力フォルダの重なりを検知して自動リセット（警告とログを出力）</li>
-<li>PDFエンジンの状態表示（Ghostscript / pypdf /
-圧縮不可）をラベルで表示（再検出はアプリケーション再起動によって行う）</li>
+<li>PDFエンジンの状態表示（Ghostscript / PyMuPDF /
+pikepdf）をラベルで表示（再検出はアプリケーション再起動によって行う）</li>
 <li>Ghostscript未検出時のUI自動制御
 <ul>
-<li>Ghostscriptが無い場合、PDFプリセット選択とPDF品質スライダーは自動的に無効化（グレーアウト）されます</li>
+<li>Ghostscriptが無い場合、Ghostscriptエンジン選択は自動的に無効化されます</li>
 </ul></li>
 <li>リサイズ UI の動的無効化（視覚的にグレー化）
 <ul>
 <li>アプリ起動時は「画像を一括リサイズする」がOFFのため、幅/高さの入力、アスペクト比保持、手動/長辺指定ラジオ、長辺指定ドロップダウンはグレーアウト</li>
-<li>画像リサイズがOFFの場合、プリセットラジオと長辺指定ドロップダウンを無効化</li>
+<li>画像リサイズがOFFの場合、手動/長辺指定ラジオと長辺指定ドロップダウンを無効化</li>
 <li>長辺指定モードでは、幅/高さ/アスペクト比保持の手動入力を無効化</li>
 <li>手動モードでは、長辺指定ドロップダウンを無効化</li>
 </ul></li>
@@ -196,27 +222,58 @@ Ghostscriptを使用（プリセット選択可）</li>
 </ul>
 <h2 id="動作環境と依存">動作環境と依存</h2>
 <ul>
-<li>Python 3.8+</li>
+<li>Python 3.13+</li>
 <li>必須: Pillow</li>
-<li>推奨: Ghostscript（PDF高品質圧縮）,
-pypdf（Ghostscriptが無い場合の代替）</li>
-<li>任意: pngquant（PNG不可逆圧縮）, tkinterdnd2（ドラッグ＆ドロップ）,
+<li>必須: PyMuPDF・pikepdf（ネイティブPDF処理）</li>
+<li>必須: tkinterdnd2（ドラッグ＆ドロップ）</li>
+<li>任意: Ghostscript（PDF再蒸留）, pngquant（PNG不可逆圧縮）,
 pygame（サウンド再生）</li>
 </ul>
+<p>依存検出の実装仕様:</p>
+<ul>
+<li><code>backend/capabilities.py</code> が起動時に可用性を検出します。
+<ul>
+<li>Pythonモジュール: <code>fitz</code> / <code>pikepdf</code></li>
+<li>実行ファイル: <code>ghostscript</code> (<code>gswin64c</code> /
+<code>gswin32c</code> / <code>gs</code>) / <code>pngquant</code></li>
+</ul></li>
+<li>検出結果は
+<code>CapabilityReport</code>（<code>backend/contracts.py</code>）としてUIへ反映されます。</li>
+<li>外部ツール未導入でもアプリは起動継続し、該当機能のみ無効化されます。</li>
+</ul>
 <p>仮想環境の作成を推奨します（PowerShell の例）:</p>
-<p>カレントディレクトリを <code>pdf_photo_compressor</code>
+<p>カレントディレクトリを <code>pjp_compressor_v2</code>
 フォルダに設定してから次のコマンドを入力してください。</p>
 <div class="sourceCode" id="cb1"><pre
 class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install Pillow pypdf tkinterdnd2 pygame</span></code></pre></div>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install Pillow pymupdf pikepdf tkinterdnd2 pygame</span></code></pre></div>
 <p>requirements.txt を利用する場合:</p>
 <div class="sourceCode" id="cb2"><pre
 class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
 <span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">-</span>r requirements<span class="op">.</span><span class="fu">txt</span></span></code></pre></div>
+<h2
+id="実行ファイル化pyinstaller-one-folder">実行ファイル化（PyInstaller /
+one-folder）</h2>
+<p>本プロジェクトは <code>compressor_launcher_tkinter.spec</code>
+を使った one-folder 配布を前提としています。</p>
+<p>事前に <code>pyinstaller</code>
+をインストールしてください（<code>requirements.txt</code>
+を使う場合は同時に導入されます）。</p>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install pyinstaller</span></code></pre></div>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m PyInstaller <span class="op">--</span>clean <span class="op">.</span>\compressor_launcher_tkinter<span class="op">.</span><span class="fu">spec</span></span></code></pre></div>
+<p>生成先は <code>dist/compressor_launcher/</code>
+です。配布時はこのフォルダ全体を渡してください。</p>
+<p>PowerShell スクリプト経由で実行する場合:</p>
+<ul>
+<li>アプリ起動: <code>./compressor_launcher.ps1 -Mode Run</code></li>
+<li>ビルド実行: <code>./compressor_launcher.ps1 -Mode Build</code></li>
+</ul>
 <p>システムツールのインストール:</p>
 <p>PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを使うのがおすすめです。</p>
 <ul>
@@ -229,77 +286,97 @@ macOS: <code>brew install ghostscript</code> / Ubuntu/Debian:
 </ul>
 <h2 id="使い方手順">使い方（手順）</h2>
 <ol type="1">
-<li>アプリを起動
-<ul>
-<li>カレントディレクトリをアプリフォルダにしてから仮想環境に入って、<code>python compressor_launcher.py</code></li>
-<li>仮想環境が用意されていれば、compressor_launcher.ps1をダブルクリックしても起動可能(PowerShellスクリプト)</li>
-</ul></li>
-<li>入力フォルダを指定
-<ul>
-<li>参照ボタンまたはドラッグ＆ドロップ</li>
-</ul></li>
-<li>出力フォルダを指定
-<ul>
-<li>Windows
-は初回起動時にデスクトップへ「圧縮済みファイル」フォルダ作成を提案</li>
-</ul></li>
-<li>圧縮設定
-<ul>
-<li>PDF:
-UIに表示される適用エンジン（Ghostscript優先）を確認し、Ghostscriptの場合はプリセットを選択
-<ul>
-<li>必要に応じて「PDF品質スライダー」をONにし、DPIを調整（Ghostscript使用時にプリセットの画像DPIを上書き）</li>
-</ul></li>
-<li>画像: JPG/PNGの品質（0-100）、PNGをpngquantで圧縮するか選択
-<ul>
-<li>画像リサイズを ON
-にして、モード（手動/長辺）とサイズ、アスペクト比保持を設定</li>
-<li>幅/高さが空欄や非数値の場合は自動で0に補正されます（処理開始時に一度だけ判定）。</li>
-<li>リサイズ設定値の小数点以下は処理開始時に切り捨てられます。</li>
-</ul></li>
-</ul></li>
-<li>圧縮開始
-<ul>
-<li>入力フォルダ内にZIPファイルがある場合、圧縮処理の前に自動的に展開されます（最大25サイクル、循環参照防止機能付き）</li>
-<li>進捗バー・ログで確認</li>
-<li>ファイルごとの Before/After サイズをログに表示</li>
-<li>出力フォルダ内にCSVログ（<code>compression_log_YYYYMMDD_HHMMSS.csv</code>）が作成されます</li>
-</ul></li>
-<li>統計の確認
-<ul>
-<li>合計サイズ、削減量、削減率を上部ラベルに表示（未対応拡張子など圧縮対象外のファイルは統計に含まれません）</li>
-</ul></li>
-<li>クリーンアップ（必要に応じて）
-<ul>
-<li>入力/出力フォルダの .pdf/.jpg/.jpeg/.png
-を削除（サブフォルダ含む。出力フォルダは.csvも対象）</li>
-<li>実行前に対象件数と注意書きを表示</li>
-</ul></li>
+<li>アプリを起動します（仮想環境に入って
+<code>python compressor_launcher_tkinter.py</code>）。</li>
+<li>入力フォルダを指定します（参照ボタンまたはドラッグ＆ドロップ）。</li>
+<li>出力フォルダを指定します（Windowsは初回起動時にデスクトップ作成提案あり）。</li>
+<li>圧縮設定を行います（PDFエンジン選択、必要に応じてネイティブ/GS各設定、画像品質、リサイズ）。</li>
+<li>圧縮を開始します（ZIP自動展開、進捗表示、CSVログ出力）。</li>
+<li>統計を確認します（合計サイズ、削減量、削減率）。</li>
+<li>必要に応じてクリーンアップを実行します（入力/出力フォルダの対象拡張子を削除）。</li>
 </ol>
 <h2 id="モジュール構成">モジュール構成</h2>
+<h3 id="起動とフロントエンド">起動とフロントエンド</h3>
 <ul>
-<li><code>compressor_launcher.py</code>:
-アプリの起動スクリプト（<code>App</code> を起動して mainloop 開始）</li>
-<li><code>ui_app.py</code>: TkinterベースのGUI。圧縮処理は
-<code>compressor_utils</code> の関数を呼び出して実行</li>
-<li><code>compressor_utils.py</code>: 圧縮ロジック・CSV
-ログ・クリーンアップなど（GUI 非依存）</li>
-<li><code>configs.py</code>:
-共有定数（Ghostscriptなどのプリセット、GUI既定値）</li>
-<li><code>sound_utils.py</code>:
-pygameを使った効果音再生（任意依存・初期化失敗時は警告のみ）</li>
+<li><code>compressor_launcher_tkinter.py</code>:
+起動エントリポイント（例外処理・クラッシュログ）</li>
+<li><code>frontend/bootstrap.py</code>:
+起動順序の集約（UI生成・起動時サウンド）</li>
+<li><code>frontend/ui_tkinter.py</code>: Tkinter
+GUIのファサード（起動時副作用・App初期化・モジュール接続）</li>
+<li><code>frontend/ui_tkinter_state.py</code>: Tkinter
+<code>Variable</code> 群の状態初期化責務</li>
+<li><code>frontend/ui_tkinter_view.py</code>:
+ウィジェット構築・レイアウト責務</li>
+<li><code>frontend/ui_tkinter_controller.py</code>:
+イベント処理・入力検証・非同期実行・進捗反映責務</li>
+<li><code>frontend/ui_tkinter_mapper.py</code>: UI状態から
+<code>CompressionRequest</code> への変換責務</li>
 </ul>
+<h3 id="契約とオーケストレーション">契約とオーケストレーション</h3>
+<ul>
+<li><code>backend/contracts.py</code>: FE/BE境界契約（Request / Event /
+Capability / Result）</li>
+<li><code>backend/capabilities.py</code>: 依存可用性検出（fitz / pikepdf
+/ ghostscript / pngquant）</li>
+<li><code>backend/orchestrator/job_runner.py</code>:
+圧縮ジョブの実行オーケストレーション</li>
+</ul>
+<p>契約駆動の主要データ:</p>
+<ul>
+<li><code>CompressionRequest</code>: UI設定をバックエンドへ渡すDTO</li>
+<li><code>ProgressEvent</code> (<code>kind</code>: <code>log</code> /
+<code>progress</code> / <code>stats</code> / <code>status</code> /
+<code>error</code>): UI更新イベント</li>
+<li><code>CapabilityReport</code>: 起動時の依存可用性レポート</li>
+</ul>
+<h3 id="サービス層とコア処理">サービス層とコア処理</h3>
+<ul>
+<li><code>backend/services/*.py</code>:
+PDF・画像・ZIP・クリーンアップ責務の分割入口</li>
+<li><code>backend/core/pdf_utils.py</code>: PDF圧縮（PyMuPDF / pikepdf /
+Ghostscript）責務</li>
+<li><code>backend/core/image_utils.py</code>: 画像圧縮（Pillow /
+pngquant）責務</li>
+<li><code>backend/core/archive_utils.py</code>: ZIP再帰展開責務</li>
+<li><code>backend/core/file_ops.py</code>:
+クリーンアップ／対象件数カウント責務</li>
+<li><code>backend/core/worker_ops.py</code>:
+単一ファイル単位の処理ディスパッチ責務</li>
+<li><code>backend/core/format_utils.py</code>:
+表示用フォーマット（human_readable）責務</li>
+<li><code>backend/core/compressor_utils.py</code>:
+互換shim（公開API再エクスポート + compress_folder委譲）</li>
+<li><code>shared/configs.py</code>:
+共有定数（Ghostscriptなどのプリセット、GUI既定値）</li>
+<li><code>frontend/sound_utils.py</code>:
+pygameを使った効果音再生（UI依存を持たない純粋ユーティリティ）</li>
+</ul>
+<h3 id="実行パイプライン要約">実行パイプライン（要約）</h3>
+<ol type="1">
+<li>UI設定を <code>frontend/ui_tkinter_mapper.py</code> が
+<code>CompressionRequest</code> に変換</li>
+<li><code>backend/orchestrator/job_runner.py</code> がジョブを実行</li>
+<li>ZIP自動展開（任意）→ 入力走査 → ファイル単位タスク化</li>
+<li><code>ThreadPoolExecutor(max(4, cpu_count()))</code> で並列実行</li>
+<li><code>backend/core/worker_ops.py</code>
+が拡張子別にサービス/コアへディスパッチ</li>
+<li><code>ProgressEvent</code> でログ・進捗・統計をUIへ反映</li>
+<li>CSV有効時は <code>compression_log_YYYYMMDD_HHMMSS.csv</code>
+を出力</li>
+</ol>
 <h2 id="よくある質問">よくある質問</h2>
 <ul>
-<li>Q: Ghostscriptとpypdf のどちらが良いですか？
+<li>Q: Ghostscriptとネイティブエンジン（PyMuPDF +
+pikepdf）のどちらが良いですか？
 <ul>
 <li>A:
-Ghostscriptが高品質かつ柔軟で推奨です。pypdfはGhostscriptが使えない環境の簡易代替です。おそらくほとんどの場合、pypdfでは満足な圧縮効果が得られません。</li>
+Ghostscriptは再蒸留ベースで高い圧縮効果が期待できます。ネイティブエンジンはPython環境のみで動作しやすく、可逆最適化も併用できます。目的（画質優先/導入容易性）で選択してください。</li>
 </ul></li>
-<li>Q: PDFの品質スライダーは何をしますか？
+<li>Q: PDF圧縮の設定はどのように使い分ければよいですか？
 <ul>
-<li>A: ONにすると、GhostscriptでPDFを圧縮する際にプリセットの画像 DPI
-を上書きします（Color/Gray/Monoの各画像解像度に適用）。</li>
+<li>A:
+ネイティブを選ぶと、モード（非可逆/可逆/両方）・DPI・JPEG品質・PNG→JPEG変換・可逆オプションを設定できます。Ghostscriptを選ぶと、プリセットまたはカスタムDPIを使った再蒸留に加え、必要ならpikepdf構造最適化を併用できます。</li>
 </ul></li>
 <li>Q: PNG を大幅に圧縮したいです。どのように設定すればよいですか？
 <ul>
@@ -317,8 +394,8 @@ pngquantでの圧縮をONにしてください。品質範囲（min-max）はス
 </ul></li>
 <li>Q: CSVログには何が記録されますか？
 <ul>
-<li>A:
-各ファイルの入力/出力パス、拡張子、処理方法（Ghostscript/pypdf/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、削減率が記録されます。</li>
+<li>A: 各ファイルの入力/出力パス、拡張子、処理方法（Ghostscript/Native
+PDF/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、削減率が記録されます。</li>
 </ul></li>
 <li>Q: CSVログの無効化や保存先の変更はできますか？
 <ul>
@@ -327,20 +404,47 @@ pngquantでの圧縮をONにしてください。品質範囲（min-max）はス
 </ul></li>
 <li>Q: クリーンアップで何が削除されますか？
 <ul>
-<li>A: .pdf/.jpg/.jpeg/.png
-が対象です。（<strong>出力フォルダはログ消去のために.csvも対象</strong>）サブフォルダ内の該当ファイルも削除されます。取り消し不可のため慎重に実行してください。</li>
+<li>A: 入力フォルダは .pdf/.jpg/.jpeg/.png/.zip、出力フォルダは
+.pdf/.jpg/.jpeg/.png/.csv
+が対象です。サブフォルダ内の該当ファイルも削除されます。取り消し不可のため慎重に実行してください。</li>
 </ul></li>
 </ul>
+<h2 id="手動回帰チェック5分版">手動回帰チェック（5分版）</h2>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>python compressor_launcher_tkinter.py</code>
+で起動し、画面が表示される。</label></li>
+<li><label><input type="checkbox" />PDFエンジン状態ラベル（PyMuPDF /
+pikepdf / GS）が表示される。</label></li>
+<li><label><input
+type="checkbox" />「入力フォルダ」「出力フォルダ」を選択し、値が反映される。</label></li>
+<li><label><input
+type="checkbox" />入力欄へファイルまたはフォルダをD&amp;Dしたとき、入力フォルダが更新される。</label></li>
+<li><label><input
+type="checkbox" />JPG/PNGを含む入力で「圧縮開始」を実行し、ログタブ切替（設定ON時）・進捗バー更新・統計更新が行われる。</label></li>
+<li><label><input
+type="checkbox" />出力先に圧縮ファイルが生成される。</label></li>
+<li><label><input
+type="checkbox" />CSV出力ON時にログファイルが生成される。</label></li>
+<li><label><input
+type="checkbox" />リサイズON（手動または長辺指定）で出力画像サイズが設定に従う。</label></li>
+<li><label><input
+type="checkbox" />出力フォルダの「クリーンアップ」で対象拡張子ファイルが削除される。</label></li>
+<li><label><input
+type="checkbox" />処理中に終了した場合、確認ダイアログが出る。</label></li>
+</ul>
+<p>補助: 自動回帰相当の確認は
+<code>python scripts/tkinter_regression_check.py</code>
+でも実行できます。</p>
 <h2 id="注意事項">注意事項</h2>
 <ul>
 <li>大量のファイルを扱う場合、並列処理で高速化しますが、ディスク I/O
 によるボトルネックは発生し得ます。</li>
-<li>PDFはGhostscript
-のプリセットで圧縮します。PDF品質スライダーをONにした場合は、Ghostscript
-使用時にプリセットの画像 DPIを上書きします。</li>
-<li>PDF圧縮エンジンは固定方針（Ghostscript優先 → pypdf →
-圧縮不可）。圧縮エンジンの再検出はアプリ再起動にて行う仕様です。</li>
-<li>Ghostscriptが未検出の環境では、PDFプリセット選択とPDF品質スライダーは自動的に無効化（グレーアウト）されます。</li>
+<li>PDF圧縮は Ghostscript とネイティブ（PyMuPDF +
+pikepdf）を選択可能です。エンジン可用性の再検出はアプリ再起動にて行う仕様です。</li>
+<li>Ghostscript使用時はプリセットまたはカスタムDPIを指定でき、必要に応じてpikepdfの可逆最適化も併用できます。</li>
+<li>Ghostscriptが未検出の環境では、Ghostscriptエンジン選択は自動的に無効化されます。</li>
+<li>pngquantが未検出の環境では、pngquantトグルは自動的に無効化されます。</li>
 <li>pngquantやGhostscript
 は<strong>外部ソフトウェアとしてシステムにインストールする必要があります</strong>（pythonのpipモジュールではインストールできません）。</li>
 <li>入力フォルダと出力フォルダが重なる場合は、ファイル破損を避けるため自動的に両方ともデフォルトフォルダにリセットされ、警告とログが出ます。</li>
@@ -355,13 +459,14 @@ pngquantでの圧縮をONにしてください。品質範囲（min-max）はス
 <li>I/O ボトルネックについて:
 画像/PNG/PDFの読み書き速度はストレージのディスク I/O
 能力に依存します。CPUスレッドの並列度を上げてもディスク性能がボトルネックになる場合があります。</li>
-<li>UI分離:
-圧縮はバックグラウンドスレッドで実行し、Tkのメインスレッドはログと進捗更新のみを担当（UIのフリーズ防止）。</li>
+<li>UI分離: <code>ui_tkinter.py</code>
+はファサードとして責務を束ね、状態/ビュー/コントローラ/DTOマッパーを分離。圧縮はバックグラウンドスレッドで実行し、Tkのメインスレッドはログと進捗更新のみを担当（UIのフリーズ防止）。</li>
 <li>実行時外部ツール検出と例外処理: Ghostscript/pngquantは実行時に
 <code>shutil.which</code>
-で検出し、未導入でも例外を致命化せずフォールバック（pypdf及びPillow）。</li>
-<li>PDF圧縮エンジン固定方針:
-実行時にGhostscriptを最優先。未検出時のみpypdfを使用。圧縮エンジンの再検出はアプリ再起動にて行う仕様です。</li>
+で検出し、未導入でも致命化せず機能単位で劣化します。</li>
+<li>バックエンド境界: UIは <code>CompressionRequest</code>
+を発行し、<code>ProgressEvent</code>
+購読でログ/進捗/統計を反映します。</li>
 <li>CSVログ:
 1回のオープンで逐次追記し、行ごとにフラッシュを強制しない設計（過度な同期
 I/O を回避）。</li>
@@ -370,22 +475,53 @@ I/O を回避）。</li>
 </ul>
 <p>備考:</p>
 <ul>
-<li>GUIと圧縮ロジックは分離され、<code>compressor_utils</code> は
-GUI非依存の関数群として再利用可能。</li>
+<li>GUIと圧縮ロジックは分離され、<code>backend</code> 層は
+UI非依存で再利用可能です。</li>
 <li>共有定数（Ghostscript プリセット、既定フォルダなど）は
-<code>configs.py</code> に集約。</li>
-<li>効果音の操作関数は <code>sound_utils.py</code>
+<code>shared/configs.py</code> に集約。</li>
+<li>効果音の操作関数は <code>frontend/sound_utils.py</code>
 に切り出し、pygameが無い環境でも動作継続可能（初期化失敗時は警告のみ）。</li>
 <li>アプリ起動時はリサイズ関連UIを無効化してグレーアウト。</li>
 </ul>
 <h3 id="フローチャートなど">フローチャートなど</h3>
-<p>こちらのドキュメントを参照してください: <a
-href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></p>
+<p>こちらのドキュメントを参照してください:</p>
+<ul>
+<li>HTML版: <a
+href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></li>
+<li>Markdown版: <a
+href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md</a></li>
+</ul>
 <h2 id="ライセンス">ライセンス</h2>
 <p>このアプリケーションは自由に改変・利用可能です。ご利用環境に応じた依存関係のライセンス条項に従ってください。</p>
-<br><br>
-<div style="text-align: right">
-<p>2025年12月11日<br> 株式会社京都ダイケンビルサービス<br> 川﨑　翔</p>
-</div>
+<h2 id="バージョン情報">バージョン情報</h2>
+<ul>
+<li>バージョン: 1.0.0
+<ul>
+<li>リリース日: 2025年12月11日</li>
+</ul></li>
+<li>バージョン: 2.0.0
+<ul>
+<li>リリース日: 2026年3月5日</li>
+<li>主な変更点:
+<ul>
+<li>PDF圧縮エンジンの選択肢追加（PyMuPDF(非可逆・画像圧縮) +
+pikepdf(可逆・メタデータ最適化) / Ghostscript）</li>
+<li>GUIの改善 (タブ表示など)</li>
+<li>コードベースの大規模リファクタリング
+<ul>
+<li>フロントエンド/バックエンドの完全分離</li>
+<li>起動経路の整理（launcher → frontend.bootstrap →
+frontend/ui_tkinter）</li>
+<li>コードベースのクリーンアップとモジュール再配置</li>
+<li><code>backend/core/compressor_utils.py</code>
+を責務分割（pdf/image/archive/file_ops/worker/format）し、互換shim化</li>
+</ul></li>
+</ul></li>
+</ul></li>
+</ul>
+<hr />
+<p>2026年3月5日<br />
+株式会社京都ダイケンビルサービス<br />
+川﨑　翔</p>
 </body>
 </html>
