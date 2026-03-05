@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import os
+from pathlib import Path
 
 from backend.core.format_utils import human_readable
 from backend.core.image_utils import compress_image_pillow, compress_png_pngquant
@@ -27,30 +27,33 @@ def process_single_file(args):
         resize_cfg,
     ) = args
 
+    inpath = Path(inpath)
+    outpath = Path(outpath)
+
     try:
-        orig_size = os.path.getsize(inpath)
+        orig_size = inpath.stat().st_size
     except Exception:
         orig_size = 0
 
-    outdir = os.path.dirname(outpath)
-    if not os.path.exists(outdir):
-        os.makedirs(outdir, exist_ok=True)
+    outdir = outpath.parent
+    if not outdir.exists():
+        outdir.mkdir(parents=True, exist_ok=True)
 
     processed = False
     if ext == 'pdf':
         processed = True
         if pdf_engine == 'gs':
             _, base_msg = compress_pdf_gs(
-                inpath,
-                outpath,
+                str(inpath),
+                str(outpath),
                 preset=gs_preset,
                 custom_dpi=gs_custom_dpi,
                 lossless_options=pdf_lossless_options,
             )
         else:
             _, base_msg = compress_pdf_native(
-                inpath,
-                outpath,
+                str(inpath),
+                str(outpath),
                 mode=pdf_mode,
                 target_dpi=pdf_dpi,
                 jpeg_quality=pdf_jpeg_quality,
@@ -59,23 +62,23 @@ def process_single_file(args):
             )
     elif ext in ['jpg', 'jpeg']:
         processed = True
-        _, base_msg = compress_image_pillow(inpath, outpath, jpg_quality, resize_cfg=resize_cfg)
+        _, base_msg = compress_image_pillow(str(inpath), str(outpath), jpg_quality, resize_cfg=resize_cfg)
     elif ext == 'png':
         processed = True
         if use_pngquant:
             qmin = max(0, png_quality - 20)
             qmax = png_quality
-            _, base_msg = compress_png_pngquant(inpath, outpath, qmin, qmax, speed=3, resize_cfg=resize_cfg)
+            _, base_msg = compress_png_pngquant(str(inpath), str(outpath), qmin, qmax, speed=3, resize_cfg=resize_cfg)
         else:
-            _, base_msg = compress_image_pillow(inpath, outpath, png_quality, resize_cfg=resize_cfg)
+            _, base_msg = compress_image_pillow(str(inpath), str(outpath), png_quality, resize_cfg=resize_cfg)
     else:
         try:
-            base_msg = f"未対応: {os.path.basename(inpath)}（Left in the input folder）"
+            base_msg = f"未対応: {inpath.name}（Left in the input folder）"
         except Exception as e:
-            base_msg = f"未対応ファイル失敗: {os.path.basename(inpath)} ({e})"
+            base_msg = f"未対応ファイル失敗: {inpath.name} ({e})"
 
     try:
-        out_size = os.path.getsize(outpath) if os.path.exists(outpath) else orig_size
+        out_size = outpath.stat().st_size if outpath.exists() else orig_size
     except Exception:
         out_size = orig_size
 

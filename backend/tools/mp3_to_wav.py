@@ -1,21 +1,20 @@
 import pydub
-import os
 import sys
+from pathlib import Path
 
 # フォルダの中のmp3ファイルをまとめてwavに変換するスクリプト
 def convert_mp3_to_wav(input_folder, output_folder):
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
+    input_dir = Path(input_folder)
+    output_dir = Path(output_folder)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    for filename in os.listdir(input_folder):
-        if filename.endswith('.mp3'):
-            mp3_path = os.path.join(input_folder, filename)
-            wav_filename = os.path.splitext(filename)[0] + '.wav'
-            wav_path = os.path.join(output_folder, wav_filename)
+    for mp3_path in input_dir.iterdir():
+        if mp3_path.is_file() and mp3_path.suffix.lower() == '.mp3':
+            wav_path = output_dir / f"{mp3_path.stem}.wav"
 
             # mp3ファイルを読み込み、wav形式で保存
-            audio = pydub.AudioSegment.from_mp3(mp3_path)
-            audio.export(wav_path, format='wav')
+            audio = pydub.AudioSegment.from_mp3(str(mp3_path))
+            audio.export(str(wav_path), format='wav')
             print(f'Converted: {mp3_path} to {wav_path}')
 
 if __name__ == '__main__':

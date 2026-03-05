@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import os
 import threading
+from pathlib import Path
 from tkinter import filedialog, messagebox
 
 from backend.core.compressor_utils import cleanup_folder, count_target_files, human_readable
@@ -126,13 +126,14 @@ class TkUiControllerMixin:
 
         for path in paths:
             normalized = path.strip('{}')
-            if os.path.isdir(normalized):
+            dropped = Path(normalized)
+            if dropped.is_dir():
                 self.input_dir.set(normalized)
                 self.log(f'D&D で入力フォルダ設定: {normalized}')
                 break
-            if os.path.isfile(normalized):
-                input_dir = os.path.dirname(normalized)
-                self.input_dir.set(input_dir)
+            if dropped.is_file():
+                input_dir = dropped.parent
+                self.input_dir.set(str(input_dir))
                 self.log(f'D&D で入力フォルダ設定: {input_dir}')
                 break
 
@@ -146,11 +147,9 @@ class TkUiControllerMixin:
 
     def _paths_overlap(self, a, b):
         try:
-            abs_a, abs_b = os.path.abspath(a), os.path.abspath(b)
-            if abs_a == abs_b:
-                return True
-            common = os.path.commonpath([abs_a, abs_b])
-            return common == abs_a or common == abs_b
+            pa = Path(a).resolve()
+            pb = Path(b).resolve()
+            return pa == pb or pa in pb.parents or pb in pa.parents
         except Exception:
             return False
 
@@ -161,7 +160,7 @@ class TkUiControllerMixin:
 
     def _choose_csv_path(self):
         path = filedialog.asksaveasfilename(
-            initialdir=self.output_dir.get() or os.getcwd(),
+            initialdir=self.output_dir.get() or str(Path.cwd()),
             defaultextension='.csv',
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
         )
@@ -252,11 +251,11 @@ class TkUiControllerMixin:
             self._set_status('失敗（入力/出力フォルダ未指定）')
             messagebox.showerror('エラー', '両方のフォルダを選択してください')
             return
-        if not os.path.isdir(input_dir):
+        if not Path(input_dir).is_dir():
             self._set_status('失敗（入力フォルダを確認）')
             messagebox.showerror('エラー', '入力フォルダが存在しません')
             return
-        os.makedirs(output_dir, exist_ok=True)
+        Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         if self.auto_switch_log_tab.get():
             self.notebook.select(self.log_tab)
@@ -308,13 +307,13 @@ class TkUiControllerMixin:
 
     def cleanup_input(self):
         input_dir = self.input_dir.get()
-        if not input_dir or not os.path.exists(input_dir):
+        if not input_dir or not Path(input_dir).exists():
             messagebox.showerror('エラー', '入力フォルダが未指定、または存在しません')
             return
 
         count = count_target_files(input_dir, INPUT_DIR_CLEANUP_EXTENSIONS)
         exts = ', '.join(sorted(INPUT_DIR_CLEANUP_EXTENSIONS))
-        play_sound(os.path.join(SOUNDS_DIR, 'warning.wav'))
+        play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
             'クリーンアップ確認',
             f'入力フォルダ内の対象ファイルを削除しますか？\n\n'
@@ -333,13 +332,13 @@ class TkUiControllerMixin:
 
     def cleanup_output(self):
         output_dir = self.output_dir.get()
-        if not output_dir or not os.path.exists(output_dir):
+        if not output_dir or not Path(output_dir).exists():
             messagebox.showerror('エラー', '出力フォルダが未指定、または存在しません')
             return
 
         count = count_target_files(output_dir, OUTPUT_DIR_CLEANUP_EXTENSIONS)
         exts = ', '.join(sorted(OUTPUT_DIR_CLEANUP_EXTENSIONS))
-        play_sound(os.path.join(SOUNDS_DIR, 'warning.wav'))
+        play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
             'クリーンアップ確認',
             f'出力フォルダ内の対象ファイルを削除しますか？\n\n'

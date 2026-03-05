@@ -1,6 +1,6 @@
-import os
 import sys
 import threading
+from pathlib import Path
 """
 sound_utils.py
 
@@ -52,12 +52,13 @@ def play_sound(sound_file):
     """
     if not PYGAME_AVAILABLE:
         return
-    if not os.path.exists(resource_path(sound_file)):
+    sound_path = resource_path(sound_file)
+    if not sound_path.exists():
         return
 
     def _play():
         try:
-            pygame.mixer.music.load(resource_path(sound_file))
+            pygame.mixer.music.load(str(sound_path))
             pygame.mixer.music.play()
             while pygame.mixer.music.get_busy():
                 pygame.time.Clock().tick(10)
@@ -69,9 +70,10 @@ def play_sound(sound_file):
 # ------------- PyInstaller リソースパスヘルパー -------------
 def resource_path(relative_path):
     """PyInstallerがパッケージ化した時でも外部リソースにアクセス可能にするヘルパー関数"""
-    if os.path.isabs(relative_path):
-        return relative_path
+    path = Path(relative_path)
+    if path.is_absolute():
+        return path
     if hasattr(sys, '_MEIPASS'):
-        return os.path.join(sys._MEIPASS, relative_path)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_dir, relative_path)
+        return Path(sys._MEIPASS) / path
+    base_dir = Path(__file__).resolve().parent
+    return base_dir / path

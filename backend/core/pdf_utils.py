@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import io
-import os
 import shutil
 import subprocess
+from pathlib import Path
 
 from PIL import Image
 
@@ -43,12 +43,15 @@ def compress_pdf_lossy(
     png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
 ):
     """PyMuPDF で PDF 内の全埋め込み画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     fitz_module, fitz_error = _import_fitz()
     if fitz_module is None:
-        return False, f"PDF非可逆圧縮失敗: {os.path.basename(input_path)} (PyMuPDF(fitz)が利用できません: {fitz_error})"
+        return False, f"PDF非可逆圧縮失敗: {input_file.name} (PyMuPDF(fitz)が利用できません: {fitz_error})"
 
     try:
-        doc = fitz_module.open(input_path)
+        doc = fitz_module.open(str(input_file))
         replaced_count = 0
         skipped_count = 0
         compressed_cache: dict[int, bytes | None] = {}
@@ -144,29 +147,32 @@ def compress_pdf_lossy(
                     compressed_cache[xref] = None
                     skipped_count += 1
 
-        doc.save(output_path, garbage=4, deflate=True)
+        doc.save(str(output_file), garbage=4, deflate=True)
         doc.close()
 
         total_images = replaced_count + skipped_count
         detail = f"一意の画像{total_images}個中{replaced_count}個を再圧縮"
         if png_to_jpeg:
             detail += ', PNG→JPEG変換あり'
-        return True, f"PDF非可逆圧縮(PyMuPDF): {os.path.basename(input_path)} → OK ({detail}, DPI={target_dpi}, JPEG品質={jpeg_quality})"
+        return True, f"PDF非可逆圧縮(PyMuPDF): {input_file.name} → OK ({detail}, DPI={target_dpi}, JPEG品質={jpeg_quality})"
     except Exception as e:
-        return False, f"PDF非可逆圧縮失敗: {os.path.basename(input_path)} ({e})"
+        return False, f"PDF非可逆圧縮失敗: {input_file.name} ({e})"
 
 
 def compress_pdf_lossless(input_path, output_path, options=None):
     """pikepdf を用いた PDF の構造最適化（可逆）。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     if options is None:
         options = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
 
     pikepdf_module, pikepdf_error = _import_pikepdf()
     if pikepdf_module is None:
-        return False, f"PDF可逆圧縮失敗: {os.path.basename(input_path)} (pikepdfが利用できません: {pikepdf_error})"
+        return False, f"PDF可逆圧縮失敗: {input_file.name} (pikepdfが利用できません: {pikepdf_error})"
 
     try:
-        with pikepdf_module.open(input_path) as pdf:
+        with pikepdf_module.open(str(input_file)) as pdf:
             if options.get('remove_unreferenced', True):
                 pdf.remove_unreferenced_resources()
 
@@ -187,7 +193,7 @@ def compress_pdf_lossless(input_path, output_path, options=None):
             do_recompress = options.get('recompress_streams', True)
 
             pdf.save(
-                output_path,
+                str(output_file),
                 linearize=options.get('linearize', True),
                 object_stream_mode=osm,
                 compress_streams=True,
@@ -206,9 +212,9 @@ def compress_pdf_lossless(input_path, output_path, options=None):
         if options.get('remove_unreferenced'):
             applied.append('孤立リソース削除')
         opts_str = ', '.join(applied) if applied else 'なし'
-        return True, f"PDF可逆圧縮(pikepdf): {os.path.basename(input_path)} → OK ({opts_str})"
+        return True, f"PDF可逆圧縮(pikepdf): {input_file.name} → OK ({opts_str})"
     except Exception as e:
-        return False, f"PDF可逆圧縮失敗: {os.path.basename(input_path)} ({e})"
+        return False, f"PDF可逆圧縮失敗: {input_file.name} ({e})"
 
 
 def get_ghostscript_path():
@@ -223,6 +229,9 @@ def get_ghostscript_path():
 
 def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None):
     """Ghostscriptを利用してPDFを再蒸留・圧縮する。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     gs_exe = get_ghostscript_path()
     if not gs_exe:
         return False, 'Ghostscriptが見つかりません。インストールされているか確認してください。'
@@ -251,23 +260,23 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
         cmd.append(f'-dPDFSETTINGS=/{safe_preset}')
 
     cmd.extend([
-        f'-sOutputFile={output_path}',
-        input_path,
+        f'-sOutputFile={str(output_file)}',
+        str(input_file),
     ])
 
     try:
         result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
 
-        if result.returncode == 0 and os.path.exists(output_path):
-            orig_size = os.path.getsize(input_path)
-            out_size = os.path.getsize(output_path)
+        if result.returncode == 0 and output_file.exists():
+            orig_size = input_file.stat().st_size
+            out_size = output_file.stat().st_size
 
             if out_size >= orig_size:
-                shutil.copy2(input_path, output_path)
-                return True, f"PDF圧縮(GS): {os.path.basename(input_path)} → 圧縮効果なし（元ファイルを維持）"
+                shutil.copy2(str(input_file), str(output_file))
+                return True, f"PDF圧縮(GS): {input_file.name} → 圧縮効果なし（元ファイルを維持）"
 
             mode_str = f'custom_dpi={custom_dpi}' if preset == 'custom' else f'preset={preset}'
-            return True, f"PDF圧縮(GS): {os.path.basename(input_path)} → OK ({mode_str})"
+            return True, f"PDF圧縮(GS): {input_file.name} → OK ({mode_str})"
         return False, f"PDF圧縮(GS) エラー: {result.stderr.strip()}"
 
     except Exception as e:
@@ -284,54 +293,60 @@ def compress_pdf_native(
     lossless_options=None,
 ):
     """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     if mode not in PDF_COMPRESS_MODES:
         mode = 'both'
 
     if mode == 'lossy':
-        return compress_pdf_lossy(input_path, output_path, target_dpi, jpeg_quality, png_to_jpeg)
+        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_to_jpeg)
     if mode == 'lossless':
-        return compress_pdf_lossless(input_path, output_path, lossless_options)
+        return compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
 
-    tmp_path = output_path + '.tmp_lossy.pdf'
+    tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_lossy.pdf')
     try:
-        ok_lossy, msg_lossy = compress_pdf_lossy(input_path, tmp_path, target_dpi, jpeg_quality, png_to_jpeg)
+        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_to_jpeg)
         if not ok_lossy:
-            ok_ll, msg_ll = compress_pdf_lossless(input_path, output_path, lossless_options)
+            ok_ll, msg_ll = compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
             return ok_ll, f"{msg_lossy} / {msg_ll}"
 
-        ok_ll, msg_ll = compress_pdf_lossless(tmp_path, output_path, lossless_options)
+        ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
         if not ok_ll:
-            shutil.copy2(tmp_path, output_path)
+            shutil.copy2(str(tmp_path), str(output_file))
             return True, f"{msg_lossy} / {msg_ll}（可逆段失敗、非可逆結果を採用）"
 
         return True, f"{msg_lossy} / {msg_ll}"
     finally:
         try:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            if tmp_path.exists():
+                tmp_path.unlink()
         except Exception:
             pass
 
 
 def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dpi=None, lossless_options=None):
     """GhostScript による PDF 再蒸留 + オプションで pikepdf 構造最適化。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     if lossless_options:
-        tmp_path = output_path + '.tmp_gs.pdf'
+        tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_gs.pdf')
         try:
-            ok_gs, msg_gs = compress_pdf_ghostscript(input_path, tmp_path, preset, custom_dpi)
+            ok_gs, msg_gs = compress_pdf_ghostscript(str(input_file), str(tmp_path), preset, custom_dpi)
             if not ok_gs:
                 return False, msg_gs
 
-            ok_ll, msg_ll = compress_pdf_lossless(tmp_path, output_path, lossless_options)
+            ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
             if not ok_ll:
-                shutil.copy2(tmp_path, output_path)
+                shutil.copy2(str(tmp_path), str(output_file))
                 return True, f"{msg_gs} / {msg_ll}（可逆段失敗、GS結果を採用）"
 
             return True, f"{msg_gs} / {msg_ll}"
         finally:
             try:
-                if os.path.exists(tmp_path):
-                    os.remove(tmp_path)
+                if tmp_path.exists():
+                    tmp_path.unlink()
             except Exception:
                 pass
-    return compress_pdf_ghostscript(input_path, output_path, preset, custom_dpi)
+    return compress_pdf_ghostscript(str(input_file), str(output_file), preset, custom_dpi)

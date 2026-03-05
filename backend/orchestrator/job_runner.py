@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import csv
 import multiprocessing
-import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable
 
 from shared.configs import (
@@ -46,9 +46,12 @@ def run_compression_job(
     from backend.core.format_utils import human_readable
     from backend.core.worker_ops import process_single_file
 
+    input_base = Path(input_dir)
+    output_base = Path(output_dir)
+
     if extract_zip:
         log_func("ZIPファイルを展開してから圧縮を行います…")
-        extracted_cnt, failed_cnt = extract_zip_archives(input_dir, log_func)
+        extracted_cnt, failed_cnt = extract_zip_archives(input_base, log_func)
         if extracted_cnt == 0 and failed_cnt == 0:
             log_func("ZIPファイルは検出されませんでした。")
         elif failed_cnt > 0:
@@ -56,12 +59,11 @@ def run_compression_job(
         else:
             log_func(f"ZIP展開結果: {extracted_cnt} 件の ZIP を展開しました。")
 
-    total_files = []
-    for root, _, files in os.walk(input_dir):
-        for fname in files:
-            if fname.lower().endswith('.zip'):
-                continue
-            total_files.append((root, fname))
+    total_files: list[Path] = []
+    for file_path in input_base.rglob('*'):
+        if not file_path.is_file() or file_path.suffix.lower() == '.zip':
+            continue
+        total_files.append(file_path)
 
     total_len = len(total_files)
     if total_len == 0:
@@ -72,12 +74,12 @@ def run_compression_job(
         return
 
     tasks = []
-    for root, fname in total_files:
-        inpath = os.path.join(root, fname)
-        ext = fname.lower().split('.')[-1]
-        rel_dir = os.path.relpath(root, input_dir)
-        outdir = os.path.join(output_dir, rel_dir)
-        outpath = os.path.join(outdir, fname)
+    for inpath in total_files:
+        fname = inpath.name
+        ext = inpath.suffix.lower().lstrip('.')
+        rel_dir = inpath.parent.relative_to(input_base)
+        outdir = output_base / rel_dir
+        outpath = outdir / fname
 
         if pdf_lossless_options is None:
             ll_opts = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
@@ -98,8 +100,8 @@ def run_compression_job(
                 }
 
         tasks.append((
-            inpath,
-            outpath,
+            str(inpath),
+            str(outpath),
             ext,
             pdf_engine,
             pdf_mode,
@@ -122,17 +124,21 @@ def run_compression_job(
     csv_writer = None
     if csv_enable:
         try:
+            csv_path_obj: Path
             if not csv_path:
                 ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-                csv_path = os.path.join(output_dir, f"compression_log_{ts}.csv")
-            os.makedirs(os.path.dirname(csv_path), exist_ok=True)
-            csv_file = open(csv_path, 'w', newline='', encoding='utf-8')
+                csv_path_obj = output_base / f"compression_log_{ts}.csv"
+            else:
+                csv_path_obj = Path(csv_path)
+
+            csv_path_obj.parent.mkdir(parents=True, exist_ok=True)
+            csv_file = open(csv_path_obj, 'w', newline='', encoding='utf-8')
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow([
                 'timestamp', 'input_path', 'output_path', 'ext', 'action',
                 'orig_size', 'out_size', 'saved_bytes', 'saved_pct', 'notes',
             ])
-            log_func(f"CSVログ出力: {csv_path}")
+            log_func(f"CSVログ出力: {csv_path_obj}")
         except Exception as exc:
             log_func(f"CSVログの作成に失敗しました: {exc}")
             csv_file = None
@@ -166,10 +172,12 @@ def run_compression_job(
                         inpath_task = task[0]
                         outpath_task = task[1]
                         ext_task = task[2]
+                        inpath_rel = str(Path(inpath_task).relative_to(input_base))
+                        outpath_rel = str(Path(outpath_task).relative_to(output_base))
                         csv_writer.writerow([
                             timestamp,
-                            os.path.relpath(inpath_task, input_dir),
-                            os.path.relpath(outpath_task, output_dir),
+                            inpath_rel,
+                            outpath_rel,
                             ext_task,
                             action,
                             orig_size,

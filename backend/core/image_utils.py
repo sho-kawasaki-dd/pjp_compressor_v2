@@ -1,16 +1,19 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
+from pathlib import Path
 
 from PIL import Image
 
 
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     try:
-        img = Image.open(input_path)
+        img = Image.open(str(input_file))
         if resize_cfg and resize_cfg.get('enabled'):
             mode = resize_cfg.get('mode', 'manual')
             orig_w, orig_h = img.size
@@ -44,29 +47,32 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
                         new_w = w if w > 0 else orig_w
                         new_h = h if h > 0 else orig_h
                     img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        img.save(output_path, optimize=True, quality=quality)
+        img.save(str(output_file), optimize=True, quality=quality)
         msg_extra = ""
         if resize_cfg and resize_cfg.get('enabled'):
             msg_extra = f", resize={img.size[0]}x{img.size[1]}"
-        return True, f"画像圧縮(Pillow): {os.path.basename(input_path)} → OK (quality={quality}{msg_extra})"
+        return True, f"画像圧縮(Pillow): {input_file.name} → OK (quality={quality}{msg_extra})"
     except Exception as e:
-        return False, f"画像失敗: {os.path.basename(input_path)} ({e})"
+        return False, f"画像失敗: {input_file.name} ({e})"
 
 
 def compress_png_pngquant(input_path, output_path, quality_min, quality_max, speed=3, resize_cfg=None):
     """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。"""
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+
     pngquant_exe = shutil.which("pngquant")
     if not pngquant_exe:
-        return compress_image_pillow(input_path, output_path, quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
     tmp_path = None
     try:
         qarg = f"{quality_min}-{quality_max}"
-        src_path = input_path
+        src_path = input_file
         resized_wh = None
         if resize_cfg and resize_cfg.get('enabled'):
             try:
-                tmp_path = output_path + ".tmp_resize.png"
-                img = Image.open(input_path)
+                tmp_path = output_file.with_suffix(output_file.suffix + ".tmp_resize.png")
+                img = Image.open(str(input_file))
                 mode = resize_cfg.get('mode', 'manual')
                 orig_w, orig_h = img.size
                 if mode == 'long_edge':
@@ -101,18 +107,18 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                             new_h = h if h > 0 else orig_h
                         img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
                         resized_wh = (new_w, new_h)
-                img.save(tmp_path, optimize=True)
+                img.save(str(tmp_path), optimize=True)
                 src_path = tmp_path
             except Exception:
-                src_path = input_path
+                src_path = input_file
 
         cmd = [
             pngquant_exe,
             f"--quality={qarg}",
             f"--speed={speed}",
             "--force",
-            "--output", output_path,
-            src_path,
+            "--output", str(output_file),
+            str(src_path),
         ]
         result = subprocess.run(
             cmd,
@@ -123,17 +129,17 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
             encoding='utf-8',
             errors='replace',
         )
-        if result.returncode == 0 and os.path.exists(output_path):
-            msg = f"PNG圧縮(pngquant): {os.path.basename(input_path)} → OK (quality={qarg})"
+        if result.returncode == 0 and output_file.exists():
+            msg = f"PNG圧縮(pngquant): {input_file.name} → OK (quality={qarg})"
             if resized_wh and resize_cfg and resize_cfg.get('enabled'):
                 msg += f", resize={resized_wh[0]}x{resized_wh[1]}"
             return True, msg
-        return compress_image_pillow(input_path, output_path, quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
     except Exception:
-        return compress_image_pillow(input_path, output_path, quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
     finally:
         try:
-            if tmp_path and os.path.exists(tmp_path):
-                os.remove(tmp_path)
+            if tmp_path and tmp_path.exists():
+                tmp_path.unlink()
         except Exception:
             pass

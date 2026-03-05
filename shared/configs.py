@@ -13,21 +13,21 @@ configs.py
 注意:
 - 値のみを提供し、副作用（ファイル作成・外部コマンド検出）は行わない。
 """
-import os
 import sys
+from pathlib import Path
 
 
-def _runtime_base_dir() -> str:
+def _runtime_base_dir() -> Path:
     """実行時の基準ディレクトリ（exe優先、通常実行は本ファイル基準）を返す。"""
     if getattr(sys, 'frozen', False):
-        return os.path.dirname(os.path.abspath(sys.executable))
-    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent.parent
 
 
-def _resource_base_dir() -> str:
+def _resource_base_dir() -> Path:
     """同梱リソース探索の基準ディレクトリを返す。"""
     if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return getattr(sys, '_MEIPASS')
+        return Path(getattr(sys, '_MEIPASS'))
     return _runtime_base_dir()
 
 
@@ -90,11 +90,11 @@ OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv'}
 # 出力フォルダのクリーンアップ対象拡張子。CSV はログファイルを含むため注意。
 
 # アプリ起動時のデフォルト入力フォルダ
-APP_DEFAULT_INPUT_DIR = os.path.join(APP_BASE_DIR, "input_files")
+APP_DEFAULT_INPUT_DIR = APP_BASE_DIR / "input_files"
 # 起動時に UI から参照され、存在しない場合は UI 側で作成される。
 
 # アプリ起動時のデフォルト出力フォルダ
-APP_DEFAULT_OUTPUT_DIR = os.path.join(APP_BASE_DIR, "output_files")
+APP_DEFAULT_OUTPUT_DIR = APP_BASE_DIR / "output_files"
 # 既定出力フォルダ。Windows の場合は UI 側でデスクトップ配下の作成を促す。
 
 # GUI ウィンドウのデフォルトサイズ
@@ -102,11 +102,11 @@ APP_DEFAULT_WINDOW_SIZE = "750x850"
 # Tk ウィンドウのサイズ指定（幅x高さ）。
 
 # サウンドファイル格納ディレクトリ
-SOUNDS_DIR = os.path.join(RESOURCE_BASE_DIR, "sounds")
+SOUNDS_DIR = RESOURCE_BASE_DIR / "sounds"
 # 効果音ファイルの配置ディレクトリ。存在しなくても致命的ではない。
 
 # 画像ファイル格納ディレクトリ
-IMAGES_DIR = os.path.join(RESOURCE_BASE_DIR, "images")
+IMAGES_DIR = RESOURCE_BASE_DIR / "images"
 # アイコンやスプラッシュ画像の配置ディレクトリ。
 
 LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]

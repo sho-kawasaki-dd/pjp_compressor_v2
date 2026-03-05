@@ -1,22 +1,21 @@
 from __future__ import annotations
 
-import os
 from tkinter import Label, PhotoImage, TclError, Toplevel
 
 
-_SPLASH_MIN_VISIBLE_MS = 450
+_SPLASH_MIN_VISIBLE_MS = 700
 
 
 def _build_startup_splash(app) -> Toplevel | None:
     """起動時スプラッシュを作成して返す。生成失敗時は None を返す。"""
     from shared.configs import IMAGES_DIR
 
-    splash_path = os.path.join(IMAGES_DIR, "pjp_compressor_splash.png")
-    if not os.path.exists(splash_path):
+    splash_path = IMAGES_DIR / "pjp_compressor_splash.png"
+    if not splash_path.exists():
         return None
 
     try:
-        splash_image = PhotoImage(file=splash_path)
+        splash_image = PhotoImage(file=str(splash_path))
     except TclError:
         return None
 
@@ -73,7 +72,7 @@ def run_tkinter_app() -> int:
     else:
         app.after(_SPLASH_MIN_VISIBLE_MS, _show_main_window)
 
-    startup_sound = os.path.join(SOUNDS_DIR, "open_window.wav")
+    startup_sound = SOUNDS_DIR / "open_window.wav"
     app.after(120, lambda: play_sound(startup_sound))
     app.mainloop()
     return 0
