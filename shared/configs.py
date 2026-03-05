@@ -105,5 +105,9 @@ APP_DEFAULT_WINDOW_SIZE = "750x850"
 SOUNDS_DIR = os.path.join(RESOURCE_BASE_DIR, "sounds")
 # 効果音ファイルの配置ディレクトリ。存在しなくても致命的ではない。
 
+# 画像ファイル格納ディレクトリ
+IMAGES_DIR = os.path.join(RESOURCE_BASE_DIR, "images")
+# アイコンやスプラッシュ画像の配置ディレクトリ。
+
 LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]
 # 長辺指定リサイズのプリセット値。UI のコンボボックスで使用。

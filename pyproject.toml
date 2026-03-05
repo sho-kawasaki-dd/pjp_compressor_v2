@@ -10,6 +10,7 @@ dependencies = [
     "pikepdf",
     "tkinterdnd2>=0.4.3",
     "pygame>=2.3.0",
+    "pyinstaller>=6.19.0",
 ]
 
 [project.optional-dependencies]

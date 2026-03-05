@@ -214,15 +214,22 @@ dependencies = [
     { name = "tkinterdnd2" },
 ]
 
+[package.optional-dependencies]
+build = [
+    { name = "pyinstaller" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "pikepdf" },
     { name = "pillow" },
     { name = "pygame", specifier = ">=2.3.0" },
     { name = "pyinstaller", specifier = ">=6.19.0" },
+    { name = "pyinstaller", marker = "extra == 'build'", specifier = ">=6.0.0" },
     { name = "pymupdf" },
     { name = "tkinterdnd2", specifier = ">=0.4.3" },
 ]
+provides-extras = ["build"]
 
 [[package]]
 name = "pygame"

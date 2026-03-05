@@ -11,7 +11,7 @@ a = Analysis(
     ['compressor_launcher_tkinter.py'],
     pathex=[],
     binaries=[],
-    datas=[('sounds', 'sounds'), *tkdnd_datas],
+    datas=[('sounds', 'sounds'), ('images', 'images'), *tkdnd_datas],
     hiddenimports=[
         'frontend.bootstrap',
         'backend.contracts',
@@ -41,7 +41,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='compressor_launcher_tkinter',
+    name='PDF_JPG_PNG_Compressor_v2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -52,6 +52,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='images/pjp_compressor_icon.ico',
 )
 coll = COLLECT(
     exe,
@@ -60,5 +61,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='compressor_launcher',
+    name='PDF_JPG_PNG_Compressor_v2',
 )

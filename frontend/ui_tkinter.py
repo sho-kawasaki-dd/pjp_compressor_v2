@@ -35,6 +35,7 @@ from shared.configs import (
     APP_DEFAULT_INPUT_DIR,
     APP_DEFAULT_OUTPUT_DIR,
     APP_DEFAULT_WINDOW_SIZE,
+    IMAGES_DIR,
     SOUNDS_DIR,
 )
 
@@ -103,6 +104,7 @@ class App(
     # ------------------------------------------------------------------
     def __init__(self):
         super().__init__()
+        self._set_window_icon()
         self.title("フォルダ一括圧縮アプリ v2")
         self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 120))
 
@@ -120,6 +122,16 @@ class App(
         self._update_resize_controls()
 
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
+
+    def _set_window_icon(self):
+        """ウィンドウアイコンを設定する。失敗時は既定アイコンのまま継続する。"""
+        icon_path = os.path.join(IMAGES_DIR, "pjp_compressor_icon.ico")
+        if not os.path.exists(icon_path):
+            return
+        try:
+            self.iconbitmap(default=icon_path)
+        except Exception:
+            pass
 
     def _initialize_runtime_side_effects(self):
         mixer_ok, mixer_message = init_mixer()
