@@ -75,7 +75,7 @@ flowchart TD
     D --> E[CompressionRequest を組み立て]
     E --> F[run_compression_request 呼び出し]
     F --> G[run_compression_job 実行]
-    G --> H[ZIP自動展開 任意 最大25サイクル]
+    G --> H[ZIP展開ON時は一時作業領域で再帰展開 最大25サイクル]
     H --> I[入力ファイルを再帰走査]
     I --> J[ファイル単位タスク化]
     J --> K[ThreadPoolExecutorで並列処理]
@@ -124,7 +124,7 @@ sequenceDiagram
     Ctrl->>Mapper: build_compression_request()
     Mapper-->>Ctrl: CompressionRequest
     Ctrl->>Runner: run_compression_request(request)
-    Runner->>FS: ZIP自動展開（任意）
+    Runner->>FS: ZIP展開ON時は一時作業領域で展開（入力不変）
     Runner->>FS: ファイル一覧取得
     Runner->>Worker: 並列タスク投入
 
@@ -325,6 +325,19 @@ document.addEventListener("DOMContentLoaded", function () {
 <li><code>CompressionRequest</code> に
 <code>copy_non_target_files</code>
 を追加し、UI設定からジョブ実行まで伝播。</li>
+<li>ZIP展開ON時、入力フォルダは変更せず一時作業領域で再帰展開する方式へ変更。</li>
+<li>ZIP展開ON時、展開由来ファイルは
+<code>出力/ZIP元相対パス/ZIP stem/</code>
+配下へ内部構造を維持して出力。</li>
+<li>ZIP処理の組み合わせ仕様を明確化:
+<ul>
+<li>ミラーOFF + ZIP展開ON:
+ZIP由来の圧縮対象のみ出力（非対象は出力しない）</li>
+<li>ミラーOFF + ZIP展開OFF: ZIP処理をスキップ</li>
+<li>ミラーON + ZIP展開ON:
+ZIP本体をコピーし、ZIP由来の圧縮対象を圧縮、非対象もコピー</li>
+<li>ミラーON + ZIP展開OFF: ZIP本体をコピー</li>
+</ul></li>
 </ul>
 </body>
 </html>

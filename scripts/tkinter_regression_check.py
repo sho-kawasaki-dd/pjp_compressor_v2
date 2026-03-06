@@ -5,6 +5,8 @@ import shutil
 import sys
 import tempfile
 import time
+import zipfile
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -30,6 +32,95 @@ def wait_threads(app: App, timeout: float = 15.0) -> None:
             return
         time.sleep(0.05)
     raise TimeoutError("worker thread timeout")
+
+
+def snapshot_input_tree(root: Path) -> dict[str, int]:
+    snapshot: dict[str, int] = {}
+    for file_path in root.rglob('*'):
+        if file_path.is_file():
+            rel = str(file_path.relative_to(root)).replace('\\', '/')
+            snapshot[rel] = file_path.stat().st_size
+    return snapshot
+
+
+def clear_output_dir(output_dir: Path) -> None:
+    if output_dir.exists():
+        shutil.rmtree(output_dir, ignore_errors=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
+    normal_jpg = input_dir / "normal.jpg"
+    normal_txt = input_dir / "normal.txt"
+    zip_dir = input_dir / "subpack"
+    zip_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = zip_dir / "myzip.zip"
+
+    Image.new("RGB", (320, 240), color=(0, 0, 255)).save(normal_jpg, "JPEG", quality=95)
+    normal_txt.write_text("normal-text", encoding="utf-8")
+
+    payload_root = input_dir / "_payload_tmp"
+    payload_img = payload_root / "img" / "photo.jpg"
+    payload_txt = payload_root / "docs" / "readme.txt"
+    payload_img.parent.mkdir(parents=True, exist_ok=True)
+    payload_txt.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (240, 180), color=(128, 64, 32)).save(payload_img, "JPEG", quality=95)
+    payload_txt.write_text("zip-non-target", encoding="utf-8")
+
+    with zipfile.ZipFile(zip_path, 'w', compression=zipfile.ZIP_DEFLATED) as zf:
+        zf.write(payload_img, arcname="img/photo.jpg")
+        zf.write(payload_txt, arcname="docs/readme.txt")
+
+    shutil.rmtree(payload_root, ignore_errors=True)
+    return zip_path, normal_jpg, normal_txt
+
+
+def run_zip_matrix_tests(app: App, input_dir: Path, output_dir: Path) -> None:
+    zip_path, _, _ = create_zip_fixture(input_dir)
+    input_before = snapshot_input_tree(input_dir)
+
+    base_request = build_compression_request(app).request
+
+    def execute_case(extract_zip: bool, mirror_mode: bool) -> None:
+        request = replace(
+            base_request,
+            extract_zip=extract_zip,
+            copy_non_target_files=mirror_mode,
+        )
+        captured: list[object] = []
+        run_compression_request(request=request, event_callback=lambda e: captured.append(e))
+        assert any(getattr(evt, "kind", "") == "progress" for evt in captured), "progress event missing in zip case"
+        assert any(getattr(evt, "kind", "") == "stats" for evt in captured), "stats event missing in zip case"
+
+    # (1-a) mirror OFF + extract ON
+    clear_output_dir(output_dir)
+    execute_case(extract_zip=True, mirror_mode=False)
+    assert (output_dir / "subpack" / "myzip" / "img" / "photo.jpg").exists(), "(1-a) extracted compressible missing"
+    assert not (output_dir / "subpack" / "myzip" / "docs" / "readme.txt").exists(), "(1-a) non-target from zip should not be copied"
+    assert not (output_dir / "subpack" / "myzip.zip").exists(), "(1-a) zip should remain only in input"
+
+    # (1-b) mirror OFF + extract OFF
+    clear_output_dir(output_dir)
+    execute_case(extract_zip=False, mirror_mode=False)
+    assert not (output_dir / "subpack" / "myzip.zip").exists(), "(1-b) zip should be skipped"
+    assert not (output_dir / "subpack" / "myzip").exists(), "(1-b) zip extraction output should not exist"
+
+    # (2-a) mirror ON + extract ON
+    clear_output_dir(output_dir)
+    execute_case(extract_zip=True, mirror_mode=True)
+    assert (output_dir / "subpack" / "myzip.zip").exists(), "(2-a) zip copy missing"
+    assert (output_dir / "subpack" / "myzip" / "img" / "photo.jpg").exists(), "(2-a) extracted compressible missing"
+    assert (output_dir / "subpack" / "myzip" / "docs" / "readme.txt").exists(), "(2-a) extracted non-target should be copied"
+
+    # (2-b) mirror ON + extract OFF
+    clear_output_dir(output_dir)
+    execute_case(extract_zip=False, mirror_mode=True)
+    assert (output_dir / "subpack" / "myzip.zip").exists(), "(2-b) zip copy missing"
+    assert not (output_dir / "subpack" / "myzip").exists(), "(2-b) zip extraction output should not exist"
+
+    input_after = snapshot_input_tree(input_dir)
+    assert input_before == input_after, "input folder changed after zip matrix processing"
+    assert zip_path.exists(), "input zip should remain"
 
 
 def main() -> None:
@@ -113,7 +204,7 @@ def main() -> None:
                 # patch UI-thread-sensitive methods during background callback
                 app.log = lambda msg: None
                 app.update_progress = lambda current, total: None
-                app.update_stats = lambda a, b, c, d: None
+                app.update_stats = lambda orig_total, out_total, saved, saved_pct: None
                 app._set_status = lambda text: None
 
                 app.start_compress()
@@ -134,6 +225,12 @@ def main() -> None:
             messagebox.showwarning = lambda *args, **kwargs: None
             app._validate_and_fix_dirs()
             assert app.input_dir.get() != app.output_dir.get(), "overlap guard failed"
+
+            # ZIP matrix regression checks for extract/mirror combinations.
+            app.input_dir.set(str(input_dir))
+            app.output_dir.set(str(output_dir))
+            app.csv_path.set(str(output_dir / "zip_cases.csv"))
+            run_zip_matrix_tests(app, input_dir, output_dir)
 
             print("manual-regression-simulated: PASS")
         finally:

@@ -9,6 +9,8 @@ from backend.core.pdf_utils import compress_pdf_gs, compress_pdf_native
 
 def process_single_file(args):
     """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。"""
+    # Orchestrator may append metadata fields after resize_cfg for logging purposes.
+    args = tuple(args[:15])
     (
         inpath,
         outpath,

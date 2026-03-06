@@ -183,13 +183,26 @@ href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md
 </ul></li>
 <li>高速・安定
 <ul>
-<li>圧縮前に入力フォルダ内のZIPアーカイブを自動的に再帰展開（最大25サイクルで打ち切り、循環ループを防止）</li>
+<li>ZIP展開オプションON時、ZIPアーカイブは入力フォルダを変更せず一時作業領域で再帰展開（最大25サイクルで打ち切り、循環ループを防止）</li>
+<li>ZIP展開オプションON時、展開由来ファイルは
+<code>出力フォルダ/ZIPの元相対パス/ZIPのstem/</code>
+配下へ内部構造を維持して出力</li>
 <li>ThreadPoolExecutorによる並列処理</li>
 <li>出力設定の新オプション（既定OFF）:
 <ul>
 <li>「圧縮対象外のファイルを出力フォルダへコピー」をONにすると、未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
 以外）を入力フォルダの相対構造を保ったまま出力へコピー</li>
 <li>ON時は、圧縮対象拡張子でも圧縮失敗したファイルをフォールバックとして元ファイルコピー</li>
+</ul></li>
+<li>ZIP処理の組み合わせ仕様（<code>ZIP展開してから圧縮</code> ×
+<code>ミラー圧縮</code>）:
+<ul>
+<li>ミラーOFF + ZIP展開ON:
+ZIP由来の圧縮対象のみ出力（非対象は出力しない）、入力ZIPは保持</li>
+<li>ミラーOFF + ZIP展開OFF: ZIP処理はスキップ（従来ログは維持）</li>
+<li>ミラーON + ZIP展開ON:
+入力ZIPを出力へコピーし、ZIP由来の圧縮対象を圧縮、非対象もコピー</li>
+<li>ミラーON + ZIP展開OFF: 入力ZIPを出力へコピー（ZIPに対する処理）</li>
 </ul></li>
 <li>Before/Afterのファイルサイズをログに表示</li>
 <li>処理後に合計削減量と削減率を統計表示（PDF/JPG/PNGなど実際に圧縮を実施したファイルのみを集計）</li>
@@ -363,7 +376,7 @@ pygameを使った効果音再生（UI依存を持たない純粋ユーティリ
 <li>UI設定を <code>frontend/ui_tkinter_mapper.py</code> が
 <code>CompressionRequest</code> に変換</li>
 <li><code>backend/orchestrator/job_runner.py</code> がジョブを実行</li>
-<li>ZIP自動展開（任意）→ 入力走査 → ファイル単位タスク化</li>
+<li>ZIP展開ON時はZIPを一時作業領域で展開（入力不変）し、通常入力ファイルとZIP由来ファイルをタスク化</li>
 <li><code>ThreadPoolExecutor(max(4, cpu_count()))</code> で並列実行</li>
 <li><code>backend/core/worker_ops.py</code>
 が拡張子別にサービス/コアへディスパッチ</li>
@@ -419,6 +432,18 @@ PDF/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、
 <ul>
 <li>A: 未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
 以外）を入力と同じ相対フォルダ構造で出力先へコピーします。加えて、圧縮対象拡張子でも圧縮に失敗したファイルはフォールバックとして元ファイルを出力先へコピーします。</li>
+</ul></li>
+<li>Q:
+ZIP展開オプションをONにしたとき、入力フォルダ内のZIPはどうなりますか？
+<ul>
+<li>A:
+入力フォルダのZIPはそのまま残ります。展開は一時作業領域で行われるため、入力フォルダ内に展開ファイルは残りません。</li>
+</ul></li>
+<li>Q: ZIP展開時の出力先はどのようになりますか？
+<ul>
+<li>A: 各ZIPごとに <code>ZIPのstem</code>
+名フォルダを作成し、<code>出力フォルダ/ZIPの元相対パス/ZIPのstem/</code>
+配下へZIP内部構造を維持して出力します。</li>
 </ul></li>
 </ul>
 <h2 id="手動回帰チェック5分版">手動回帰チェック（5分版）</h2>
@@ -546,10 +571,22 @@ frontend/ui_tkinter）</li>
 <li>圧縮失敗時のフォールバックコピーを追加（トグルON時）</li>
 </ul></li>
 </ul></li>
+<li>バージョン: 2.0.2
+<ul>
+<li>リリース日: 2026年3月6日</li>
+<li>主な変更点:
+<ul>
+<li>ZIP展開時の処理を入力フォルダ直接展開から一時作業領域展開へ変更（入力フォルダ不変を保証）</li>
+<li>ZIP展開時の出力先を、ZIPファイルの拡張子(.zip)を除いた名前のフォルダ配下に統一し、ZIP内部構造を維持して出力</li>
+<li>ZIP処理を <code>ZIP展開してから圧縮</code> と
+<code>ミラー圧縮</code> の組み合わせで明確化</li>
+</ul></li>
+</ul></li>
 </ul>
 <hr />
-<p>2026年3月5日<br />
+<p>2026年3月6日<br />
 株式会社京都ダイケンビルサービス<br />
+千總本社ビル設備<br />
 川﨑　翔</p>
 </body>
 </html>
