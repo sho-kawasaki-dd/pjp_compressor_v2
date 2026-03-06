@@ -42,22 +42,24 @@
 <li><a href="#追加図面フロー図シーケンス図およびクラス図"
 id="toc-追加図面フロー図シーケンス図およびクラス図">追加図面：フロー図、シーケンス図およびクラス図</a>
 <ul>
-<li><a href="#関連ドキュメント"
-id="toc-関連ドキュメント">関連ドキュメント</a></li>
+<li><a href="#改修関連ドキュメント"
+id="toc-改修関連ドキュメント">改修関連ドキュメント</a></li>
 <li><a href="#処理フロー図"
 id="toc-処理フロー図">処理フロー（図）</a></li>
 <li><a href="#シーケンス図圧縮処理の全体フロー"
 id="toc-シーケンス図圧縮処理の全体フロー">シーケンス図（圧縮処理の全体フロー）</a></li>
 <li><a href="#クラス図主要コンポーネントと責務"
 id="toc-クラス図主要コンポーネントと責務">クラス図（主要コンポーネントと責務）</a></li>
-<li><a href="#関連ドキュメント-1"
-id="toc-関連ドキュメント-1">関連ドキュメント</a></li>
+<li><a href="#関連ドキュメント"
+id="toc-関連ドキュメント">関連ドキュメント</a></li>
+<li><a href="#今回の改修2026-03-06"
+id="toc-今回の改修2026-03-06">今回の改修（2026-03-06）</a></li>
 </ul></li>
 </ul>
 </nav>
 <h1
 id="追加図面フロー図シーケンス図およびクラス図">追加図面：フロー図、シーケンス図およびクラス図</h1>
-<h2 id="関連ドキュメント">関連ドキュメント</h2>
+<h2 id="改修関連ドキュメント">改修関連ドキュメント</h2>
 <ul>
 <li>README（HTML）: <a href="./README.html">README.html</a></li>
 <li>README（Markdown）: <a href="./README.md">README.md</a></li>
@@ -309,10 +311,20 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 -->
-<h2 id="関連ドキュメント-1">関連ドキュメント</h2>
+<h2 id="関連ドキュメント">関連ドキュメント</h2>
 <ul>
 <li><a href="./README.html">README（HTML）</a></li>
 <li><a href="./README.md">README（Markdown）</a></li>
+</ul>
+<h2 id="今回の改修2026-03-06">今回の改修（2026-03-06）</h2>
+<ul>
+<li>出力設定に「圧縮対象外のファイルを出力フォルダへコピー」トグルを追加（既定OFF）。</li>
+<li>トグルON時、未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
+以外）を入力フォルダの相対構造を維持したまま出力先へコピー。</li>
+<li>トグルON時、圧縮対象拡張子でも圧縮失敗したファイルはフォールバックとして元ファイルをコピー。</li>
+<li><code>CompressionRequest</code> に
+<code>copy_non_target_files</code>
+を追加し、UI設定からジョブ実行まで伝播。</li>
 </ul>
 </body>
 </html>

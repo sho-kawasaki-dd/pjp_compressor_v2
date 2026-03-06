@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import multiprocessing
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -42,6 +43,7 @@ def run_compression_job(
     csv_enable: bool = True,
     csv_path: str | None = None,
     extract_zip: bool = False,
+    copy_non_target_files: bool = False,
 ) -> None:
     from backend.core.format_utils import human_readable
     from backend.core.worker_ops import process_single_file
@@ -148,6 +150,7 @@ def run_compression_job(
     orig_total = 0
     out_total = 0
     processed_files = 0
+    compressible_extensions = {'pdf', 'jpg', 'jpeg', 'png'}
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {executor.submit(process_single_file, task): task for task in tasks}
@@ -158,6 +161,23 @@ def run_compression_job(
                     orig_total += orig_size
                     out_total += out_size
                     processed_files += 1
+                elif copy_non_target_files:
+                    task = futures[future]
+                    inpath_task = Path(task[0])
+                    outpath_task = Path(task[1])
+                    ext_task = task[2]
+                    is_non_target = ext_task not in compressible_extensions
+                    try:
+                        outpath_task.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(inpath_task, outpath_task)
+                        rel_src = inpath_task.relative_to(input_base)
+                        if is_non_target:
+                            log_func(f"対象外コピー: {rel_src}")
+                        else:
+                            log_func(f"圧縮失敗のためフォールバックコピー: {rel_src}")
+                    except Exception as copy_exc:
+                        rel_src = inpath_task if not inpath_task.is_absolute() else inpath_task.name
+                        log_func(f"コピー失敗: {rel_src} ({copy_exc})")
 
                 cnt += 1
                 log_func(msg)
@@ -258,6 +278,7 @@ def run_compression_request(
             csv_enable=request.csv_enable,
             csv_path=request.csv_path,
             extract_zip=request.extract_zip,
+            copy_non_target_files=request.copy_non_target_files,
         )
     except Exception as exc:
         event_callback(ProgressEvent(kind='error', message=f"処理中にエラー発生: {exc}"))

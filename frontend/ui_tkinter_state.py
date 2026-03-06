@@ -3,6 +3,7 @@ from __future__ import annotations
 import tkinter as tk
 
 from shared.configs import (
+    COPY_NON_TARGET_FILES_DEFAULT,
     GS_DEFAULT_PRESET,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
@@ -47,6 +48,7 @@ class TkUiStateMixin:
         self.csv_enable = tk.BooleanVar(value=True)
         self.csv_path = tk.StringVar(value='')
         self.extract_zip = tk.BooleanVar(value=True)
+        self.copy_non_target_files = tk.BooleanVar(value=COPY_NON_TARGET_FILES_DEFAULT)
         self.auto_switch_log_tab = tk.BooleanVar(value=True)
 
         self.status_var = tk.StringVar(value='待機中')

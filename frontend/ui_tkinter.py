@@ -91,7 +91,7 @@ class App(
     TkUiControllerMixin,
     TkinterDnD.Tk,
 ):
-    """フォルダ一括圧縮アプリケーションのメインウィンドウクラス (tkinter 版)。"""
+    """PDF&JPEG&PNG 圧縮アプリ（フォルダ一括）のメインウィンドウクラス (tkinter 版)。"""
 
     dnd_available = True
     DND_FILES = DND_FILES
@@ -102,7 +102,7 @@ class App(
     def __init__(self):
         super().__init__()
         self._set_window_icon()
-        self.title("フォルダ一括圧縮アプリ v2")
+        self.title("PDF&JPEG&PNG 圧縮アプリ（フォルダ一括） v2")
         self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 120))
 
         self.threads: list[threading.Thread] = []

@@ -111,3 +111,6 @@ IMAGES_DIR = RESOURCE_BASE_DIR / "images"
 
 LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]
 # 長辺指定リサイズのプリセット値。UI のコンボボックスで使用。
+
+# 未対応拡張子のコピーオプション既定値（出力設定トグル）
+COPY_NON_TARGET_FILES_DEFAULT = False

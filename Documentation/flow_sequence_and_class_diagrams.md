@@ -1,6 +1,6 @@
 # 追加図面：フロー図、シーケンス図およびクラス図
 
-## 関連ドキュメント
+## 改修関連ドキュメント
 
 - README（HTML）: [README.html](./README.html)
 - README（Markdown）: [README.md](./README.md)
@@ -261,3 +261,10 @@ document.addEventListener("DOMContentLoaded", function () {
 
 - [README（HTML）](./README.html)
 - [README（Markdown）](./README.md)
+
+## 今回の改修（2026-03-06）
+
+- 出力設定に「圧縮対象外のファイルを出力フォルダへコピー」トグルを追加（既定OFF）。
+- トグルON時、未対応拡張子（`.pdf/.jpg/.jpeg/.png` 以外）を入力フォルダの相対構造を維持したまま出力先へコピー。
+- トグルON時、圧縮対象拡張子でも圧縮失敗したファイルはフォールバックとして元ファイルをコピー。
+- `CompressionRequest` に `copy_non_target_files` を追加し、UI設定からジョブ実行まで伝播。

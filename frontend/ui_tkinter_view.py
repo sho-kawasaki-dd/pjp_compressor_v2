@@ -419,6 +419,14 @@ class TkUiViewMixin:
         zip_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(zip_row, text='ZIP 展開してから圧縮', variable=self.extract_zip).pack(side='left')
 
+        copy_row = ttk.Frame(out_lf)
+        copy_row.pack(fill='x', padx=5, pady=2)
+        ttk.Checkbutton(
+            copy_row,
+            text='圧縮対象外のファイルを出力フォルダへコピー',
+            variable=self.copy_non_target_files,
+        ).pack(side='left')
+
         log_row = ttk.Frame(out_lf)
         log_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(log_row, text='圧縮開始時にログタブへ自動切替', variable=self.auto_switch_log_tab).pack(side='left')
