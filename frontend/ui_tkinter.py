@@ -103,7 +103,7 @@ class App(
         super().__init__()
         self._set_window_icon()
         self.title("PDF&JPEG&PNG 圧縮アプリ（フォルダ一括） v2")
-        self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 120))
+        self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 140))
 
         self.threads: list[threading.Thread] = []
         self._initialize_runtime_side_effects()

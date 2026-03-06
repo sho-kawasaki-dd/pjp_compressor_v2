@@ -423,7 +423,7 @@ class TkUiViewMixin:
         copy_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(
             copy_row,
-            text='圧縮対象外のファイルを出力フォルダへコピー',
+            text='圧縮対象外のファイルを出力フォルダへコピー（ミラー圧縮）',
             variable=self.copy_non_target_files,
         ).pack(side='left')
 
