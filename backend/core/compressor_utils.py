@@ -30,7 +30,8 @@ from backend.core.pdf_utils import (
 )
 from backend.core.worker_ops import process_single_file
 
-PUBLIC_BACKEND_API = (
+# 互換維持対象の公開APIシンボル一覧
+__all__ = (
     'compress_folder',
     'cleanup_folder',
     'count_target_files',
@@ -38,14 +39,10 @@ PUBLIC_BACKEND_API = (
     'get_ghostscript_path',
 )
 
-__all__ = list(PUBLIC_BACKEND_API)
-
-
-def get_public_api_symbols():
+def get_public_api_symbols() -> tuple[str, ...]:
     """互換維持対象の公開APIシンボル一覧を返す。"""
-    return PUBLIC_BACKEND_API
-
-
+    return __all__
+    
 def compress_folder(
     input_dir,
     output_dir,
