@@ -1,73 +1,76 @@
 from __future__ import annotations
 
 import threading
+import tkinter as tk
 from pathlib import Path
+from typing import Any, Callable, cast
 from tkinter import filedialog, messagebox
 
 from backend.core.compressor_utils import cleanup_folder, count_target_files, human_readable
 from backend.contracts import ProgressEvent
 from backend.orchestrator.job_runner import run_compression_request
+from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
 from shared.configs import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
 
 
 class TkUiControllerMixin:
-    def _update_pdf_controls(self):
-        engine = self.pdf_engine.get()
+    def _controller_host(self) -> TkUiControllerHostProtocol:
+        return cast(TkUiControllerHostProtocol, self)
+
+    def _schedule_on_ui_thread(self, callback: Callable[[], None]) -> None:
+        self._controller_host().after(0, callback)
+
+    @staticmethod
+    def _set_widget_state(widget: tk.Misc, state: str) -> None:
+        try:
+            cast(Any, widget).config(state=state)
+        except tk.TclError:
+            pass
+
+    def _update_pdf_controls(self) -> None:
+        host = self._controller_host()
+        engine = host.pdf_engine.get()
 
         if engine == 'native':
-            self.gs_frame.pack_forget()
-            self.native_frame.pack(fill='x', padx=5, pady=(2, 5))
+            host.gs_frame.pack_forget()
+            host.native_frame.pack(fill='x', padx=5, pady=(2, 5))
 
-            mode = self.pdf_mode.get()
+            mode = host.pdf_mode.get()
             lossy_active = mode in ('lossy', 'both')
             lossless_active = mode in ('lossless', 'both')
 
             lossy_state = 'normal' if lossy_active else 'disabled'
-            for widget in self._native_lossy_widgets:
-                try:
-                    widget.config(state=lossy_state)
-                except Exception:
-                    pass
-            try:
-                self.dpi_scale.config(state=lossy_state)
-                self.jpeg_q_scale.config(state=lossy_state)
-            except Exception:
-                pass
+            for widget in host._native_lossy_widgets:
+                self._set_widget_state(widget, lossy_state)
+            self._set_widget_state(host.dpi_scale, lossy_state)
+            self._set_widget_state(host.jpeg_q_scale, lossy_state)
 
-            if lossy_active and not self.pdf_png_to_jpeg.get():
-                self.jpeg_note_label.pack(side='left', padx=(5, 0))
+            if lossy_active and not host.pdf_png_to_jpeg.get():
+                host.jpeg_note_label.pack(side='left', padx=(5, 0))
             else:
-                self.jpeg_note_label.pack_forget()
+                host.jpeg_note_label.pack_forget()
 
             lossless_state = 'normal' if lossless_active else 'disabled'
-            for widget in self._native_lossless_widgets:
-                try:
-                    widget.config(state=lossless_state)
-                except Exception:
-                    pass
+            for widget in host._native_lossless_widgets:
+                self._set_widget_state(widget, lossless_state)
             return
 
-        self.native_frame.pack_forget()
-        self.gs_frame.pack(fill='x', padx=5, pady=(2, 5))
+        host.native_frame.pack_forget()
+        host.gs_frame.pack(fill='x', padx=5, pady=(2, 5))
 
-        is_custom = self.gs_preset.get() == 'custom'
-        for widget in self._gs_custom_dpi_widgets:
-            try:
-                widget.config(state='normal' if is_custom else 'disabled')
-            except Exception:
-                pass
+        is_custom = host.gs_preset.get() == 'custom'
+        for widget in host._gs_custom_dpi_widgets:
+            self._set_widget_state(widget, 'normal' if is_custom else 'disabled')
 
-        gs_lossless = self.gs_use_lossless.get()
-        for widget in self._gs_lossless_widgets:
-            try:
-                widget.config(state='normal' if gs_lossless else 'disabled')
-            except Exception:
-                pass
+        gs_lossless = host.gs_use_lossless.get()
+        for widget in host._gs_lossless_widgets:
+            self._set_widget_state(widget, 'normal' if gs_lossless else 'disabled')
 
-    def _refresh_pdf_engine_status(self):
-        report = self.capabilities
+    def _refresh_pdf_engine_status(self) -> None:
+        host = self._controller_host()
+        report = host.capabilities
         parts = [
             'PyMuPDF:OK' if report.fitz_available else 'PyMuPDF:なし',
             'pikepdf:OK' if report.pikepdf_available else 'pikepdf:なし',
@@ -75,77 +78,73 @@ class TkUiControllerMixin:
         ]
 
         if not report.ghostscript_available:
-            try:
-                self.gs_rb.config(state='disabled')
-            except Exception:
-                pass
-            if self.pdf_engine.get() == 'gs':
-                self.pdf_engine.set('native')
+            self._set_widget_state(host.gs_rb, 'disabled')
+            if host.pdf_engine.get() == 'gs':
+                host.pdf_engine.set('native')
 
         if not report.native_pdf_available:
-            try:
-                self.native_rb.config(state='disabled')
-            except Exception:
-                pass
+            self._set_widget_state(host.native_rb, 'disabled')
 
-        self.pdf_engine_status_var.set(f"（{', '.join(parts)}）")
+        host.pdf_engine_status_var.set(f"（{', '.join(parts)}）")
 
-    def _update_resize_controls(self):
-        try:
-            enabled = self.resize_enabled.get()
-            mode = self.resize_mode.get()
-            is_manual = enabled and mode == 'manual'
-            is_long_edge = enabled and mode == 'long_edge'
+    def _update_resize_controls(self) -> None:
+        host = self._controller_host()
+        enabled = host.resize_enabled.get()
+        mode = host.resize_mode.get()
+        is_manual = enabled and mode == 'manual'
+        is_long_edge = enabled and mode == 'long_edge'
 
-            for widget in (self.resize_width_entry, self.resize_height_entry):
-                widget.config(state='normal' if is_manual else 'disabled')
-            self.resize_keep_aspect_chk.config(state='normal' if is_manual else 'disabled')
-            self.resize_mode_manual_rb.config(state='normal' if enabled else 'disabled')
-            self.resize_mode_long_rb.config(state='normal' if enabled else 'disabled')
-            self.long_edge_combo.config(state='normal' if is_long_edge else 'disabled')
-        except Exception:
-            pass
+        for widget in (host.resize_width_entry, host.resize_height_entry):
+            self._set_widget_state(widget, 'normal' if is_manual else 'disabled')
+        self._set_widget_state(host.resize_keep_aspect_chk, 'normal' if is_manual else 'disabled')
+        self._set_widget_state(host.resize_mode_manual_rb, 'normal' if enabled else 'disabled')
+        self._set_widget_state(host.resize_mode_long_rb, 'normal' if enabled else 'disabled')
+        self._set_widget_state(host.long_edge_combo, 'normal' if is_long_edge else 'disabled')
 
-    def choose_input(self):
-        folder = filedialog.askdirectory(initialdir=self.input_dir.get() or None)
+    def choose_input(self) -> None:
+        host = self._controller_host()
+        folder = filedialog.askdirectory(initialdir=host.input_dir.get() or None)
         if folder:
-            self.input_dir.set(folder)
+            host.input_dir.set(folder)
             self._validate_and_fix_dirs()
 
-    def choose_output(self):
-        folder = filedialog.askdirectory(initialdir=self.output_dir.get() or None)
+    def choose_output(self) -> None:
+        host = self._controller_host()
+        folder = filedialog.askdirectory(initialdir=host.output_dir.get() or None)
         if folder:
-            self.output_dir.set(folder)
+            host.output_dir.set(folder)
             self._validate_and_fix_dirs()
 
-    def _on_drop_input(self, event):
+    def _on_drop_input(self, event: DropEventProtocol) -> None:
+        host = self._controller_host()
         try:
-            paths = self.tk.splitlist(event.data)
-        except Exception:
+            paths = host.tk.splitlist(event.data)
+        except tk.TclError:
             paths = [event.data]
 
         for path in paths:
             normalized = path.strip('{}')
             dropped = Path(normalized)
             if dropped.is_dir():
-                self.input_dir.set(normalized)
+                host.input_dir.set(normalized)
                 self.log(f'D&D で入力フォルダ設定: {normalized}')
                 break
             if dropped.is_file():
                 input_dir = dropped.parent
-                self.input_dir.set(str(input_dir))
+                host.input_dir.set(str(input_dir))
                 self.log(f'D&D で入力フォルダ設定: {input_dir}')
                 break
 
-    def _validate_and_fix_dirs(self):
-        new_input, new_output, conflict = self._check_overlap_and_fix(self.input_dir.get(), self.output_dir.get())
+    def _validate_and_fix_dirs(self) -> None:
+        host = self._controller_host()
+        new_input, new_output, conflict = self._check_overlap_and_fix(host.input_dir.get(), host.output_dir.get())
         if conflict:
-            self.input_dir.set(new_input)
-            self.output_dir.set(new_output)
+            host.input_dir.set(new_input)
+            host.output_dir.set(new_output)
             self.log(f'入出力フォルダ重なり → リセット 入力:{new_input} 出力:{new_output}')
             messagebox.showwarning('入出力フォルダの重なり', '入力/出力フォルダが同一または内包関係にあるためデフォルトに戻しました。')
 
-    def _paths_overlap(self, a, b):
+    def _paths_overlap(self, a: str, b: str) -> bool:
         try:
             pa = Path(a).resolve()
             pb = Path(b).resolve()
@@ -153,69 +152,75 @@ class TkUiControllerMixin:
         except Exception:
             return False
 
-    def _check_overlap_and_fix(self, input_dir, output_dir):
+    def _check_overlap_and_fix(self, input_dir: str, output_dir: str) -> tuple[str, str, bool]:
+        host = self._controller_host()
         if input_dir and output_dir and self._paths_overlap(input_dir, output_dir):
-            return self.default_input_dir, self.default_output_dir, True
+            return host.default_input_dir, host.default_output_dir, True
         return input_dir, output_dir, False
 
-    def _choose_csv_path(self):
+    def _choose_csv_path(self) -> None:
+        host = self._controller_host()
         path = filedialog.asksaveasfilename(
-            initialdir=self.output_dir.get() or str(Path.cwd()),
+            initialdir=host.output_dir.get() or str(Path.cwd()),
             defaultextension='.csv',
             filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
         )
         if path:
-            self.csv_path.set(path)
+            host.csv_path.set(path)
 
-    def _set_status(self, text):
+    def _set_status(self, text: str) -> None:
+        host = self._controller_host()
         if threading.current_thread() is threading.main_thread():
-            self.status_var.set(text)
+            host.status_var.set(text)
             return
-        self.after(0, lambda: self.status_var.set(text))
+        self._schedule_on_ui_thread(lambda: host.status_var.set(text))
 
-    def _append_log(self, msg):
-        self.log_text.insert('end', msg + '\n')
-        self.log_text.see('end')
+    def _append_log(self, msg: str) -> None:
+        host = self._controller_host()
+        host.log_text.insert('end', msg + '\n')
+        host.log_text.see('end')
 
         if '完了！' in msg:
-            current = self.progress['value']
-            self.status_var.set(f'完了（進捗 {int(current)}%）')
+            current = int(float(host.progress['value']))
+            host.status_var.set(f'完了（進捗 {current}%）')
         elif '処理中にエラー発生' in msg:
-            self.status_var.set('失敗（詳細はログ）')
+            host.status_var.set('失敗（詳細はログ）')
 
-    def log(self, msg):
+    def log(self, msg: str) -> None:
         if threading.current_thread() is threading.main_thread():
             self._append_log(msg)
             return
-        self.after(0, lambda: self._append_log(msg))
+        self._schedule_on_ui_thread(lambda: self._append_log(msg))
 
-    def _update_progress_ui(self, current, total):
+    def _update_progress_ui(self, current: int, total: int) -> None:
+        host = self._controller_host()
         pct = 100 if total <= 0 else int(current / total * 100)
-        self.progress['value'] = pct
-        self.status_var.set(f'処理中 {pct}% ({current}/{total})')
-        self.update_idletasks()
+        host.progress['value'] = pct
+        host.status_var.set(f'処理中 {pct}% ({current}/{total})')
+        host.update_idletasks()
 
-    def update_progress(self, current, total):
+    def update_progress(self, current: int, total: int) -> None:
         if threading.current_thread() is threading.main_thread():
             self._update_progress_ui(current, total)
             return
-        self.after(0, lambda: self._update_progress_ui(current, total))
+        self._schedule_on_ui_thread(lambda: self._update_progress_ui(current, total))
 
-    def _update_stats_ui(self, orig_total, out_total, saved, saved_pct):
-        self.stats_var.set(
+    def _update_stats_ui(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
+        host = self._controller_host()
+        host.stats_var.set(
             f'統計: 元合計={human_readable(orig_total)}, '
             f'出力合計={human_readable(out_total)}, '
             f'削減={human_readable(saved)} ({saved_pct:.1f}%)'
         )
-        self.status_var.set(f'完了（削減率 {saved_pct:.1f}%）')
+        host.status_var.set(f'完了（削減率 {saved_pct:.1f}%）')
 
-    def update_stats(self, orig_total, out_total, saved, saved_pct):
+    def update_stats(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
         if threading.current_thread() is threading.main_thread():
             self._update_stats_ui(orig_total, out_total, saved, saved_pct)
             return
-        self.after(0, lambda: self._update_stats_ui(orig_total, out_total, saved, saved_pct))
+        self._schedule_on_ui_thread(lambda: self._update_stats_ui(orig_total, out_total, saved, saved_pct))
 
-    def _on_progress_event(self, event: ProgressEvent):
+    def _on_progress_event(self, event: ProgressEvent) -> None:
         if event.kind == 'log' and event.message is not None:
             self.log(event.message)
             return
@@ -232,19 +237,20 @@ class TkUiControllerMixin:
             self.log(event.message)
             self._set_status('失敗（詳細はログ）')
 
-    def start_compress(self):
-        input_dir = self.input_dir.get()
-        output_dir = self.output_dir.get()
+    def start_compress(self) -> None:
+        host = self._controller_host()
+        input_dir = host.input_dir.get()
+        output_dir = host.output_dir.get()
 
         fixed_input, fixed_output, conflict = self._check_overlap_and_fix(input_dir, output_dir)
         if conflict:
-            self.input_dir.set(fixed_input)
-            self.output_dir.set(fixed_output)
+            host.input_dir.set(fixed_input)
+            host.output_dir.set(fixed_output)
             input_dir, output_dir = fixed_input, fixed_output
             self.log(f'入出力フォルダ重なり → リセット 入力:{fixed_input} 出力:{fixed_output}')
             messagebox.showwarning(
                 '入出力フォルダの重なり',
-                f'デフォルトに戻しました。\n入力: {self.default_input_dir}\n出力: {self.default_output_dir}',
+                f'デフォルトに戻しました。\n入力: {host.default_input_dir}\n出力: {host.default_output_dir}',
             )
 
         if not input_dir or not output_dir:
@@ -257,15 +263,15 @@ class TkUiControllerMixin:
             return
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-        if self.auto_switch_log_tab.get():
-            self.notebook.select(self.log_tab)
+        if host.auto_switch_log_tab.get():
+            host.notebook.select(host.log_tab)
 
-        self.log_text.delete(1.0, 'end')
-        self.progress['value'] = 0
-        self.stats_var.set('統計: 処理中...')
-        self.status_var.set('圧縮開始準備中…')
+        host.log_text.delete(1.0, 'end')
+        host.progress['value'] = 0
+        host.stats_var.set('統計: 処理中...')
+        host.status_var.set('圧縮開始準備中…')
 
-        result = build_compression_request(self)
+        result = build_compression_request(host)
         request = result.request
 
         self.log(f'圧縮開始: 入力={input_dir}')
@@ -280,19 +286,19 @@ class TkUiControllerMixin:
             if request.gs_preset == 'custom':
                 self.log(
                     f'PDF: GhostScript カスタムDPI={request.gs_custom_dpi}, '
-                    f'pikepdf併用={self.gs_use_lossless.get()}'
+                    f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
             else:
                 self.log(
                     f'PDF: GhostScript プリセット={request.gs_preset}, '
-                    f'pikepdf併用={self.gs_use_lossless.get()}'
+                    f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
 
         self.log(
             f'画像: JPG={request.jpg_quality}, PNG={request.png_quality}, '
             f'pngquant={request.use_pngquant}'
         )
-        if self.resize_enabled.get():
+        if host.resize_enabled.get():
             self.log(f'リサイズ: {result.resize_config}')
 
         self._set_status('処理中 0% (0/0)')
@@ -302,11 +308,12 @@ class TkUiControllerMixin:
             kwargs={'request': request, 'event_callback': self._on_progress_event},
             daemon=True,
         )
-        self.threads.append(thread)
+        host.threads.append(thread)
         thread.start()
 
-    def cleanup_input(self):
-        input_dir = self.input_dir.get()
+    def cleanup_input(self) -> None:
+        host = self._controller_host()
+        input_dir = host.input_dir.get()
         if not input_dir or not Path(input_dir).exists():
             messagebox.showerror('エラー', '入力フォルダが未指定、または存在しません')
             return
@@ -327,11 +334,12 @@ class TkUiControllerMixin:
                 args=(input_dir, self.log, '入力フォルダ', INPUT_DIR_CLEANUP_EXTENSIONS),
                 daemon=True,
             )
-            self.threads.append(thread)
+            host.threads.append(thread)
             thread.start()
 
-    def cleanup_output(self):
-        output_dir = self.output_dir.get()
+    def cleanup_output(self) -> None:
+        host = self._controller_host()
+        output_dir = host.output_dir.get()
         if not output_dir or not Path(output_dir).exists():
             messagebox.showerror('エラー', '出力フォルダが未指定、または存在しません')
             return
@@ -352,11 +360,12 @@ class TkUiControllerMixin:
                 args=(output_dir, self.log, '出力フォルダ', OUTPUT_DIR_CLEANUP_EXTENSIONS),
                 daemon=True,
             )
-            self.threads.append(thread)
+            host.threads.append(thread)
             thread.start()
 
-    def on_exit(self):
-        if any(thread.is_alive() for thread in self.threads):
+    def on_exit(self) -> None:
+        host = self._controller_host()
+        if any(thread.is_alive() for thread in host.threads):
             if not messagebox.askyesno('終了確認', '処理中のスレッドがあります。終了しますか？'):
                 return
-        self.destroy()
+        host.destroy()

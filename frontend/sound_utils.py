@@ -1,6 +1,5 @@
-import sys
-import threading
-from pathlib import Path
+from __future__ import annotations
+
 """
 sound_utils.py
 
@@ -14,6 +13,11 @@ pygame を使った簡易な効果音再生ユーティリティ。
     戻り値で状態を返し、警告表示などのUI責務は呼び出し側に委譲する。
 """
 
+import sys
+import threading
+from pathlib import Path
+from typing import Any, cast
+
 # pygame は任意依存。未インストールでも動作可能にする。
 try:
     import pygame
@@ -22,19 +26,26 @@ except Exception:
     pygame = None
     PYGAME_AVAILABLE = False
 
+
+PathLike = str | Path
+
+
 # ------------- サウンド再生ユーティリティ -------------
-def init_mixer():
+def init_mixer() -> tuple[bool, str | None]:
     """pygame ミキサーの初期化。"""
-    if not PYGAME_AVAILABLE:
+    pygame_module = pygame
+    if not PYGAME_AVAILABLE or pygame_module is None:
         return False, "pygame が利用できないため、サウンド再生は無効化されます。"
     try:
         # pre_init: 44100Hz, 16bit, ステレオ, バッファ512
-        pygame.mixer.pre_init(44100, -16, 2, 512)
-        pygame.mixer.init()
+        pygame_module.mixer.pre_init(44100, -16, 2, 512)
+        pygame_module.mixer.init()
         return True, None
     except Exception:
         return False, "pygame ミキサーの初期化に失敗しました。サウンド再生は無効化されます。"
-def play_sound(sound_file):
+
+
+def play_sound(sound_file: PathLike) -> None:
     """
     指定されたサウンドファイルを非同期で再生。
     pygame を使用。ファイルが無い場合は無視。
@@ -50,30 +61,32 @@ def play_sound(sound_file):
 
         - アプリケーションが実行ファイル化されている場合にも対応。
     """
-    if not PYGAME_AVAILABLE:
+    pygame_module = pygame
+    if not PYGAME_AVAILABLE or pygame_module is None:
         return
     sound_path = resource_path(sound_file)
     if not sound_path.exists():
         return
 
-    def _play():
+    def _play() -> None:
         try:
-            pygame.mixer.music.load(str(sound_path))
-            pygame.mixer.music.play()
-            while pygame.mixer.music.get_busy():
-                pygame.time.Clock().tick(10)
+            pygame_module.mixer.music.load(str(sound_path))
+            pygame_module.mixer.music.play()
+            while pygame_module.mixer.music.get_busy():
+                pygame_module.time.Clock().tick(10)
         except Exception:
             pass
 
     threading.Thread(target=_play, daemon=True).start()
 
+
 # ------------- PyInstaller リソースパスヘルパー -------------
-def resource_path(relative_path):
+def resource_path(relative_path: PathLike) -> Path:
     """PyInstallerがパッケージ化した時でも外部リソースにアクセス可能にするヘルパー関数"""
     path = Path(relative_path)
     if path.is_absolute():
         return path
     if hasattr(sys, '_MEIPASS'):
-        return Path(sys._MEIPASS) / path
+        return Path(cast(Any, sys)._MEIPASS) / path
     base_dir = Path(__file__).resolve().parent
     return base_dir / path

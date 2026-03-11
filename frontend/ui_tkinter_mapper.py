@@ -1,15 +1,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
 
 from backend.contracts import CompressionRequest
+from frontend.ui_contracts import CompressionRequestAppProtocol
 
 
 @dataclass(frozen=True)
 class RequestBuildResult:
     request: CompressionRequest
-    resize_config: dict[str, Any] | bool
+    resize_config: dict[str, int | bool | str] | bool
     resize_width: int
     resize_height: int
 
@@ -22,7 +22,7 @@ def to_non_negative_int(value: str) -> int:
         return 0
 
 
-def build_resize_config(app: Any) -> tuple[dict[str, Any] | bool, int, int]:
+def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, int | bool | str] | bool, int, int]:
     mode = app.resize_mode.get()
     resize_width = to_non_negative_int(app.resize_width.get())
     resize_height = to_non_negative_int(app.resize_height.get())
@@ -32,7 +32,7 @@ def build_resize_config(app: Any) -> tuple[dict[str, Any] | bool, int, int]:
     except Exception:
         long_edge = 0
 
-    resize_config: dict[str, Any] | bool = False
+    resize_config: dict[str, int | bool | str] | bool = False
     if app.resize_enabled.get():
         if mode == 'long_edge' and long_edge > 0:
             resize_config = {
@@ -53,7 +53,7 @@ def build_resize_config(app: Any) -> tuple[dict[str, Any] | bool, int, int]:
     return resize_config, resize_width, resize_height
 
 
-def build_lossless_options(app: Any) -> dict[str, bool]:
+def build_lossless_options(app: CompressionRequestAppProtocol) -> dict[str, bool]:
     return {
         'linearize': app.pdf_ll_linearize.get(),
         'object_streams': app.pdf_ll_object_streams.get(),
@@ -63,7 +63,10 @@ def build_lossless_options(app: Any) -> dict[str, bool]:
     }
 
 
-def resolve_pdf_lossless_options(app: Any, base_options: dict[str, bool]) -> dict[str, bool] | None:
+def resolve_pdf_lossless_options(
+    app: CompressionRequestAppProtocol,
+    base_options: dict[str, bool],
+) -> dict[str, bool] | None:
     engine = app.pdf_engine.get()
     if engine == 'gs':
         return base_options if app.gs_use_lossless.get() else None
@@ -72,7 +75,7 @@ def resolve_pdf_lossless_options(app: Any, base_options: dict[str, bool]) -> dic
     return base_options if mode in ('lossless', 'both') else None
 
 
-def build_compression_request(app: Any) -> RequestBuildResult:
+def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuildResult:
     resize_config, resize_width, resize_height = build_resize_config(app)
     lossless_options = build_lossless_options(app)
     pdf_lossless_options = resolve_pdf_lossless_options(app, lossless_options)

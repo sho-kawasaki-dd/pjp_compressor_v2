@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import tkinter as tk
 from tkinter import ttk
+from typing import Callable, Protocol, cast
 
 from shared.configs import (
     GS_PRESETS,
@@ -12,7 +13,105 @@ from shared.configs import (
 )
 
 
+class _DndEntryProtocol(Protocol):
+    def drop_target_register(self, *dnd_types: object) -> object:
+        ...
+
+    def dnd_bind(self, sequence: str, func: Callable[..., object]) -> object:
+        ...
+
+
 class TkUiViewMixin:
+    dnd_available: bool
+    DND_FILES: str
+
+    input_dir: tk.StringVar
+    output_dir: tk.StringVar
+    pdf_engine: tk.StringVar
+    pdf_mode: tk.StringVar
+    pdf_dpi: tk.IntVar
+    pdf_jpeg_quality: tk.IntVar
+    pdf_png_to_jpeg: tk.BooleanVar
+    gs_preset: tk.StringVar
+    gs_custom_dpi: tk.IntVar
+    gs_use_lossless: tk.BooleanVar
+    jpg_quality: tk.IntVar
+    png_quality: tk.IntVar
+    use_pngquant: tk.BooleanVar
+    resize_enabled: tk.BooleanVar
+    resize_mode: tk.StringVar
+    resize_width: tk.StringVar
+    resize_height: tk.StringVar
+    resize_keep_aspect: tk.BooleanVar
+    long_edge_value_str: tk.StringVar
+    csv_enable: tk.BooleanVar
+    csv_path: tk.StringVar
+    extract_zip: tk.BooleanVar
+    copy_non_target_files: tk.BooleanVar
+    auto_switch_log_tab: tk.BooleanVar
+    status_var: tk.StringVar
+    pdf_ll_linearize: tk.BooleanVar
+    pdf_ll_object_streams: tk.BooleanVar
+    pdf_ll_clean_metadata: tk.BooleanVar
+    pdf_ll_recompress_streams: tk.BooleanVar
+    pdf_ll_remove_unreferenced: tk.BooleanVar
+
+    choose_input: Callable[[], None]
+    cleanup_input: Callable[[], None]
+    choose_output: Callable[[], None]
+    cleanup_output: Callable[[], None]
+    _on_drop_input: Callable[[object], None]
+    _update_pdf_controls: Callable[[], None]
+    _update_resize_controls: Callable[[], None]
+    _choose_csv_path: Callable[[], None]
+    start_compress: Callable[[], None]
+    on_exit: Callable[[], None]
+
+    main_canvas: tk.Canvas
+    main_scrollbar: ttk.Scrollbar
+    main_container: ttk.Frame
+    main_container_window: int
+    input_entry: ttk.Entry
+    notebook: ttk.Notebook
+    settings_tab: ttk.Frame
+    log_tab: ttk.Frame
+    native_rb: ttk.Radiobutton
+    gs_rb: ttk.Radiobutton
+    pdf_engine_status_var: tk.StringVar
+    native_frame: ttk.Frame
+    gs_frame: ttk.Frame
+    lossy_lf: ttk.LabelFrame
+    native_lossless_lf: ttk.LabelFrame
+    gs_lossless_lf: ttk.LabelFrame
+    _native_lossy_widgets: list[tk.Widget]
+    dpi_val_label: ttk.Label
+    dpi_scale: tk.Scale
+    jpeg_q_val_label: ttk.Label
+    jpeg_q_scale: tk.Scale
+    jpeg_note_label: ttk.Label
+    png_to_jpeg_cb: ttk.Checkbutton
+    _native_ll_frame: ttk.Frame
+    _native_lossless_widgets: list[ttk.Checkbutton]
+    _gs_preset_widgets: list[ttk.Radiobutton]
+    gs_dpi_val_label: ttk.Label
+    gs_dpi_scale: tk.Scale
+    _gs_custom_dpi_widgets: list[tk.Widget]
+    gs_use_lossless_cb: ttk.Checkbutton
+    _gs_ll_frame: ttk.Frame
+    _gs_lossless_widgets: list[ttk.Checkbutton]
+    jpg_quality_label: ttk.Label
+    png_quality_label: ttk.Label
+    pngquant_check: ttk.Checkbutton
+    resize_mode_manual_rb: ttk.Radiobutton
+    resize_width_entry: ttk.Entry
+    resize_height_entry: ttk.Entry
+    resize_keep_aspect_chk: ttk.Checkbutton
+    resize_mode_long_rb: ttk.Radiobutton
+    long_edge_combo: ttk.Combobox
+    stats_var: tk.StringVar
+    progress: ttk.Progressbar
+    log_text: tk.Text
+
     def build_layout(self) -> None:
         self._build_root_scroll_container()
         self._build_folder_section()
@@ -20,8 +119,11 @@ class TkUiViewMixin:
         self._build_action_buttons()
         self._bind_root_mousewheel()
 
+    def _as_tk_master(self) -> tk.Misc:
+        return cast(tk.Misc, self)
+
     def _build_root_scroll_container(self):
-        root_frame = ttk.Frame(self)
+        root_frame = ttk.Frame(self._as_tk_master())
         root_frame.pack(fill='both', expand=True)
 
         self.main_canvas = tk.Canvas(root_frame, highlightthickness=0)
@@ -44,11 +146,11 @@ class TkUiViewMixin:
         self.main_canvas.itemconfigure(self.main_container_window, width=event.width)
 
     def _bind_root_mousewheel(self):
-        self.bind_all('<MouseWheel>', self._on_root_mousewheel, add='+')
+        self._as_tk_master().bind_all('<MouseWheel>', self._on_root_mousewheel, add='+')
 
     def _on_root_mousewheel(self, event):
         # Keep Text widget wheel behavior unchanged (log area scrolls itself).
-        target = self.winfo_containing(event.x_root, event.y_root)
+        target = self._as_tk_master().winfo_containing(event.x_root, event.y_root)
         if target is not None and self._is_inside_widget(target, self.log_text):
             return
 
@@ -90,8 +192,9 @@ class TkUiViewMixin:
         tk.Button(row_in, text='クリーンアップ', command=self.cleanup_input, bg='#d0f6ff').pack(side='left', padx=4)
 
         if self.dnd_available:
-            self.input_entry.drop_target_register(self.DND_FILES)
-            self.input_entry.dnd_bind('<<Drop>>', self._on_drop_input)
+            dnd_input_entry = cast(_DndEntryProtocol, self.input_entry)
+            dnd_input_entry.drop_target_register(self.DND_FILES)
+            dnd_input_entry.dnd_bind('<<Drop>>', self._on_drop_input)
             ttk.Label(row_in, text='（D&D可）', foreground='gray').pack(side='left', padx=6)
         else:
             ttk.Label(row_in, text='（D&D無効: tkinterdnd2 未インストール）', foreground='gray').pack(side='left', padx=6)
@@ -466,7 +569,7 @@ class TkUiViewMixin:
 
     def _create_lossless_controls(self, parent):
         frame = ttk.Frame(parent)
-        widgets = []
+        widgets: list[ttk.Checkbutton] = []
 
         row1 = ttk.Frame(frame)
         row1.pack(fill='x', padx=5, pady=2)
