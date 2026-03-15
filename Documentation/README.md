@@ -112,7 +112,7 @@ python -m pip install pyinstaller
 python -m PyInstaller --clean .\compressor_launcher_tkinter.spec
 ```
 
-生成先は `dist/compressor_launcher/` です。配布時はこのフォルダ全体を渡してください。
+生成先は `dist/PDF_JPG_PNG_Compressor_v2.3.0/` です。配布時はこのフォルダ全体を渡してください。
 
 補足:
 
