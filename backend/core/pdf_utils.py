@@ -14,9 +14,9 @@ from typing import Any, cast
 
 from PIL import Image
 
-from shared.configs import (
+from backend.settings import (
     GS_DEFAULT_PRESET,
-    PDF_COMPRESS_MODES,
+    PDF_ALLOWED_MODES,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
@@ -52,7 +52,7 @@ def compress_pdf_lossy(
     png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
     debug=False,
 ):
-    """PyMuPDF で PDF 内の全埋め込み画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
+    """PyMuPDF で PDF 内の実描画画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
     input_file = Path(input_path)
     output_file = Path(output_path)
 
@@ -64,89 +64,93 @@ def compress_pdf_lossy(
         doc = fitz_module.open(str(input_file))
         replaced_count = 0
         skipped_count = 0
-        compressed_cache: dict[int, bytes | None] = {}
-        debug_stats: dict[str, int] | None = None
-        debug_seen_xrefs: set[int] | None = None
-        debug_rows: list[dict[str, Any]] | None = None
 
-        if debug:
-            debug_stats = {
-                'pages': len(doc),
-                'image_refs_seen': 0,
-                'unique_xrefs': 0,
-                'cache_hit_replaced': 0,
-                'cache_hit_skipped': 0,
-                'skip_no_rect': 0,
-                'skip_zero_rect': 0,
-                'skip_no_extract': 0,
-                'skip_unsupported_ext': 0,
-                'skip_pil_open_failed': 0,
-                'skip_not_smaller': 0,
-                'replaced': 0,
-            }
-            debug_seen_xrefs = set()
-            debug_rows = []
+        # xref 単位で一度だけ判定する。
+        # replace_image() は画像オブジェクト自体を差し替えるため、
+        # 同じ xref が別ページに再登場しても再処理は不要。
+        processed_xrefs: dict[int, str] = {}
+
+        debug_stats = {
+            'pages': len(doc),
+            'image_infos_seen': 0,
+            'unique_xrefs_seen': 0,
+            'skip_xref_missing': 0,
+            'skip_already_processed': 0,
+            'skip_zero_rect': 0,
+            'skip_no_extract': 0,
+            'skip_unsupported_ext': 0,
+            'skip_pil_open_failed': 0,
+            'skip_not_smaller': 0,
+            'replaced': 0,
+        }
+        debug_seen_xrefs = set()
+        debug_rows = []
+
+        def _rect_from_bbox(bbox):
+            if bbox is None:
+                return None
+            try:
+                return fitz_module.Rect(bbox)
+            except Exception:
+                return None
 
         for page_index in range(len(doc)):
             page = doc[page_index]
-            image_list = page.get_images(full=True)
+            image_infos = page.get_image_info(xrefs=True)
 
-            for img_info in image_list:
-                xref = img_info[0]
+            for info in image_infos:
+                debug_stats['image_infos_seen'] += 1
 
-                if debug and debug_stats is not None and debug_seen_xrefs is not None:
-                    debug_stats['image_refs_seen'] += 1
-                    if xref not in debug_seen_xrefs:
-                        debug_seen_xrefs.add(xref)
-                        debug_stats['unique_xrefs'] += 1
-
-                if xref in compressed_cache:
-                    # 同じ埋め込み画像が複数ページ・複数位置で参照されるため、xref 単位で再利用する。
-                    cached = compressed_cache[xref]
-                    if cached is not None:
-                        page.replace_image(xref, stream=cached)
-                        if debug and debug_stats is not None:
-                            debug_stats['cache_hit_replaced'] += 1
-                    elif debug and debug_stats is not None:
-                        debug_stats['cache_hit_skipped'] += 1
-                    continue
-
-                rects = page.get_image_rects(xref)
-                if not rects:
-                    compressed_cache[xref] = None
+                xref = info.get('xref', 0)
+                if not isinstance(xref, int) or xref <= 0:
                     skipped_count += 1
-                    if debug and debug_stats is not None and debug_rows is not None:
-                        debug_stats['skip_no_rect'] += 1
+                    debug_stats['skip_xref_missing'] += 1
+                    if debug:
                         debug_rows.append({
                             'page': page_index + 1,
                             'xref': xref,
-                            'status': 'skip_no_rect',
+                            'status': 'skip_xref_missing',
                         })
                     continue
 
-                rect = rects[0]
-                rect_w_pts = rect.width
-                rect_h_pts = rect.height
+                if xref not in debug_seen_xrefs:
+                    debug_seen_xrefs.add(xref)
+                    debug_stats['unique_xrefs_seen'] += 1
 
-                if rect_w_pts == 0 or rect_h_pts == 0:
-                    compressed_cache[xref] = None
+                if xref in processed_xrefs:
                     skipped_count += 1
-                    if debug and debug_stats is not None and debug_rows is not None:
-                        debug_stats['skip_zero_rect'] += 1
+                    debug_stats['skip_already_processed'] += 1
+                    if debug:
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': f"skip_already_processed:{processed_xrefs[xref]}",
+                        })
+                    continue
+
+                rect = _rect_from_bbox(info.get('bbox'))
+                if rect is None or rect.width == 0 or rect.height == 0:
+                    processed_xrefs[xref] = 'zero_rect'
+                    skipped_count += 1
+                    debug_stats['skip_zero_rect'] += 1
+                    if debug:
                         debug_rows.append({
                             'page': page_index + 1,
                             'xref': xref,
                             'status': 'skip_zero_rect',
-                            'rect_pts': (rect_w_pts, rect_h_pts),
+                            'bbox': info.get('bbox'),
                         })
                     continue
 
+                rect_w_pts = rect.width
+                rect_h_pts = rect.height
+
                 base_image = doc.extract_image(xref)
                 if not base_image:
-                    compressed_cache[xref] = None
+                    processed_xrefs[xref] = 'no_extract'
                     skipped_count += 1
-                    if debug and debug_stats is not None and debug_rows is not None:
-                        debug_stats['skip_no_extract'] += 1
+                    debug_stats['skip_no_extract'] += 1
+                    if debug:
                         debug_rows.append({
                             'page': page_index + 1,
                             'xref': xref,
@@ -155,14 +159,14 @@ def compress_pdf_lossy(
                     continue
 
                 img_bytes = base_image['image']
-                img_ext = base_image.get('ext', '').lower()
+                img_ext = str(base_image.get('ext', '')).lower()
                 orig_size = len(img_bytes)
 
                 if img_ext in ('jbig2', 'tiff', 'tif', 'jpx'):
-                    compressed_cache[xref] = None
+                    processed_xrefs[xref] = 'unsupported_ext'
                     skipped_count += 1
-                    if debug and debug_stats is not None and debug_rows is not None:
-                        debug_stats['skip_unsupported_ext'] += 1
+                    debug_stats['skip_unsupported_ext'] += 1
+                    if debug:
                         debug_rows.append({
                             'page': page_index + 1,
                             'xref': xref,
@@ -174,11 +178,12 @@ def compress_pdf_lossy(
 
                 try:
                     pil_img = Image.open(io.BytesIO(img_bytes))
+                    pil_img.load()
                 except Exception as exc:
-                    compressed_cache[xref] = None
+                    processed_xrefs[xref] = 'pil_open_failed'
                     skipped_count += 1
-                    if debug and debug_stats is not None and debug_rows is not None:
-                        debug_stats['skip_pil_open_failed'] += 1
+                    debug_stats['skip_pil_open_failed'] += 1
+                    if debug:
                         debug_rows.append({
                             'page': page_index + 1,
                             'xref': xref,
@@ -192,12 +197,10 @@ def compress_pdf_lossy(
                 orig_w, orig_h = pil_img.size
                 effective_dpi_x = orig_w / (rect_w_pts / 72.0)
                 effective_dpi_y = orig_h / (rect_h_pts / 72.0)
-                # 紙面上の表示サイズに対して実解像度が高い軸に合わせると、
-                # どちらか一方だけ粗くなってしまうケースを避けやすい。
                 effective_dpi = max(effective_dpi_x, effective_dpi_y)
+
                 resized = False
                 resized_to = (orig_w, orig_h)
-
                 if effective_dpi > target_dpi:
                     scale = target_dpi / effective_dpi
                     new_w = max(1, int(orig_w * scale))
@@ -205,7 +208,6 @@ def compress_pdf_lossy(
                     if hasattr(Image, 'Resampling'):
                         resample_filter = Image.Resampling.LANCZOS
                     else:
-                        # 旧 Pillow 系では enum が無いため、互換定数を限定的に参照する。
                         resample_filter = getattr(cast(Any, Image), 'LANCZOS')
                     pil_img = pil_img.resize((new_w, new_h), resample_filter)
                     resized = True
@@ -213,15 +215,13 @@ def compress_pdf_lossy(
 
                 is_lossless = img_ext in ('png', 'bmp', 'tiff', 'tif', 'gif')
                 buf = io.BytesIO()
-                output_format = 'PNG'
 
                 if is_lossless and not png_to_jpeg:
-                    # 透明情報を壊したくないケースでは PNG を維持し、最適化だけ行う。
                     if pil_img.mode not in ('RGB', 'RGBA', 'L', 'LA'):
                         pil_img = pil_img.convert('RGBA' if ('A' in pil_img.mode or pil_img.mode == 'P') else 'RGB')
+                    output_format = 'PNG'
                     pil_img.save(buf, format='PNG', optimize=True)
                 else:
-                    # JPEG 化する場合はアルファを白背景へ合成しないと見た目が崩れる。
                     if pil_img.mode in ('RGBA', 'PA', 'LA', 'P'):
                         if pil_img.mode == 'P':
                             pil_img = pil_img.convert('RGBA')
@@ -236,6 +236,7 @@ def compress_pdf_lossy(
 
                 new_bytes = buf.getvalue()
                 new_size = len(new_bytes)
+
                 row = {
                     'page': page_index + 1,
                     'xref': xref,
@@ -252,32 +253,28 @@ def compress_pdf_lossy(
                 }
 
                 if new_size < orig_size:
-                    # 圧縮効果がない画像を無理に差し替えると PDF が肥大化するため、
-                    # サイズが縮んだ場合だけ更新する。
                     page.replace_image(xref, stream=new_bytes)
-                    compressed_cache[xref] = new_bytes
+                    processed_xrefs[xref] = 'replaced'
                     replaced_count += 1
+                    debug_stats['replaced'] += 1
                     row['status'] = 'replaced'
-                    if debug and debug_stats is not None:
-                        debug_stats['replaced'] += 1
                 else:
-                    compressed_cache[xref] = None
+                    processed_xrefs[xref] = 'not_smaller'
                     skipped_count += 1
+                    debug_stats['skip_not_smaller'] += 1
                     row['status'] = 'skip_not_smaller'
-                    if debug and debug_stats is not None:
-                        debug_stats['skip_not_smaller'] += 1
 
-                if debug and debug_rows is not None:
+                if debug:
                     debug_rows.append(row)
 
-        if debug and debug_stats is not None and debug_rows is not None:
+        if debug:
             print('=== compress_pdf_lossy debug summary ===')
             for key, value in debug_stats.items():
                 print(f'{key}: {value}')
 
             print('=== compress_pdf_lossy debug details (first 50 unique xrefs) ===')
             shown = 0
-            shown_xrefs: set[int] = set()
+            shown_xrefs = set()
             for row in debug_rows:
                 xref = row['xref']
                 if xref in shown_xrefs:
@@ -287,6 +284,7 @@ def compress_pdf_lossy(
                 shown += 1
                 if shown >= 50:
                     break
+
         doc.save(str(output_file), garbage=4, deflate=True)
         doc.close()
 
@@ -440,7 +438,7 @@ def compress_pdf_native(
     input_file = Path(input_path)
     output_file = Path(output_path)
 
-    if mode not in PDF_COMPRESS_MODES:
+    if mode not in PDF_ALLOWED_MODES:
         mode = 'both'
 
     if mode == 'lossy':

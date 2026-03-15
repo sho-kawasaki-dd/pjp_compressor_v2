@@ -1,0 +1,25 @@
+{
+  "pdf_compress_modes": {
+    "lossy": "非可逆（画像再圧縮）",
+    "lossless": "可逆（構造最適化）",
+    "both": "両方"
+  },
+  "gs_presets": {
+    "screen": "画面用 (72dpi)",
+    "ebook": "電子書籍用 (150dpi)",
+    "printer": "印刷用 (300dpi)",
+    "prepress": "プリプレス用 (300dpi, カラー保持)",
+    "default": "デフォルト"
+  },
+  "long_edge_presets": [
+    "640",
+    "800",
+    "1024",
+    "1280",
+    "1600",
+    "1920",
+    "2048",
+    "2560",
+    "3840"
+  ]
+}

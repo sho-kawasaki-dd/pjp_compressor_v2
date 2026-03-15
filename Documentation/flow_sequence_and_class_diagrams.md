@@ -245,6 +245,55 @@ classDiagram
     Services --> ExternalTools : 利用
 ```
 
+## 設定レイヤ構成（2026年3月15日追記）
+
+設定まわりは単一の `shared/configs.py` から、所有責務ごとの層へ再編しました。
+
+- `shared/runtime_paths.py`
+    通常実行と PyInstaller 実行の両方で使う `APP_BASE_DIR` / `RESOURCE_BASE_DIR` を提供します。
+    Path 計算や `sys.frozen` / `sys._MEIPASS` 判定のような runtime 依存ロジックはここへ集約します。
+- `backend/settings.py`
+    PDF 圧縮既定値、Ghostscript 既定プリセット、backend が許可する PDF モード値を保持します。
+    backend は UI 表示ラベルに依存せず、`PDF_ALLOWED_MODES` のような処理都合の値だけを参照します。
+- `frontend/settings.py`
+    UI の既定値、cleanup 対象拡張子、サウンド/画像リソースパス、表示カタログローダを保持します。
+    frontend が JSON を読む責務はここに閉じ込め、画面コードはロード済み定数だけを使います。
+- `frontend/config_data/ui_catalogs.json`
+    純粋データだけを置く領域です。現時点では PDF モード表示名、Ghostscript プリセット表示名、長辺プリセットを管理します。
+    Path、OS 判定、PyInstaller 判定のようなロジックはここへ入れません。
+- `shared/configs.py`
+    旧 import 互換のための再エクスポート層です。
+    新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
+
+この再編が必要だった理由:
+
+- shared を「なんでも置き場」にすると、責務境界が曖昧になり、どの層がその値を所有しているのか説明しづらくなるため。
+- backend の検証ロジックと frontend の表示ラベルを切り離さないと、画面都合の変更が処理条件へ波及しやすくなるため。
+- JSON 化は純粋データだけに限定し、Path や PyInstaller 判定のような runtime ロジックは Python 側へ残すことで、配布と起動の責務を壊さずに整理するため。
+- one-folder 配布でも `frontend/config_data/` を含める対象が明確になり、配布漏れを避けやすくするため。
+
+## PyMuPDF 実描画画像 xref 走査（2026年3月15日追記）
+
+`backend/core/pdf_utils.py` の `compress_pdf_lossy()` は、PyMuPDF による PDF 内画像の非可逆再圧縮を担当します。
+
+今回の変更内容:
+
+- `page.get_images(full=True)` ベースの走査をやめ、`page.get_image_info(xrefs=True)` ベースへ変更しました。
+- 実際にページ上へ描画されている画像だけを対象にし、`bbox` をそのまま使って実表示サイズから DPI を計算します。
+- 同じ xref は `processed_xrefs` で 1 回だけ判定し、`replace_image()` 後に別ページで再 replace しません。
+- xref が欠落している情報や zero bbox は、その場の skip 理由として debug に残しつつ安全に通過します。
+
+この変更が必要だった理由:
+
+- `page.get_images(full=True)` は「そのページの resources に登録された画像」を返すため、「そのページで実描画されている画像」と一致しないことがあります。
+- 特に WeasyPrint 系 PDF では、先頭ページの resources に後続ページの画像 xref が見えていても、そのページの `get_image_rects(xref)` は空になることがあります。
+- 旧実装ではこの負の結果を xref 単位の失敗キャッシュとして扱っていたため、後続ページで本当に描画されている画像も再確認せず skip され、`replaced_count=0` のような誤った結果になり得ました。
+- 実描画画像ベースへ寄せることで、debug summary も `image_infos_seen`、`skip_already_processed`、`replaced`、`skip_not_smaller` といった意味の揃った値になり、原因分析しやすくなります。
+
+関連テスト:
+
+- `tests/unit/test_pdf_utils.py` で、`get_image_info(xrefs=True)` を使うこと、同じ xref を 1 回だけ処理すること、xref 欠落と zero bbox を安全にスキップすることを unit テスト化しています。
+
 ## ui_contracts.py（2026年3月11日追記）
 
 frontend 配下の型契約整理に合わせて、`frontend/ui_contracts.py` の現行内容を記録します。

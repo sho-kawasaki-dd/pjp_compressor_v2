@@ -1,122 +1,52 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-configs.py
+"""旧 shared.configs 互換レイヤ。"""
 
-アプリ全体で共有する設定値や定数を集約するモジュール。
-目的:
-- GUI と圧縮ロジックの両方から同じ値を参照できるようにし、
-    モジュール間の依存を低減する。
-- PDF 圧縮設定（PyMuPDF + pikepdf）やプリセット一覧、
-    GUI のレイアウト既定値、サウンドパスなどを一元管理する。
+from backend.settings import (
+    GS_DEFAULT_PRESET,
+    PDF_ALLOWED_MODES,
+    PDF_LOSSLESS_OPTIONS_DEFAULT,
+    PDF_LOSSY_DPI_DEFAULT,
+    PDF_LOSSY_JPEG_QUALITY_DEFAULT,
+    PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+)
+from frontend.settings import (
+    APP_DEFAULT_INPUT_DIR,
+    APP_DEFAULT_OUTPUT_DIR,
+    APP_DEFAULT_WINDOW_SIZE,
+    COPY_NON_TARGET_FILES_DEFAULT,
+    DEBUG_MODE_DEFAULT,
+    GS_PRESETS,
+    IMAGES_DIR,
+    INPUT_DIR_CLEANUP_EXTENSIONS,
+    LONG_EDGE_PRESETS,
+    OUTPUT_DIR_CLEANUP_EXTENSIONS,
+    PDF_COMPRESS_MODES,
+    PDF_LOSSY_DPI_RANGE,
+    SOUNDS_DIR,
+)
+from shared.runtime_paths import APP_BASE_DIR, RESOURCE_BASE_DIR
 
-注意:
-- 値のみを提供し、副作用（ファイル作成・外部コマンド検出）は行わない。
-"""
-import sys
-from pathlib import Path
-
-
-def _runtime_base_dir() -> Path:
-    """実行時の基準ディレクトリ（exe優先、通常実行は本ファイル基準）を返す。"""
-    if getattr(sys, 'frozen', False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent.parent
-
-
-def _resource_base_dir() -> Path:
-    """同梱リソース探索の基準ディレクトリを返す。"""
-    if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
-        return Path(getattr(sys, '_MEIPASS'))
-    return _runtime_base_dir()
-
-
-APP_BASE_DIR = _runtime_base_dir()
-RESOURCE_BASE_DIR = _resource_base_dir()
-
-# `APP_BASE_DIR` は入出力やログの既定配置先、`RESOURCE_BASE_DIR` は PyInstaller 展開先を
-# 意識した読み取り専用リソースの基準として使い分ける。
-
-# ---------------------------------------------------------------------------
-# PDF 圧縮設定（PyMuPDF + pikepdf）
-# ---------------------------------------------------------------------------
-
-# ユーザーが選択可能な圧縮モード（UI ラジオボタン用）
-PDF_COMPRESS_MODES = {
-    'lossy':    '非可逆（画像再圧縮）',
-    'lossless': '可逆（構造最適化）',
-    'both':     '両方',
-}
-
-# 非可逆圧縮: 埋め込み画像リサンプル時の DPI 設定
-PDF_LOSSY_DPI_DEFAULT = 150
-PDF_LOSSY_DPI_RANGE = (36, 600)          # スライダーの min / max
-
-# 非可逆圧縮: JPEG 再圧縮時の品質（1–100）
-PDF_LOSSY_JPEG_QUALITY_DEFAULT = 75
-
-# 非可逆圧縮: 埋め込み PNG 画像を JPEG に変換するかどうかのデフォルト
-# False = PNG はリサイズのみ行い、フォーマットは維持する（安全側）
-PDF_LOSSY_PNG_TO_JPEG_DEFAULT = False
-
-# 可逆圧縮（pikepdf 構造最適化）のオプション既定値
-PDF_LOSSLESS_OPTIONS_DEFAULT = {
-    'linearize':            True,   # Web 最適化（Linearize）
-    'object_streams':       True,   # オブジェクトストリーム圧縮
-    'clean_metadata':       False,  # メタデータ除去
-    'recompress_streams':   True,   # 既存 Flate ストリームを最高圧縮率で再圧縮
-    'remove_unreferenced':  True,   # 孤立リソース（未参照オブジェクト）の削除
-}
-
-# ---------------------------------------------------------------------------
-# GhostScript エンジン（第二の PDF 圧縮エンジン、オプション）
-# ---------------------------------------------------------------------------
-GS_PRESETS = {
-    'screen':   '画面用 (72dpi)',
-    'ebook':    '電子書籍用 (150dpi)',
-    'printer':  '印刷用 (300dpi)',
-    'prepress': 'プリプレス用 (300dpi, カラー保持)',
-    'default':  'デフォルト',
-}
-GS_DEFAULT_PRESET = 'ebook'
-
-# ---------------------------------------------------------------------------
-# クリーンアップ対象拡張子
-# ---------------------------------------------------------------------------
-
-# 入力フォルダクリーンアップ対象拡張子
-INPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.zip'}
-# 入力フォルダのクリーンアップ対象拡張子（サンプル画像や PDF を想定）。
-
-# 出力フォルダクリーンアップ対象拡張子
-OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv'}
-# 出力フォルダのクリーンアップ対象拡張子。CSV はログファイルを含むため注意。
-
-# アプリ起動時のデフォルト入力フォルダ
-APP_DEFAULT_INPUT_DIR = APP_BASE_DIR / "input_files"
-# 起動時に UI から参照され、存在しない場合は UI 側で作成される。
-
-# アプリ起動時のデフォルト出力フォルダ
-APP_DEFAULT_OUTPUT_DIR = APP_BASE_DIR / "output_files"
-# 既定出力フォルダ。Windows の場合は UI 側でデスクトップ配下の作成を促す。
-
-# GUI ウィンドウのデフォルトサイズ
-APP_DEFAULT_WINDOW_SIZE = "750x850"
-# Tk ウィンドウのサイズ指定（幅x高さ）。
-
-# サウンドファイル格納ディレクトリ
-SOUNDS_DIR = RESOURCE_BASE_DIR / "sounds"
-# 効果音ファイルの配置ディレクトリ。存在しなくても致命的ではない。
-
-# 画像ファイル格納ディレクトリ
-IMAGES_DIR = RESOURCE_BASE_DIR / "images"
-# アイコンやスプラッシュ画像の配置ディレクトリ。
-
-LONG_EDGE_PRESETS = ["640","800","1024","1280","1600","1920","2048","2560","3840"]
-# 長辺指定リサイズのプリセット値。UI のコンボボックスで使用。
-
-# デバッグモードの既定値（出力設定トグル）
-DEBUG_MODE_DEFAULT = False
-
-# 未対応拡張子のコピーオプション既定値（出力設定トグル）
-COPY_NON_TARGET_FILES_DEFAULT = False
+__all__ = [
+    'APP_BASE_DIR',
+    'RESOURCE_BASE_DIR',
+    'APP_DEFAULT_INPUT_DIR',
+    'APP_DEFAULT_OUTPUT_DIR',
+    'APP_DEFAULT_WINDOW_SIZE',
+    'SOUNDS_DIR',
+    'IMAGES_DIR',
+    'INPUT_DIR_CLEANUP_EXTENSIONS',
+    'OUTPUT_DIR_CLEANUP_EXTENSIONS',
+    'PDF_COMPRESS_MODES',
+    'PDF_ALLOWED_MODES',
+    'PDF_LOSSY_DPI_RANGE',
+    'PDF_LOSSY_DPI_DEFAULT',
+    'PDF_LOSSY_JPEG_QUALITY_DEFAULT',
+    'PDF_LOSSY_PNG_TO_JPEG_DEFAULT',
+    'PDF_LOSSLESS_OPTIONS_DEFAULT',
+    'GS_PRESETS',
+    'GS_DEFAULT_PRESET',
+    'LONG_EDGE_PRESETS',
+    'DEBUG_MODE_DEFAULT',
+    'COPY_NON_TARGET_FILES_DEFAULT',
+]

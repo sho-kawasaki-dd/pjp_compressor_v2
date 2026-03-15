@@ -11,10 +11,10 @@ from tkinter import filedialog, messagebox
 from backend.core.compressor_utils import cleanup_folder, count_target_files, human_readable
 from backend.contracts import ProgressEvent
 from backend.orchestrator.job_runner import run_compression_request
+from frontend.settings import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
-from shared.configs import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
 
 
 class TkUiControllerMixin:

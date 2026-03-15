@@ -2,14 +2,14 @@ from __future__ import annotations
 
 from tkinter import Label, PhotoImage, TclError, Toplevel
 
+from frontend.settings import IMAGES_DIR, SOUNDS_DIR
+
 
 _SPLASH_MIN_VISIBLE_MS = 700
 
 
 def _build_startup_splash(app) -> Toplevel | None:
     """起動時スプラッシュを作成して返す。生成失敗時は None を返す。"""
-    from shared.configs import IMAGES_DIR
-
     splash_path = IMAGES_DIR / "pjp_compressor_splash.png"
     if not splash_path.exists():
         return None
@@ -49,7 +49,6 @@ def run_tkinter_app() -> int:
     スプラッシュ表示、本体ウィンドウの前面化、起動音再生をここでまとめることで、
     エントリポイント側は例外処理だけに集中できる。
     """
-    from shared.configs import SOUNDS_DIR
     from frontend.sound_utils import play_sound
     from frontend.ui_tkinter import App
 

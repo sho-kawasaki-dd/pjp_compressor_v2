@@ -10,7 +10,7 @@ compressor_utils.py (compatibility shim)
 
 from __future__ import annotations
 
-from shared.configs import (
+from backend.settings import (
     GS_DEFAULT_PRESET,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,

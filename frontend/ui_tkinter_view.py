@@ -7,7 +7,7 @@ import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Protocol, cast
 
-from shared.configs import (
+from frontend.settings import (
     GS_PRESETS,
     LONG_EDGE_PRESETS,
     PDF_COMPRESS_MODES,

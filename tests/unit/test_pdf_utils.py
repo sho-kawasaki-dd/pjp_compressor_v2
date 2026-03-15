@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import io
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+from backend.core import pdf_utils
+
+
+pytestmark = pytest.mark.unit
+
+
+def _make_jpeg_bytes(*, size: tuple[int, int], quality: int) -> bytes:
+    buffer = io.BytesIO()
+    Image.new('RGB', size, color=(32, 96, 192)).save(buffer, 'JPEG', quality=quality)
+    return buffer.getvalue()
+
+
+class _FakeRect:
+    def __init__(self, bbox: tuple[float, float, float, float]):
+        self.width = float(bbox[2] - bbox[0])
+        self.height = float(bbox[3] - bbox[1])
+
+
+class _FakePage:
+    def __init__(self, image_infos: list[dict[str, object]]):
+        self._image_infos = image_infos
+        self.replace_calls: list[tuple[int, bytes]] = []
+
+    def get_image_info(self, *, xrefs: bool) -> list[dict[str, object]]:
+        assert xrefs is True
+        return list(self._image_infos)
+
+    def get_images(self, *args, **kwargs):
+        raise AssertionError('get_images() should not be used by compress_pdf_lossy')
+
+    def replace_image(self, xref: int, *, stream: bytes) -> None:
+        self.replace_calls.append((xref, stream))
+
+
+class _FakeDoc:
+    def __init__(self, pages: list[_FakePage], extracted_images: dict[int, dict[str, object] | None]):
+        self._pages = pages
+        self._extracted_images = extracted_images
+        self.extract_calls: list[int] = []
+        self.save_calls: list[tuple[str, int, bool]] = []
+        self.closed = False
+
+    def __len__(self) -> int:
+        return len(self._pages)
+
+    def __getitem__(self, index: int) -> _FakePage:
+        return self._pages[index]
+
+    def extract_image(self, xref: int):
+        self.extract_calls.append(xref)
+        return self._extracted_images.get(xref)
+
+    def save(self, path: str, *, garbage: int, deflate: bool) -> None:
+        self.save_calls.append((path, garbage, deflate))
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _FakeFitzModule:
+    def __init__(self, doc: _FakeDoc):
+        self._doc = doc
+
+    def open(self, path: str) -> _FakeDoc:
+        return self._doc
+
+    def Rect(self, bbox: tuple[float, float, float, float]) -> _FakeRect:
+        return _FakeRect(bbox)
+
+
+def test_compress_pdf_lossy_uses_image_info_and_processes_each_xref_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_jpeg_bytes(size=(2400, 1200), quality=100)
+    page1 = _FakePage([{'xref': 10, 'bbox': (0.0, 0.0, 144.0, 72.0)}])
+    page2 = _FakePage([{'xref': 10, 'bbox': (0.0, 0.0, 144.0, 72.0)}])
+    fake_doc = _FakeDoc(
+        [page1, page2],
+        extracted_images={10: {'image': original_bytes, 'ext': 'jpeg'}},
+    )
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+
+    ok, message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        target_dpi=72,
+        jpeg_quality=40,
+    )
+
+    assert ok is True
+    assert '一意の画像2個中1個を再圧縮' in message
+    assert fake_doc.extract_calls == [10]
+    assert len(page1.replace_calls) == 1
+    assert page2.replace_calls == []
+    assert fake_doc.save_calls == [(str(output_path), 4, True)]
+    assert fake_doc.closed is True
+
+
+def test_compress_pdf_lossy_skips_missing_xref_without_extracting(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    page = _FakePage([
+        {'xref': 0, 'bbox': (0.0, 0.0, 100.0, 100.0)},
+        {'xref': 11, 'bbox': (0.0, 0.0, 0.0, 0.0)},
+    ])
+    fake_doc = _FakeDoc([page], extracted_images={})
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+
+    ok, message = pdf_utils.compress_pdf_lossy(input_path, output_path, debug=True)
+
+    assert ok is True
+    assert '一意の画像2個中0個を再圧縮' in message
+    assert fake_doc.extract_calls == []
+    assert page.replace_calls == []
+    captured = capsys.readouterr().out
+    assert 'skip_xref_missing: 1' in captured
+    assert 'skip_zero_rect: 1' in captured

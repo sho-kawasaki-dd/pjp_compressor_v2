@@ -30,15 +30,15 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 from frontend.sound_utils import init_mixer, play_sound
 from backend.capabilities import detect_capabilities
 from frontend.ui_tkinter_controller import TkUiControllerMixin
-from frontend.ui_tkinter_state import TkUiStateMixin
-from frontend.ui_tkinter_view import TkUiViewMixin
-from shared.configs import (
+from frontend.settings import (
     APP_DEFAULT_INPUT_DIR,
     APP_DEFAULT_OUTPUT_DIR,
     APP_DEFAULT_WINDOW_SIZE,
     IMAGES_DIR,
     SOUNDS_DIR,
 )
+from frontend.ui_tkinter_state import TkUiStateMixin
+from frontend.ui_tkinter_view import TkUiViewMixin
 
 # ------------- 高DPI対応（Windowsのみ） -------------
 if os.name == 'nt':

@@ -115,6 +115,11 @@ id="toc-処理フロー図">処理フロー（図）</a></li>
 id="toc-シーケンス図圧縮処理の全体フロー">シーケンス図（圧縮処理の全体フロー）</a></li>
 <li><a href="#クラス図主要コンポーネントと責務"
 id="toc-クラス図主要コンポーネントと責務">クラス図（主要コンポーネントと責務）</a></li>
+<li><a href="#設定レイヤ構成2026年3月15日追記"
+id="toc-設定レイヤ構成2026年3月15日追記">設定レイヤ構成（2026年3月15日追記）</a></li>
+<li><a href="#pymupdf-実描画画像-xref-走査2026年3月15日追記"
+id="toc-pymupdf-実描画画像-xref-走査2026年3月15日追記">PyMuPDF
+実描画画像 xref 走査（2026年3月15日追記）</a></li>
 <li><a href="#ui_contracts.py2026年3月11日追記"
 id="toc-ui_contracts.py2026年3月11日追記">ui_contracts.py（2026年3月11日追記）</a></li>
 <li><a href="#関連ドキュメント"
@@ -369,6 +374,85 @@ classDiagram
     App --> Cleanup : 呼び出し
     Services --> ExternalTools : 利用
 </div>
+<h2
+id="設定レイヤ構成2026年3月15日追記">設定レイヤ構成（2026年3月15日追記）</h2>
+<p>設定まわりは単一の <code>shared/configs.py</code>
+から、所有責務ごとの層へ再編しました。</p>
+<ul>
+<li><code>shared/runtime_paths.py</code> 通常実行と PyInstaller
+実行の両方で使う <code>APP_BASE_DIR</code> /
+<code>RESOURCE_BASE_DIR</code> を提供します。 Path 計算や
+<code>sys.frozen</code> / <code>sys._MEIPASS</code> 判定のような runtime
+依存ロジックはここへ集約します。</li>
+<li><code>backend/settings.py</code> PDF 圧縮既定値、Ghostscript
+既定プリセット、backend が許可する PDF モード値を保持します。 backend は
+UI 表示ラベルに依存せず、<code>PDF_ALLOWED_MODES</code>
+のような処理都合の値だけを参照します。</li>
+<li><code>frontend/settings.py</code> UI の既定値、cleanup
+対象拡張子、サウンド/画像リソースパス、表示カタログローダを保持します。
+frontend が JSON
+を読む責務はここに閉じ込め、画面コードはロード済み定数だけを使います。</li>
+<li><code>frontend/config_data/ui_catalogs.json</code>
+純粋データだけを置く領域です。現時点では PDF モード表示名、Ghostscript
+プリセット表示名、長辺プリセットを管理します。 Path、OS
+判定、PyInstaller 判定のようなロジックはここへ入れません。</li>
+<li><code>shared/configs.py</code> 旧 import
+互換のための再エクスポート層です。
+新規コードは原則としてこのモジュールを直接参照せず、runtime / backend /
+frontend の各設定モジュールを直接参照します。</li>
+</ul>
+<p>この再編が必要だった理由:</p>
+<ul>
+<li>shared
+を「なんでも置き場」にすると、責務境界が曖昧になり、どの層がその値を所有しているのか説明しづらくなるため。</li>
+<li>backend の検証ロジックと frontend
+の表示ラベルを切り離さないと、画面都合の変更が処理条件へ波及しやすくなるため。</li>
+<li>JSON 化は純粋データだけに限定し、Path や PyInstaller 判定のような
+runtime ロジックは Python
+側へ残すことで、配布と起動の責務を壊さずに整理するため。</li>
+<li>one-folder 配布でも <code>frontend/config_data/</code>
+を含める対象が明確になり、配布漏れを避けやすくするため。</li>
+</ul>
+<h2 id="pymupdf-実描画画像-xref-走査2026年3月15日追記">PyMuPDF
+実描画画像 xref 走査（2026年3月15日追記）</h2>
+<p><code>backend/core/pdf_utils.py</code> の
+<code>compress_pdf_lossy()</code> は、PyMuPDF による PDF
+内画像の非可逆再圧縮を担当します。</p>
+<p>今回の変更内容:</p>
+<ul>
+<li><code>page.get_images(full=True)</code>
+ベースの走査をやめ、<code>page.get_image_info(xrefs=True)</code>
+ベースへ変更しました。</li>
+<li>実際にページ上へ描画されている画像だけを対象にし、<code>bbox</code>
+をそのまま使って実表示サイズから DPI を計算します。</li>
+<li>同じ xref は <code>processed_xrefs</code> で 1
+回だけ判定し、<code>replace_image()</code> 後に別ページで再 replace
+しません。</li>
+<li>xref が欠落している情報や zero bbox は、その場の skip 理由として
+debug に残しつつ安全に通過します。</li>
+</ul>
+<p>この変更が必要だった理由:</p>
+<ul>
+<li><code>page.get_images(full=True)</code> は「そのページの resources
+に登録された画像」を返すため、「そのページで実描画されている画像」と一致しないことがあります。</li>
+<li>特に WeasyPrint 系 PDF では、先頭ページの resources
+に後続ページの画像 xref が見えていても、そのページの
+<code>get_image_rects(xref)</code> は空になることがあります。</li>
+<li>旧実装ではこの負の結果を xref
+単位の失敗キャッシュとして扱っていたため、後続ページで本当に描画されている画像も再確認せず
+skip され、<code>replaced_count=0</code>
+のような誤った結果になり得ました。</li>
+<li>実描画画像ベースへ寄せることで、debug summary も
+<code>image_infos_seen</code>、<code>skip_already_processed</code>、<code>replaced</code>、<code>skip_not_smaller</code>
+といった意味の揃った値になり、原因分析しやすくなります。</li>
+</ul>
+<p>関連テスト:</p>
+<ul>
+<li><code>tests/unit/test_pdf_utils.py</code>
+で、<code>get_image_info(xrefs=True)</code> を使うこと、同じ xref を 1
+回だけ処理すること、xref 欠落と zero bbox を安全にスキップすることを
+unit テスト化しています。</li>
+</ul>
 <h2
 id="ui_contracts.py2026年3月11日追記">ui_contracts.py（2026年3月11日追記）</h2>
 <p>frontend

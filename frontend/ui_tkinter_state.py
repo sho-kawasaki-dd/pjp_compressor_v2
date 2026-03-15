@@ -4,14 +4,16 @@ from __future__ import annotations
 
 import tkinter as tk
 
-from shared.configs import (
-    COPY_NON_TARGET_FILES_DEFAULT,
-    DEBUG_MODE_DEFAULT,
+from backend.settings import (
     GS_DEFAULT_PRESET,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+)
+from frontend.settings import (
+    COPY_NON_TARGET_FILES_DEFAULT,
+    DEBUG_MODE_DEFAULT,
 )
 
 

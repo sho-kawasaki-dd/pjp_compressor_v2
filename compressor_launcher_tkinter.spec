@@ -11,7 +11,7 @@ a = Analysis(
     ['compressor_launcher_tkinter.py'],
     pathex=[],
     binaries=[],
-    datas=[('sounds', 'sounds'), ('images', 'images'), *tkdnd_datas],
+    datas=[('sounds', 'sounds'), ('images', 'images'), ('frontend/config_data', 'frontend/config_data'), *tkdnd_datas],
     hiddenimports=[
         'frontend.bootstrap',
         'backend.contracts',
