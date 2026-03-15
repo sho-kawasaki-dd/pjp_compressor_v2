@@ -50,6 +50,7 @@ def compress_pdf_lossy(
     target_dpi=PDF_LOSSY_DPI_DEFAULT,
     jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    debug=False,
 ):
     """PyMuPDF で PDF 内の全埋め込み画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
     input_file = Path(input_path)
@@ -64,6 +65,27 @@ def compress_pdf_lossy(
         replaced_count = 0
         skipped_count = 0
         compressed_cache: dict[int, bytes | None] = {}
+        debug_stats: dict[str, int] | None = None
+        debug_seen_xrefs: set[int] | None = None
+        debug_rows: list[dict[str, Any]] | None = None
+
+        if debug:
+            debug_stats = {
+                'pages': len(doc),
+                'image_refs_seen': 0,
+                'unique_xrefs': 0,
+                'cache_hit_replaced': 0,
+                'cache_hit_skipped': 0,
+                'skip_no_rect': 0,
+                'skip_zero_rect': 0,
+                'skip_no_extract': 0,
+                'skip_unsupported_ext': 0,
+                'skip_pil_open_failed': 0,
+                'skip_not_smaller': 0,
+                'replaced': 0,
+            }
+            debug_seen_xrefs = set()
+            debug_rows = []
 
         for page_index in range(len(doc)):
             page = doc[page_index]
@@ -72,17 +94,34 @@ def compress_pdf_lossy(
             for img_info in image_list:
                 xref = img_info[0]
 
+                if debug and debug_stats is not None and debug_seen_xrefs is not None:
+                    debug_stats['image_refs_seen'] += 1
+                    if xref not in debug_seen_xrefs:
+                        debug_seen_xrefs.add(xref)
+                        debug_stats['unique_xrefs'] += 1
+
                 if xref in compressed_cache:
                     # 同じ埋め込み画像が複数ページ・複数位置で参照されるため、xref 単位で再利用する。
                     cached = compressed_cache[xref]
                     if cached is not None:
                         page.replace_image(xref, stream=cached)
+                        if debug and debug_stats is not None:
+                            debug_stats['cache_hit_replaced'] += 1
+                    elif debug and debug_stats is not None:
+                        debug_stats['cache_hit_skipped'] += 1
                     continue
 
                 rects = page.get_image_rects(xref)
                 if not rects:
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    if debug and debug_stats is not None and debug_rows is not None:
+                        debug_stats['skip_no_rect'] += 1
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': 'skip_no_rect',
+                        })
                     continue
 
                 rect = rects[0]
@@ -92,12 +131,27 @@ def compress_pdf_lossy(
                 if rect_w_pts == 0 or rect_h_pts == 0:
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    if debug and debug_stats is not None and debug_rows is not None:
+                        debug_stats['skip_zero_rect'] += 1
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': 'skip_zero_rect',
+                            'rect_pts': (rect_w_pts, rect_h_pts),
+                        })
                     continue
 
                 base_image = doc.extract_image(xref)
                 if not base_image:
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    if debug and debug_stats is not None and debug_rows is not None:
+                        debug_stats['skip_no_extract'] += 1
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': 'skip_no_extract',
+                        })
                     continue
 
                 img_bytes = base_image['image']
@@ -107,13 +161,32 @@ def compress_pdf_lossy(
                 if img_ext in ('jbig2', 'tiff', 'tif', 'jpx'):
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    if debug and debug_stats is not None and debug_rows is not None:
+                        debug_stats['skip_unsupported_ext'] += 1
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': 'skip_unsupported_ext',
+                            'ext': img_ext,
+                            'orig_size': orig_size,
+                        })
                     continue
 
                 try:
                     pil_img = Image.open(io.BytesIO(img_bytes))
-                except Exception:
+                except Exception as exc:
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    if debug and debug_stats is not None and debug_rows is not None:
+                        debug_stats['skip_pil_open_failed'] += 1
+                        debug_rows.append({
+                            'page': page_index + 1,
+                            'xref': xref,
+                            'status': 'skip_pil_open_failed',
+                            'ext': img_ext,
+                            'orig_size': orig_size,
+                            'error': str(exc),
+                        })
                     continue
 
                 orig_w, orig_h = pil_img.size
@@ -122,6 +195,8 @@ def compress_pdf_lossy(
                 # 紙面上の表示サイズに対して実解像度が高い軸に合わせると、
                 # どちらか一方だけ粗くなってしまうケースを避けやすい。
                 effective_dpi = max(effective_dpi_x, effective_dpi_y)
+                resized = False
+                resized_to = (orig_w, orig_h)
 
                 if effective_dpi > target_dpi:
                     scale = target_dpi / effective_dpi
@@ -133,9 +208,12 @@ def compress_pdf_lossy(
                         # 旧 Pillow 系では enum が無いため、互換定数を限定的に参照する。
                         resample_filter = getattr(cast(Any, Image), 'LANCZOS')
                     pil_img = pil_img.resize((new_w, new_h), resample_filter)
+                    resized = True
+                    resized_to = (new_w, new_h)
 
                 is_lossless = img_ext in ('png', 'bmp', 'tiff', 'tif', 'gif')
                 buf = io.BytesIO()
+                output_format = 'PNG'
 
                 if is_lossless and not png_to_jpeg:
                     # 透明情報を壊したくないケースでは PNG を維持し、最適化だけ行う。
@@ -153,20 +231,62 @@ def compress_pdf_lossy(
                             pil_img = background
                     if pil_img.mode != 'RGB':
                         pil_img = pil_img.convert('RGB')
+                    output_format = 'JPEG'
                     pil_img.save(buf, format='JPEG', quality=jpeg_quality, optimize=True)
 
                 new_bytes = buf.getvalue()
+                new_size = len(new_bytes)
+                row = {
+                    'page': page_index + 1,
+                    'xref': xref,
+                    'status': None,
+                    'ext': img_ext,
+                    'orig_px': (orig_w, orig_h),
+                    'rect_pts': (round(rect_w_pts, 2), round(rect_h_pts, 2)),
+                    'effective_dpi': round(effective_dpi, 2),
+                    'resized': resized,
+                    'resized_to': resized_to,
+                    'orig_size': orig_size,
+                    'new_size': new_size,
+                    'output_format': output_format,
+                }
 
-                if len(new_bytes) < orig_size:
+                if new_size < orig_size:
                     # 圧縮効果がない画像を無理に差し替えると PDF が肥大化するため、
                     # サイズが縮んだ場合だけ更新する。
                     page.replace_image(xref, stream=new_bytes)
                     compressed_cache[xref] = new_bytes
                     replaced_count += 1
+                    row['status'] = 'replaced'
+                    if debug and debug_stats is not None:
+                        debug_stats['replaced'] += 1
                 else:
                     compressed_cache[xref] = None
                     skipped_count += 1
+                    row['status'] = 'skip_not_smaller'
+                    if debug and debug_stats is not None:
+                        debug_stats['skip_not_smaller'] += 1
 
+                if debug and debug_rows is not None:
+                    debug_rows.append(row)
+
+        if debug and debug_stats is not None and debug_rows is not None:
+            print('=== compress_pdf_lossy debug summary ===')
+            for key, value in debug_stats.items():
+                print(f'{key}: {value}')
+
+            print('=== compress_pdf_lossy debug details (first 50 unique xrefs) ===')
+            shown = 0
+            shown_xrefs: set[int] = set()
+            for row in debug_rows:
+                xref = row['xref']
+                if xref in shown_xrefs:
+                    continue
+                shown_xrefs.add(xref)
+                print(row)
+                shown += 1
+                if shown >= 50:
+                    break
         doc.save(str(output_file), garbage=4, deflate=True)
         doc.close()
 
@@ -314,6 +434,7 @@ def compress_pdf_native(
     jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
     lossless_options=None,
+    debug=False,
 ):
     """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。"""
     input_file = Path(input_path)
@@ -323,14 +444,14 @@ def compress_pdf_native(
         mode = 'both'
 
     if mode == 'lossy':
-        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_to_jpeg)
+        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_to_jpeg, debug)
     if mode == 'lossless':
         return compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
 
     # `both` は一旦非可逆で画像を落としてから、最終 PDF 全体を可逆最適化する。
     tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_lossy.pdf')
     try:
-        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_to_jpeg)
+        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_to_jpeg, debug)
         if not ok_lossy:
             ok_ll, msg_ll = compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
             return ok_ll, f"{msg_lossy} / {msg_ll}"

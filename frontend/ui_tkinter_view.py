@@ -538,6 +538,10 @@ class TkUiViewMixin:
         zip_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(zip_row, text='ZIP 展開してから圧縮', variable=self.extract_zip).pack(side='left')
 
+        debug_row = ttk.Frame(out_lf)
+        debug_row.pack(fill='x', padx=5, pady=2)
+        ttk.Checkbutton(debug_row, text='デバッグモードで出力', variable=self.debug_mode).pack(side='left')
+
         copy_row = ttk.Frame(out_lf)
         copy_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(

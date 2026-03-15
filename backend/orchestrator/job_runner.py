@@ -58,6 +58,7 @@ def run_compression_job(
     csv_enable: bool = True,
     csv_path: str | None = None,
     extract_zip: bool = False,
+    debug_mode: bool = False,
     copy_non_target_files: bool = False,
 ) -> None:
     """入力フォルダ全体を走査し、圧縮ジョブを最後まで実行する。
@@ -97,7 +98,7 @@ def run_compression_job(
     #   inpath, outpath, ext,
     #   pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg,
     #   pdf_lossless_options, gs_preset, gs_custom_dpi,
-    #   jpg_quality, png_quality, use_pngquant, resize_cfg,
+    #   jpg_quality, png_quality, use_pngquant, resize_cfg, debug_mode,
     #   csv_input_path, csv_output_path,
     # )
     tasks: list[tuple[Any, ...]] = []
@@ -141,6 +142,7 @@ def run_compression_job(
             png_quality,
             use_pngquant,
             rcfg,
+            debug_mode,
             csv_input_path,
             csv_output_path,
         ))
@@ -274,8 +276,8 @@ def run_compression_job(
                     inpath_task = Path(task[0])
                     outpath_task = Path(task[1])
                     ext_task = task[2]
-                    csv_input = task[15]
-                    csv_output = task[16]
+                    csv_input = task[16]
+                    csv_output = task[17]
 
                     if processed_flag:
                         orig_total += orig_size
@@ -392,6 +394,7 @@ def run_compression_request(
             csv_enable=request.csv_enable,
             csv_path=request.csv_path,
             extract_zip=request.extract_zip,
+            debug_mode=request.debug_mode,
             copy_non_target_files=request.copy_non_target_files,
         )
     except Exception as exc:

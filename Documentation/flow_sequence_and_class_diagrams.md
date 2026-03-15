@@ -14,7 +14,8 @@ flowchart TD
     A2 --> B[入力フォルダを指定]
     B --> C[出力フォルダを指定]
     C --> D[圧縮設定]
-    D --> E[CompressionRequest を組み立て]
+    D --> D1[出力設定で debug_mode を選択 任意]
+    D1 --> E[CompressionRequest を組み立て]
     E --> F[run_compression_request 呼び出し]
     F --> G[run_compression_job 実行]
     G --> H[ZIP展開ON時は一時作業領域で再帰展開 最大25サイクル]
@@ -25,6 +26,10 @@ flowchart TD
     L -- PDF --> M{pdf_engine}
     M -- ghostscript --> N[Ghostscript圧縮]
     M -- native --> O[PyMuPDF + pikepdf]
+    O --> O1{debug_mode ON?}
+    O1 -- はい --> O2[PyMuPDF 非可逆段の debug stats を標準出力へ出力]
+    O1 -- いいえ --> U
+    O2 --> U
     L -- JPG/JPEG --> P[Pillow圧縮]
     L -- PNG --> Q{use_pngquant}
     Q -- true --> R[pngquant圧縮]
@@ -65,7 +70,7 @@ sequenceDiagram
     User->>App: 入力/出力フォルダ・圧縮設定
     User->>Ctrl: 圧縮開始クリック
     Ctrl->>Mapper: build_compression_request()
-    Mapper-->>Ctrl: CompressionRequest
+    Mapper-->>Ctrl: CompressionRequest(debug_mode を含む)
     Ctrl->>Runner: run_compression_request(request)
     Runner->>FS: ZIP展開ON時は一時作業領域で展開（入力不変）
     Runner->>FS: ファイル一覧取得
@@ -82,6 +87,9 @@ sequenceDiagram
             else request.pdf_engine == native
                 Worker->>Svc: pdf_service
                 Svc->>Native: PDF圧縮
+                alt request.debug_mode == True
+                    Native-->>FS: 非可逆段の debug stats を標準出力へ出力
+                end
                 Native-->>Worker: 出力PDF
             end
         else JPG/PNG
@@ -128,6 +136,7 @@ classDiagram
         +resize_enabled: BooleanVar
         +resize_mode: StringVar
         +csv_enable: BooleanVar
+        +debug_mode: BooleanVar
         +start_compress()
         +cleanup_input()
         +cleanup_output()
@@ -176,6 +185,7 @@ classDiagram
         +use_pngquant
         +resize_config
         +csv_enable
+        +debug_mode
         +extract_zip
     }
 

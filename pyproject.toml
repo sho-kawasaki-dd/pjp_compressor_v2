@@ -11,6 +11,7 @@ dependencies = [
     "tkinterdnd2>=0.4.3",
     "pygame>=2.3.0",
     "pyinstaller>=6.19.0",
+    "pytest>=9.0.2",
 ]
 
 [project.optional-dependencies]
@@ -18,3 +19,16 @@ build = [
     "pyinstaller>=6.0.0",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+markers = [
+    "unit: isolated fast tests without external process dependencies",
+    "integration: multi-module tests using real files or higher-level flows",
+    "regression: selective regression scenarios for previously fragile flows",
+    "slow: tests that are slower than the default fast suite",
+    "requires_tk: tests that require a usable Tk runtime",
+    "requires_external: tests that require optional external tools such as Ghostscript or pngquant",
+]
+addopts = ["-ra"]

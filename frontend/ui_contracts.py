@@ -44,6 +44,7 @@ class CompressionRequestAppProtocol(Protocol):
     csv_enable: tk.BooleanVar
     csv_path: tk.StringVar
     extract_zip: tk.BooleanVar
+    debug_mode: tk.BooleanVar
     copy_non_target_files: tk.BooleanVar
 
 

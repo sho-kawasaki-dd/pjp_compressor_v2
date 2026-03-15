@@ -90,6 +90,7 @@ class CompressionRequest:
     csv_enable: bool
     csv_path: str | None
     extract_zip: bool
+    debug_mode: bool
     copy_non_target_files: bool
 
     def to_legacy_kwargs(
@@ -126,5 +127,6 @@ class CompressionRequest:
             'csv_enable': self.csv_enable,
             'csv_path': self.csv_path,
             'extract_zip': self.extract_zip,
+            'debug_mode': self.debug_mode,
             'copy_non_target_files': self.copy_non_target_files,
         }

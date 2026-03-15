@@ -6,6 +6,7 @@ import tkinter as tk
 
 from shared.configs import (
     COPY_NON_TARGET_FILES_DEFAULT,
+    DEBUG_MODE_DEFAULT,
     GS_DEFAULT_PRESET,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
@@ -61,6 +62,7 @@ class TkUiStateMixin:
         self.csv_enable: tk.BooleanVar = tk.BooleanVar(value=True)
         self.csv_path: tk.StringVar = tk.StringVar(value='')
         self.extract_zip: tk.BooleanVar = tk.BooleanVar(value=True)
+        self.debug_mode: tk.BooleanVar = tk.BooleanVar(value=DEBUG_MODE_DEFAULT)
         self.copy_non_target_files: tk.BooleanVar = tk.BooleanVar(value=COPY_NON_TARGET_FILES_DEFAULT)
         self.auto_switch_log_tab: tk.BooleanVar = tk.BooleanVar(value=True)
 

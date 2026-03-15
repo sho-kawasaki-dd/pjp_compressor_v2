@@ -115,6 +115,7 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         csv_enable=app.csv_enable.get(),
         csv_path=app.csv_path.get().strip() or None,
         extract_zip=app.extract_zip.get(),
+        debug_mode=app.debug_mode.get(),
         copy_non_target_files=app.copy_non_target_files.get(),
     )
 

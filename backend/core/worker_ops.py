@@ -12,7 +12,7 @@ from backend.core.pdf_utils import compress_pdf_gs, compress_pdf_native
 def process_single_file(args):
     """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。"""
     # Orchestrator may append metadata fields after resize_cfg for logging purposes.
-    args = tuple(args[:15])
+    args = tuple(args[:16])
     (
         inpath,
         outpath,
@@ -29,6 +29,7 @@ def process_single_file(args):
         png_quality,
         use_pngquant,
         resize_cfg,
+        debug_mode,
     ) = args
 
     inpath = Path(inpath)
@@ -64,6 +65,7 @@ def process_single_file(args):
                 jpeg_quality=pdf_jpeg_quality,
                 png_to_jpeg=pdf_png_to_jpeg,
                 lossless_options=pdf_lossless_options,
+                debug=debug_mode,
             )
     elif ext in ['jpg', 'jpeg']:
         processed = True
