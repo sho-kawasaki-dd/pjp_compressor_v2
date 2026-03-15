@@ -25,6 +25,8 @@ from frontend.bootstrap import run_tkinter_app
 
 def _runtime_base_dir() -> Path:
     """実行体の基準ディレクトリを返す（exe優先、通常実行時は本ファイル基準）。"""
+    # PyInstaller 化された実行ファイルでは `__file__` ではなく exe の位置を基準にしないと、
+    # ログや同梱リソースの保存先がずれる。
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     return Path(__file__).resolve().parent
@@ -58,6 +60,7 @@ def _show_startup_error(exc: BaseException, log_path: Path | None) -> None:
     )
 
     try:
+        # GUI 本体の起動前でも例外内容を知らせるため、一時的な最小 Tk だけ作る。
         root = Tk()
         root.withdraw()
         messagebox.showerror("起動エラー", message)
@@ -71,6 +74,7 @@ def main() -> int:
     try:
         return run_tkinter_app()
     except Exception as exc:
+        # 起動失敗時は再送出せず、GUI アプリとして分かりやすいエラー導線を優先する。
         log_path = _write_crash_log(exc)
         _show_startup_error(exc, log_path)
         return 1

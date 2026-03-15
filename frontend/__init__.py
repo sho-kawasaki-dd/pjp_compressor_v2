@@ -1,1 +1,4 @@
-"""Frontend package for Tkinter UI and presentation utilities."""
+"""frontend パッケージ。
+
+Tkinter UI の状態、表示、制御、補助ユーティリティをまとめて提供する。
+"""

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""orchestrator から渡された 1 ファイル分の圧縮処理を実行する。"""
+
 from pathlib import Path
 
 from backend.core.format_utils import human_readable
@@ -44,6 +46,7 @@ def process_single_file(args):
     processed = False
     if ext == 'pdf':
         processed = True
+        # PDF はエンジン選択があるため、ここでネイティブ系と Ghostscript 系を分岐する。
         if pdf_engine == 'gs':
             _, base_msg = compress_pdf_gs(
                 str(inpath),
@@ -68,6 +71,7 @@ def process_single_file(args):
     elif ext == 'png':
         processed = True
         if use_pngquant:
+            # UI の PNG 品質は上限値として扱い、下限は少し広めに取って圧縮率を確保する。
             qmin = max(0, png_quality - 20)
             qmax = png_quality
             _, base_msg = compress_png_pngquant(str(inpath), str(outpath), qmin, qmax, speed=3, resize_cfg=resize_cfg)
@@ -75,6 +79,7 @@ def process_single_file(args):
             _, base_msg = compress_image_pillow(str(inpath), str(outpath), png_quality, resize_cfg=resize_cfg)
     else:
         try:
+            # 対象外ファイルは orchestrator 側で必要ならコピーするため、ここでは理由だけ返す。
             base_msg = f"未対応: {inpath.name}（Left in the input folder）"
         except Exception as e:
             base_msg = f"未対応ファイル失敗: {inpath.name} ({e})"
@@ -86,6 +91,7 @@ def process_single_file(args):
 
     saved_size = orig_size - out_size
     saved_pct = (saved_size / orig_size * 100) if orig_size > 0 else 0.0
+    # 呼び出し側が CSV・UI・ログで同じ文字列を使えるよう、詳細はここでまとめる。
     size_info = f" | Before: {human_readable(orig_size)} → After: {human_readable(out_size)}"
     if saved_size > 0:
         size_info += f" (削減: {human_readable(saved_size)}, -{saved_pct:.1f}%)"

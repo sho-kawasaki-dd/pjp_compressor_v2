@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""UI 状態を backend 向け `CompressionRequest` へ正規化する。"""
+
 from dataclasses import dataclass
 
 from backend.contracts import CompressionRequest
@@ -8,6 +10,8 @@ from frontend.ui_contracts import CompressionRequestAppProtocol
 
 @dataclass(frozen=True)
 class RequestBuildResult:
+    """request 本体と、UI 表示やログに使う派生値をまとめた戻り値。"""
+
     request: CompressionRequest
     resize_config: dict[str, int | bool | str] | bool
     resize_width: int
@@ -15,6 +19,7 @@ class RequestBuildResult:
 
 
 def to_non_negative_int(value: str) -> int:
+    """入力欄文字列を非負整数へ丸める。"""
     try:
         parsed = int(float(value.strip()))
         return parsed if parsed >= 0 else 0
@@ -23,6 +28,7 @@ def to_non_negative_int(value: str) -> int:
 
 
 def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, int | bool | str] | bool, int, int]:
+    """UI のリサイズ入力を backend が理解しやすい辞書へ変換する。"""
     mode = app.resize_mode.get()
     resize_width = to_non_negative_int(app.resize_width.get())
     resize_height = to_non_negative_int(app.resize_height.get())
@@ -35,6 +41,7 @@ def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, i
     resize_config: dict[str, int | bool | str] | bool = False
     if app.resize_enabled.get():
         if mode == 'long_edge' and long_edge > 0:
+            # 長辺指定は縦横のどちらが長い画像でも同じ設定で再利用できる。
             resize_config = {
                 'enabled': True,
                 'mode': 'long_edge',
@@ -42,6 +49,7 @@ def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, i
                 'keep_aspect': True,
             }
         elif mode == 'manual' and (resize_width > 0 or resize_height > 0):
+            # manual では未入力側を 0 のまま渡し、画像側で片辺指定を解決する。
             resize_config = {
                 'enabled': True,
                 'mode': 'manual',
@@ -54,6 +62,7 @@ def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, i
 
 
 def build_lossless_options(app: CompressionRequestAppProtocol) -> dict[str, bool]:
+    """可逆圧縮オプション群を UI から抽出する。"""
     return {
         'linearize': app.pdf_ll_linearize.get(),
         'object_streams': app.pdf_ll_object_streams.get(),
@@ -67,8 +76,10 @@ def resolve_pdf_lossless_options(
     app: CompressionRequestAppProtocol,
     base_options: dict[str, bool],
 ) -> dict[str, bool] | None:
+    """PDF エンジンとモードに応じて可逆オプションの採用可否を決める。"""
     engine = app.pdf_engine.get()
     if engine == 'gs':
+        # Ghostscript 系では追加の pikepdf 最適化を明示的に有効化した時だけ適用する。
         return base_options if app.gs_use_lossless.get() else None
 
     mode = app.pdf_mode.get()
@@ -76,11 +87,13 @@ def resolve_pdf_lossless_options(
 
 
 def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuildResult:
+    """現在の UI 状態から `CompressionRequest` を構築する。"""
     resize_config, resize_width, resize_height = build_resize_config(app)
     lossless_options = build_lossless_options(app)
     pdf_lossless_options = resolve_pdf_lossless_options(app, lossless_options)
 
     gs_custom_dpi = app.gs_custom_dpi.get() if app.gs_preset.get() == 'custom' else None
+    # カスタム以外のプリセットでは DPI を使わないため、不要な値は None に揃える。
 
     request = CompressionRequest(
         input_dir=app.input_dir.get(),

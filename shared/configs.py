@@ -34,6 +34,9 @@ def _resource_base_dir() -> Path:
 APP_BASE_DIR = _runtime_base_dir()
 RESOURCE_BASE_DIR = _resource_base_dir()
 
+# `APP_BASE_DIR` は入出力やログの既定配置先、`RESOURCE_BASE_DIR` は PyInstaller 展開先を
+# 意識した読み取り専用リソースの基準として使い分ける。
+
 # ---------------------------------------------------------------------------
 # PDF 圧縮設定（PyMuPDF + pikepdf）
 # ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""ファイル数集計とクリーンアップ処理を担当する。"""
+
 from pathlib import Path
 
 
@@ -13,6 +15,7 @@ def count_target_files(target_dir, target_extensions):
         return 0
     try:
         for file_path in base_dir.rglob('*'):
+            # 呼び出し側で集計対象拡張子を切り替えられるよう、判定はここで完結させる。
             if file_path.is_file() and file_path.suffix.lower() in target_extensions:
                 count += 1
     except Exception:
@@ -55,8 +58,10 @@ def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_exte
                 except Exception as e:
                     log_func(f"削除失敗: {_rel(file_path)} - {e}")
             else:
+                # 対象外ファイルは残しておき、ユーザーの成果物を誤って消さないようにする。
                 skipped_count += 1
 
+        # 子ディレクトリから順に消さないと、空になった親を取りこぼすため深い順に処理する。
         dirs = [p for p in base_dir.rglob('*') if p.is_dir()]
         dirs.sort(key=lambda p: len(p.parts), reverse=True)
         for dir_path in dirs:

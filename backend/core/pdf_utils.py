@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+"""PDF 圧縮の実装をエンジン別にまとめる。
+
+ネイティブ系は PyMuPDF と pikepdf を組み合わせ、Ghostscript 系は再蒸留後に
+必要なら pikepdf で可逆最適化を重ねる。
+"""
+
 import io
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any, cast
 
 from PIL import Image
 
@@ -18,6 +25,7 @@ from shared.configs import (
 
 
 def _import_fitz():
+    """PyMuPDF を遅延 import し、未導入時も呼び出し側で扱える形にする。"""
     try:
         import fitz as fitz_module
 
@@ -27,6 +35,7 @@ def _import_fitz():
 
 
 def _import_pikepdf():
+    """pikepdf を遅延 import し、依存未導入時のメッセージ生成に使う。"""
     try:
         import pikepdf as pikepdf_module
 
@@ -64,6 +73,7 @@ def compress_pdf_lossy(
                 xref = img_info[0]
 
                 if xref in compressed_cache:
+                    # 同じ埋め込み画像が複数ページ・複数位置で参照されるため、xref 単位で再利用する。
                     cached = compressed_cache[xref]
                     if cached is not None:
                         page.replace_image(xref, stream=cached)
@@ -109,23 +119,31 @@ def compress_pdf_lossy(
                 orig_w, orig_h = pil_img.size
                 effective_dpi_x = orig_w / (rect_w_pts / 72.0)
                 effective_dpi_y = orig_h / (rect_h_pts / 72.0)
+                # 紙面上の表示サイズに対して実解像度が高い軸に合わせると、
+                # どちらか一方だけ粗くなってしまうケースを避けやすい。
                 effective_dpi = max(effective_dpi_x, effective_dpi_y)
 
                 if effective_dpi > target_dpi:
                     scale = target_dpi / effective_dpi
                     new_w = max(1, int(orig_w * scale))
                     new_h = max(1, int(orig_h * scale))
-                    resample_filter = getattr(Image, 'Resampling', Image).LANCZOS
+                    if hasattr(Image, 'Resampling'):
+                        resample_filter = Image.Resampling.LANCZOS
+                    else:
+                        # 旧 Pillow 系では enum が無いため、互換定数を限定的に参照する。
+                        resample_filter = getattr(cast(Any, Image), 'LANCZOS')
                     pil_img = pil_img.resize((new_w, new_h), resample_filter)
 
                 is_lossless = img_ext in ('png', 'bmp', 'tiff', 'tif', 'gif')
                 buf = io.BytesIO()
 
                 if is_lossless and not png_to_jpeg:
+                    # 透明情報を壊したくないケースでは PNG を維持し、最適化だけ行う。
                     if pil_img.mode not in ('RGB', 'RGBA', 'L', 'LA'):
                         pil_img = pil_img.convert('RGBA' if ('A' in pil_img.mode or pil_img.mode == 'P') else 'RGB')
                     pil_img.save(buf, format='PNG', optimize=True)
                 else:
+                    # JPEG 化する場合はアルファを白背景へ合成しないと見た目が崩れる。
                     if pil_img.mode in ('RGBA', 'PA', 'LA', 'P'):
                         if pil_img.mode == 'P':
                             pil_img = pil_img.convert('RGBA')
@@ -140,6 +158,8 @@ def compress_pdf_lossy(
                 new_bytes = buf.getvalue()
 
                 if len(new_bytes) < orig_size:
+                    # 圧縮効果がない画像を無理に差し替えると PDF が肥大化するため、
+                    # サイズが縮んだ場合だけ更新する。
                     page.replace_image(xref, stream=new_bytes)
                     compressed_cache[xref] = new_bytes
                     replaced_count += 1
@@ -177,6 +197,7 @@ def compress_pdf_lossless(input_path, output_path, options=None):
                 pdf.remove_unreferenced_resources()
 
             if options.get('clean_metadata', False):
+                # 配布用途では作成ソフト情報を消したいケースがあるため任意化している。
                 if '/Metadata' in pdf.Root:
                     del pdf.Root.Metadata
                 if '/Info' in pdf.trailer:
@@ -246,6 +267,7 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
     ]
 
     if preset == 'custom' and custom_dpi:
+        # カスタム DPI は各画像種別を明示指定し、プリセットより優先して解像度を固定する。
         cmd.extend([
             '-dColorImageDownsampleType=/Bicubic',
             f'-dColorImageResolution={custom_dpi}',
@@ -272,6 +294,7 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
             out_size = output_file.stat().st_size
 
             if out_size >= orig_size:
+                # Ghostscript は内容次第で逆に肥大化するため、悪化時は元ファイルを維持する。
                 shutil.copy2(str(input_file), str(output_file))
                 return True, f"PDF圧縮(GS): {input_file.name} → 圧縮効果なし（元ファイルを維持）"
 
@@ -304,6 +327,7 @@ def compress_pdf_native(
     if mode == 'lossless':
         return compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
 
+    # `both` は一旦非可逆で画像を落としてから、最終 PDF 全体を可逆最適化する。
     tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_lossy.pdf')
     try:
         ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_to_jpeg)
@@ -313,6 +337,7 @@ def compress_pdf_native(
 
         ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
         if not ok_ll:
+            # 段階後半だけ失敗しても、前段の成果物を捨てるよりは結果を残す方を優先する。
             shutil.copy2(str(tmp_path), str(output_file))
             return True, f"{msg_lossy} / {msg_ll}（可逆段失敗、非可逆結果を採用）"
 
@@ -339,6 +364,7 @@ def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dp
 
             ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
             if not ok_ll:
+                # GS 結果が得られている場合は、可逆段の失敗だけで全体を失敗扱いにしない。
                 shutil.copy2(str(tmp_path), str(output_file))
                 return True, f"{msg_gs} / {msg_ll}（可逆段失敗、GS結果を採用）"
 

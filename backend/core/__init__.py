@@ -1,1 +1,4 @@
-"""Core backend processing implementations split by responsibility."""
+"""backend.core パッケージ。
+
+圧縮アルゴリズムやファイル操作など、責務別に分けた実処理実装を収める。
+"""

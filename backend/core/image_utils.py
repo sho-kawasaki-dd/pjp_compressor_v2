@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""JPEG/PNG 圧縮と画像リサイズ処理を担当する。"""
+
 import shutil
 import subprocess
 from pathlib import Path
@@ -15,11 +17,14 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     try:
         img = Image.open(str(input_file))
         if resize_cfg and resize_cfg.get('enabled'):
+            # UI 側では複数の入力形式を許容しているため、ここで mode を見て
+            # 実際のリサイズ戦略へ落とし込む。
             mode = resize_cfg.get('mode', 'manual')
             orig_w, orig_h = img.size
             if mode == 'long_edge':
                 target = int(resize_cfg.get('long_edge', 0) or 0)
                 if target > 0:
+                    # 長辺基準は縦横の向きを問わず同じ UI 設定で扱える点が利点。
                     long = max(orig_w, orig_h)
                     scale = target / long
                     new_w = max(1, int(orig_w * scale))
@@ -31,6 +36,7 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
                 keep = bool(resize_cfg.get('keep_aspect', True))
                 if w > 0 or h > 0:
                     if keep:
+                        # 枠内に収めるモードなので、両方指定時は小さい方の倍率を使う。
                         if w > 0 and h > 0:
                             scale = min(w / orig_w, h / orig_h)
                             new_w = max(1, int(orig_w * scale))
@@ -63,6 +69,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
 
     pngquant_exe = shutil.which("pngquant")
     if not pngquant_exe:
+        # pngquant は任意依存のため、未導入でも PNG 圧縮処理自体は継続させる。
         return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
     tmp_path = None
     try:
@@ -71,6 +78,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
         resized_wh = None
         if resize_cfg and resize_cfg.get('enabled'):
             try:
+                # pngquant 自身はリサイズをしないため、一時 PNG を作ってから量子化する。
                 tmp_path = output_file.with_suffix(output_file.suffix + ".tmp_resize.png")
                 img = Image.open(str(input_file))
                 mode = resize_cfg.get('mode', 'manual')
@@ -110,6 +118,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                 img.save(str(tmp_path), optimize=True)
                 src_path = tmp_path
             except Exception:
+                # リサイズ前処理に失敗しても、圧縮だけは継続できるよう元画像へ戻す。
                 src_path = input_file
 
         cmd = [

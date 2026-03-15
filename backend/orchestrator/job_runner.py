@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""圧縮ジョブ全体の段取りを管理する。
+
+この層は個別圧縮アルゴリズムを持たず、入力走査、ZIP 展開、タスク生成、
+並列実行、CSV 出力、進捗通知をまとめて担当する。
+"""
+
 import csv
 import multiprocessing
 import shutil
@@ -22,6 +28,7 @@ from backend.contracts import CompressionRequest, ProgressEvent
 
 
 def _safe_rel(path: Path, base: Path) -> str:
+    """基準ディレクトリに対する相対パスを安全に返す。"""
     try:
         return str(path.relative_to(base))
     except Exception:
@@ -53,6 +60,14 @@ def run_compression_job(
     extract_zip: bool = False,
     copy_non_target_files: bool = False,
 ) -> None:
+    """入力フォルダ全体を走査し、圧縮ジョブを最後まで実行する。
+
+    主な責務は以下の通り。
+    - 通常ファイルと ZIP 展開後ファイルを単一のタスク列へ統合する
+    - ワーカースレッドへ個別処理を投げ、進捗と統計を逐次通知する
+    - CSV ログやフォールバックコピーを含むジョブ全体の付帯処理を管理する
+    """
+
     from backend.core.format_utils import human_readable
     from backend.core.worker_ops import process_single_file
 
@@ -66,6 +81,7 @@ def run_compression_job(
     zip_output_copies: list[tuple[Path, Path, str, str]] = []
     temp_extract_root: Path | None = None
     if copy_non_target_files:
+        # mirror モードでは ZIP 自体も出力へ残し、展開結果と元 ZIP の両方を保持する。
         for zip_path in zip_files:
             rel_zip = zip_path.relative_to(input_base)
             out_zip = output_base / rel_zip
@@ -87,6 +103,7 @@ def run_compression_job(
     tasks: list[tuple[Any, ...]] = []
 
     def append_task(inpath: Path, outpath: Path, csv_input_path: str, csv_output_path: str) -> None:
+        """ワーカーへ渡すタスク 1 件を構築する。"""
         ext = inpath.suffix.lower().lstrip('.')
 
         if pdf_lossless_options is None:
@@ -96,6 +113,7 @@ def run_compression_job(
 
         rcfg = None
         if isinstance(resize_enabled, dict):
+            # 新 API では resize 情報を dict で受け取るため、そのまま優先採用する。
             rcfg = resize_enabled
         else:
             if resize_enabled and (resize_width > 0 or resize_height > 0):
@@ -146,6 +164,7 @@ def run_compression_job(
 
             for zip_path in zip_files:
                 rel_zip = zip_path.relative_to(input_base)
+                # 入力フォルダを直接書き換えないため、ZIP ごとに一時 staging 領域へ複製する。
                 staged_root = temp_root / rel_zip.parent / zip_path.stem
                 staged_root.mkdir(parents=True, exist_ok=True)
                 staged_zip = staged_root / zip_path.name
@@ -159,6 +178,7 @@ def run_compression_job(
                 for extracted_file in staged_root.rglob('*'):
                     if not extracted_file.is_file() or extracted_file.suffix.lower() == '.zip':
                         continue
+                    # CSV では「どの ZIP の中のどのファイルか」が分かるよう `zip::path` 形式で残す。
                     rel_inside_zip = extracted_file.relative_to(staged_root)
                     outpath = output_zip_root / rel_inside_zip
                     csv_input = f"{rel_zip.as_posix()}::{rel_inside_zip.as_posix()}"
@@ -205,6 +225,7 @@ def run_compression_job(
                 'timestamp', 'input_path', 'output_path', 'ext', 'action',
                 'orig_size', 'out_size', 'saved_bytes', 'saved_pct', 'notes',
             ])
+            # 先頭にヘッダを書いておくことで、途中失敗時も解析しやすい CSV を維持する。
             log_func(f"CSVログ出力: {csv_path_obj}")
         except Exception as exc:
             log_func(f"CSVログの作成に失敗しました: {exc}")
@@ -261,6 +282,7 @@ def run_compression_job(
                         out_total += out_size
                         processed_files += 1
                     elif copy_non_target_files:
+                        # 非圧縮対象や圧縮失敗ファイルも mirror モードでは出力に揃えておく。
                         is_non_target = ext_task not in compressible_extensions
                         try:
                             outpath_task.parent.mkdir(parents=True, exist_ok=True)
@@ -277,6 +299,7 @@ def run_compression_job(
 
                     try:
                         if csv_writer:
+                            # 画面ログと CSV の action を揃えるため、メッセージ先頭を action 名として使う。
                             action = msg.split(' | ')[0]
                             saved = orig_size - out_size
                             saved_pct = (saved / orig_size * 100) if orig_size > 0 else 0.0
@@ -326,6 +349,8 @@ def run_compression_request(
     request: CompressionRequest,
     event_callback: Callable[[ProgressEvent], None],
 ) -> None:
+    """`CompressionRequest` ベースの新 API をイベント駆動で実行する。"""
+
     def on_log(message: str) -> None:
         event_callback(ProgressEvent(kind='log', message=message))
 

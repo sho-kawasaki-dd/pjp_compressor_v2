@@ -1,1 +1,4 @@
-"""Backend utility scripts and tools."""
+"""backend.tools パッケージ。
+
+本体機能ではない補助スクリプトや変換ツールを置く。
+"""

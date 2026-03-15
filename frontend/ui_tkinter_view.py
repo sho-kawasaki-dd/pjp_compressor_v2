@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Tkinter 画面のレイアウト構築を担当する mixin。"""
+
 import shutil
 import tkinter as tk
 from tkinter import ttk
@@ -14,6 +16,8 @@ from shared.configs import (
 
 
 class _DndEntryProtocol(Protocol):
+    """D&D 対応 Entry が持つ最小 API を表す Protocol。"""
+
     def drop_target_register(self, *dnd_types: object) -> object:
         ...
 
@@ -113,6 +117,7 @@ class TkUiViewMixin:
     log_text: tk.Text
 
     def build_layout(self) -> None:
+        """メイン画面全体を上から順に組み立てる。"""
         self._build_root_scroll_container()
         self._build_folder_section()
         self._build_notebook()
@@ -123,6 +128,7 @@ class TkUiViewMixin:
         return cast(tk.Misc, self)
 
     def _build_root_scroll_container(self):
+        """縦長レイアウトでも扱いやすいスクロール可能コンテナを作る。"""
         root_frame = ttk.Frame(self._as_tk_master())
         root_frame.pack(fill='both', expand=True)
 
@@ -180,6 +186,7 @@ class TkUiViewMixin:
         return False
 
     def _build_folder_section(self):
+        """入出力フォルダ選択と D&D 導線をまとめて配置する。"""
         folder_frame = ttk.Frame(self.main_container)
         folder_frame.pack(fill='x', padx=14, pady=(12, 8))
 
@@ -207,6 +214,7 @@ class TkUiViewMixin:
         tk.Button(row_out, text='クリーンアップ', command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
 
     def _build_notebook(self):
+        """設定タブとログタブを作成する。"""
         self.notebook = ttk.Notebook(self.main_container)
         self.notebook.pack(fill='both', expand=True, padx=14, pady=8)
 
@@ -219,6 +227,7 @@ class TkUiViewMixin:
         self._build_log_tab()
 
     def _build_settings_tab(self):
+        """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
         pdf_outer = tk.LabelFrame(
             self.settings_tab,
             text=' PDF圧縮設定（Pythonライブラリ / GhostScript） ',
@@ -248,6 +257,7 @@ class TkUiViewMixin:
         self._build_output_section(self.settings_tab)
 
     def _build_pdf_section(self, parent):
+        """PDF エンジン選択とエンジン別詳細設定を構築する。"""
         engine_frame = ttk.Frame(parent)
         engine_frame.pack(fill='x', padx=8, pady=(6, 4))
 
@@ -279,6 +289,7 @@ class TkUiViewMixin:
         self._build_gs_controls(self.gs_frame)
 
     def _build_native_controls(self, parent):
+        """PyMuPDF + pikepdf を使うネイティブ圧縮設定を構築する。"""
         mode_frame = ttk.Frame(parent)
         mode_frame.pack(fill='x', padx=5, pady=2)
         ttk.Label(mode_frame, text='モード:').pack(side='left')
@@ -358,6 +369,7 @@ class TkUiViewMixin:
         self._native_ll_frame.pack(fill='x')
 
     def _build_gs_controls(self, parent):
+        """Ghostscript 圧縮と追加の pikepdf 最適化設定を構築する。"""
         preset_lf = ttk.LabelFrame(parent, text='プリセット')
         preset_lf.pack(fill='x', padx=8, pady=4)
         self._gs_preset_widgets = []
@@ -414,6 +426,7 @@ class TkUiViewMixin:
         self._gs_ll_frame.pack(fill='x')
 
     def _build_image_section(self, parent):
+        """JPEG/PNG の品質と pngquant 利用設定を構築する。"""
         img_lf = ttk.LabelFrame(parent, text=' 画像圧縮 ')
         img_lf.pack(fill='x', padx=8, pady=5)
 
@@ -458,10 +471,12 @@ class TkUiViewMixin:
         )
         self.pngquant_check.pack(side='left')
         if not shutil.which('pngquant'):
+            # 未検出時に UI からも無効化しておくと、実行時フォールバックの理由が分かりやすい。
             self.pngquant_check.config(state='disabled')
             ttk.Label(pq_row, text='（pngquant 未検出のため無効）', foreground='gray').pack(side='left', padx=10)
 
     def _build_resize_section(self, parent):
+        """画像リサイズ設定を手動指定と長辺指定の両方で提供する。"""
         resize_lf = ttk.LabelFrame(parent, text=' リサイズ ')
         resize_lf.pack(fill='x', padx=8, pady=5)
 
@@ -508,6 +523,7 @@ class TkUiViewMixin:
         self.long_edge_combo.pack(side='left')
 
     def _build_output_section(self, parent):
+        """CSV、ZIP 展開、ミラーコピーなどの出力補助設定を構築する。"""
         out_lf = ttk.LabelFrame(parent, text=' 出力設定 ')
         out_lf.pack(fill='x', padx=8, pady=5)
 
@@ -535,6 +551,7 @@ class TkUiViewMixin:
         ttk.Checkbutton(log_row, text='圧縮開始時にログタブへ自動切替', variable=self.auto_switch_log_tab).pack(side='left')
 
     def _build_log_tab(self):
+        """進捗バー、統計、ログテキストを備えたログ表示タブを構築する。"""
         stats_frame = ttk.Frame(self.log_tab)
         stats_frame.pack(fill='x', padx=14, pady=(12, 8))
         self.stats_var = tk.StringVar(value='統計: 処理前')
@@ -560,6 +577,7 @@ class TkUiViewMixin:
         scrollbar.config(command=self.log_text.yview)
 
     def _build_action_buttons(self):
+        """画面下部の主要アクションを中央に配置する。"""
         frame = ttk.Frame(self.main_container)
         frame.pack(fill='x', padx=14, pady=(6, 12))
         inner = ttk.Frame(frame)
@@ -568,6 +586,7 @@ class TkUiViewMixin:
         tk.Button(inner, text='終了', command=self.on_exit, width=12, bg='#e6e6e6').pack(side='left', padx=14)
 
     def _create_lossless_controls(self, parent):
+        """pikepdf 可逆最適化オプションのチェックボックス群を共通生成する。"""
         frame = ttk.Frame(parent)
         widgets: list[ttk.Checkbutton] = []
 

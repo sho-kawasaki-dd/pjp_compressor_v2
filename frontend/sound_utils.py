@@ -32,7 +32,11 @@ PathLike = str | Path
 
 # ------------- サウンド再生ユーティリティ -------------
 def init_mixer() -> tuple[bool, str | None]:
-    """pygame ミキサーの初期化。"""
+    """pygame ミキサーの初期化。
+
+    サウンドは補助機能なので、失敗時も例外ではなく戻り値で通知し、呼び出し側が
+    警告表示の要否を決められるようにしている。
+    """
     pygame_module = pygame
     if not PYGAME_AVAILABLE or pygame_module is None:
         return False, "pygame が利用できないため、サウンド再生は無効化されます。"
@@ -70,6 +74,7 @@ def play_sound(sound_file: PathLike) -> None:
 
     def _play() -> None:
         try:
+            # mixer.music は単一ストリーム前提だが、短い通知音用途には十分で実装が簡単。
             pygame_module.mixer.music.load(str(sound_path))
             pygame_module.mixer.music.play()
             while pygame_module.mixer.music.get_busy():
@@ -82,7 +87,7 @@ def play_sound(sound_file: PathLike) -> None:
 
 # ------------- PyInstaller リソースパスヘルパー -------------
 def resource_path(relative_path: PathLike) -> Path:
-    """PyInstallerがパッケージ化した時でも外部リソースにアクセス可能にするヘルパー関数"""
+    """PyInstaller がパッケージ化した時でも外部リソースにアクセス可能にする。"""
     path = Path(relative_path)
     if path.is_absolute():
         return path

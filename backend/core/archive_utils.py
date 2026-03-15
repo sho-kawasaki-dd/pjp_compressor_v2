@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""ZIP 展開まわりの補助処理をまとめる。
+
+圧縮ジョブ本体は「ZIP を入力としてどう扱うか」だけを判断し、実際の再帰展開と
+循環防止はこのモジュールに閉じ込める。
+"""
+
 import zipfile
 from pathlib import Path
 
@@ -20,6 +26,7 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
         while cycle < max_cycles:
             cycle += 1
             new_zip_handled = False
+            # 前サイクルで展開された ZIP が新たに現れる可能性があるため、毎回 rglob し直す。
             for zip_path in base_dir.rglob('*.zip'):
                 if not zip_path.is_file():
                     continue
@@ -34,6 +41,7 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
                 try:
                     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
                         member_count = len(zip_ref.infolist())
+                        # 元 ZIP の隣へ展開することで、後段の相対パス計算を単純に保つ。
                         zip_ref.extractall(zip_path.parent)
                     extracted_total += 1
                     new_zip_handled = True
@@ -42,6 +50,7 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
                     failed_total += 1
                     log(f"ZIP展開失敗: {rel_zip} ({exc})")
             if not new_zip_handled:
+                # 新規 ZIP が無くなった時点で完了とみなし、不要な探索を打ち切る。
                 break
         else:
             log(f"ZIP展開サイクルが上限({max_cycles})に到達しました。循環参照の可能性があります。")

@@ -43,6 +43,7 @@ from shared.configs import (
 # ------------- 高DPI対応（Windowsのみ） -------------
 if os.name == 'nt':
     import ctypes
+    # Windows の高 DPI 環境では座標系がぼやけやすいため、起動時に明示設定しておく。
     ctypes.windll.shcore.SetProcessDpiAwareness(1)
 
 
@@ -71,6 +72,7 @@ def get_default_dirs():
             "Desktopフォルダ作成",
             f"デスクトップに「{missing_names}」フォルダを作成してよいですか？"
         ) == 'yes':
+            # ユーザーが意図しない場所へ出力しないよう、自動作成前に必ず確認する。
             for _, path in missing_targets:
                 try:
                     path.mkdir(parents=True, exist_ok=True)
@@ -106,6 +108,7 @@ class App(
         self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 140))
 
         self.threads: list[threading.Thread] = []
+        # 起動時副作用、既定値決定、能力検出、UI 構築の順で進めると責務が追いやすい。
         self._initialize_runtime_side_effects()
         self.default_input_dir, self.default_output_dir = self._resolve_default_dirs()
         self.capabilities = detect_capabilities()
@@ -131,6 +134,7 @@ class App(
             pass
 
     def _initialize_runtime_side_effects(self):
+        """サウンド初期化と既定フォルダの作成をまとめて行う。"""
         mixer_ok, mixer_message = init_mixer()
         APP_DEFAULT_INPUT_DIR.mkdir(parents=True, exist_ok=True)
         APP_DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -141,6 +145,7 @@ class App(
                 pass
 
     def _resolve_default_dirs(self):
+        """既定入出力フォルダ解決の失敗時に安全なフォールバックを返す。"""
         try:
             return get_default_dirs()
         except Exception:

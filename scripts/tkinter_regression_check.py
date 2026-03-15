@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Tkinter GUI の主要操作を簡易回帰確認する手動寄りスクリプト。
+
+本番コードへコメントを厚く入れた後でも、UI イベント配線・request 変換・ZIP 処理の
+代表パターンが壊れていないかを機械的に見直せるようにしている。
+"""
+
 import os
 import shutil
 import sys
@@ -23,6 +29,7 @@ from tkinter import filedialog, messagebox
 
 
 def wait_threads(app: App, timeout: float = 15.0) -> None:
+    """GUI スレッドから worker 完了を待つ簡易ポーリング。"""
     start = time.time()
     while time.time() - start < timeout:
         app.update()
@@ -35,6 +42,7 @@ def wait_threads(app: App, timeout: float = 15.0) -> None:
 
 
 def snapshot_input_tree(root: Path) -> dict[str, int]:
+    """入力フォルダの相対パスとサイズを記録し、破壊的変更の有無を比較できるようにする。"""
     snapshot: dict[str, int] = {}
     for file_path in root.rglob('*'):
         if file_path.is_file():
@@ -44,12 +52,14 @@ def snapshot_input_tree(root: Path) -> dict[str, int]:
 
 
 def clear_output_dir(output_dir: Path) -> None:
+    """ケースごとに出力を初期化し、前ケースの残骸で誤判定しないようにする。"""
     if output_dir.exists():
         shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
 def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
+    """通常ファイルと ZIP 内ファイルを混在させた回帰用 fixture を作る。"""
     normal_jpg = input_dir / "normal.jpg"
     normal_txt = input_dir / "normal.txt"
     zip_dir = input_dir / "subpack"
@@ -76,12 +86,14 @@ def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
 
 
 def run_zip_matrix_tests(app: App, input_dir: Path, output_dir: Path) -> None:
+    """ZIP 展開有無と mirror モード有無の組み合わせを検証する。"""
     zip_path, _, _ = create_zip_fixture(input_dir)
     input_before = snapshot_input_tree(input_dir)
 
     base_request = build_compression_request(app).request
 
     def execute_case(extract_zip: bool, mirror_mode: bool) -> None:
+        # base_request を使い回し、ZIP 関連フラグだけ差し替えてケース差分を明確にする。
         request = replace(
             base_request,
             extract_zip=extract_zip,
@@ -124,6 +136,7 @@ def run_zip_matrix_tests(app: App, input_dir: Path, output_dir: Path) -> None:
 
 
 def main() -> None:
+    """一時ディレクトリ上で GUI 回帰チェックを一通り実行する。"""
     root_tmp = Path(tempfile.mkdtemp(prefix="tkreg_", dir=str(Path.cwd())))
     try:
         input_dir = root_tmp / "input"
@@ -139,7 +152,7 @@ def main() -> None:
         app = App()
         app.withdraw()
 
-        # patch dialogs
+        # ダイアログを自動応答化して、手動入力なしで主要導線を通せるようにする。
         askdirectory_orig = filedialog.askdirectory
         asksaveasfilename_orig = filedialog.asksaveasfilename
         askyesno_orig = messagebox.askyesno
@@ -189,7 +202,8 @@ def main() -> None:
             assert any(getattr(evt, "kind", "") == "progress" for evt in captured), "progress event missing"
             assert any(getattr(evt, "kind", "") == "stats" for evt in captured), "stats event missing"
 
-            # start_compress wiring check (without real backend thread side effects)
+            # start_compress 自体は別スレッドを張るため、ここでは backend を差し替えて
+            # UI 側配線だけを確認する。
             import frontend.ui_tkinter_controller as controller_module
 
             original_runner = controller_module.run_compression_request
@@ -201,7 +215,7 @@ def main() -> None:
 
                 controller_module.run_compression_request = fake_runner
 
-                # patch UI-thread-sensitive methods during background callback
+                # UI スレッド専用メソッドを簡略化し、スレッド起動経路だけを見る。
                 app.log = lambda msg: None
                 app.update_progress = lambda current, total: None
                 app.update_stats = lambda orig_total, out_total, saved, saved_pct: None
@@ -212,21 +226,21 @@ def main() -> None:
             finally:
                 controller_module.run_compression_request = original_runner
 
-            # cleanup check
+            # 出力クリーンアップは確認ダイアログ込みのため、自動承認で通す。
             messagebox.askyesno = lambda *args, **kwargs: True
             messagebox.showerror = lambda *args, **kwargs: None
             app.cleanup_output()
             wait_threads(app)
             assert not out_jpg.exists() and not out_png.exists(), "cleanup_output failed"
 
-            # overlap guard
+            # 入出力フォルダが重なった場合の保護も確認する。
             app.input_dir.set(str(input_dir))
             app.output_dir.set(str(input_dir))
             messagebox.showwarning = lambda *args, **kwargs: None
             app._validate_and_fix_dirs()
             assert app.input_dir.get() != app.output_dir.get(), "overlap guard failed"
 
-            # ZIP matrix regression checks for extract/mirror combinations.
+            # ZIP 関連オプションは分岐が多いため、最後に組み合わせテストを実施する。
             app.input_dir.set(str(input_dir))
             app.output_dir.set(str(output_dir))
             app.csv_path.set(str(output_dir / "zip_cases.csv"))

@@ -4,7 +4,8 @@
 compressor_utils.py (compatibility shim)
 
 旧来の import パス互換を維持するための再エクスポートモジュール。
-実処理は責務別モジュールへ分割済み。
+実処理は責務別モジュールへ分割済みで、本モジュールは移行期間中の
+外部呼び出しを壊さないための窓口として残している。
 """
 
 from __future__ import annotations
@@ -67,9 +68,14 @@ def compress_folder(
     csv_path=None,
     extract_zip=False,
 ):
-    """フォルダ全体を並列処理で圧縮。必要なら ZIP 展開と併用可。"""
+    """フォルダ全体を並列処理で圧縮する互換 API。
+
+    既存コードはこの関数名に依存しているため、内部実装が orchestrator へ移っても
+    シグネチャを極力保ったまま転送する。
+    """
     from backend.orchestrator.job_runner import run_compression_job
 
+    # orchestrator を唯一の実処理入口にして、圧縮フローの重複実装を避ける。
     return run_compression_job(
         input_dir=input_dir,
         output_dir=output_dir,

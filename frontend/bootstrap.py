@@ -44,7 +44,11 @@ def _build_startup_splash(app) -> Toplevel | None:
 
 
 def run_tkinter_app() -> int:
-    """Tkinter UI の起動順序を集約する。"""
+    """Tkinter UI の起動順序を集約する。
+
+    スプラッシュ表示、本体ウィンドウの前面化、起動音再生をここでまとめることで、
+    エントリポイント側は例外処理だけに集中できる。
+    """
     from shared.configs import SOUNDS_DIR
     from frontend.sound_utils import play_sound
     from frontend.ui_tkinter import App
@@ -70,6 +74,7 @@ def run_tkinter_app() -> int:
     if splash is None:
         _show_main_window()
     else:
+        # 画像が一瞬で消えると起動失敗と誤認しやすいため、最低表示時間を設ける。
         app.after(_SPLASH_MIN_VISIBLE_MS, _show_main_window)
 
     startup_sound = SOUNDS_DIR / "open_window.wav"

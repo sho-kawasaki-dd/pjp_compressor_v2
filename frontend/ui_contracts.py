@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""frontend の mixin 間で共有する Protocol を定義する。
+
+実体クラス `App` は複数 mixin を合成して構築されるため、各 mixin が必要とする属性を
+Protocol で明示しておくと、責務境界と型補完の両方を保ちやすい。
+"""
+
 import threading
 import tkinter as tk
 from tkinter import ttk
@@ -9,6 +15,8 @@ from backend.contracts import CapabilityReport
 
 
 class CompressionRequestAppProtocol(Protocol):
+    """圧縮 request 生成に必要な UI 状態だけを切り出した Protocol。"""
+
     input_dir: tk.StringVar
     output_dir: tk.StringVar
     jpg_quality: tk.IntVar
@@ -40,10 +48,14 @@ class CompressionRequestAppProtocol(Protocol):
 
 
 class DropEventProtocol(Protocol):
+    """tkinterdnd2 のイベントから利用する最小属性だけを表す Protocol。"""
+
     data: str
 
 
 class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
+    """controller mixin が依存する `App` 側の属性群。"""
+
     capabilities: CapabilityReport
     threads: list[threading.Thread]
     default_input_dir: str

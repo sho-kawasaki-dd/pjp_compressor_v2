@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""backend 全体で共有するデータ契約を定義する。
+
+UI と orchestrator は生の関数引数を直接やり取りせず、このモジュールの
+データクラスを介して進捗通知や実行要求を受け渡す。これにより、
+呼び出し元が増えてもイベント形式と request 形式を一箇所で保守できる。
+"""
+
 from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
@@ -8,6 +15,12 @@ EventKind = Literal['log', 'progress', 'stats', 'status', 'error']
 
 @dataclass(frozen=True)
 class ProgressEvent:
+    """バックグラウンド処理から UI へ渡す単一イベント。
+
+    `kind` ごとに利用するフィールドが変わるため、未使用フィールドは None のまま
+    にして payload を簡潔に保つ。
+    """
+
     kind: EventKind
     message: str | None = None
     current: int | None = None
@@ -20,6 +33,8 @@ class ProgressEvent:
 
 @dataclass(frozen=True)
 class CapabilityReport:
+    """実行環境で利用可能な任意依存と外部ツールの検出結果。"""
+
     fitz_available: bool
     pikepdf_available: bool
     ghostscript_path: str | None
@@ -27,19 +42,24 @@ class CapabilityReport:
 
     @property
     def ghostscript_available(self) -> bool:
+        """Ghostscript 実行可能ファイルが見つかったかを返す。"""
         return bool(self.ghostscript_path)
 
     @property
     def pngquant_available(self) -> bool:
+        """pngquant 実行可能ファイルが見つかったかを返す。"""
         return bool(self.pngquant_path)
 
     @property
     def native_pdf_available(self) -> bool:
+        """PyMuPDF か pikepdf の少なくとも片方が使えるかを返す。"""
         return self.fitz_available or self.pikepdf_available
 
 
 @dataclass(frozen=True)
 class CompressionResult:
+    """圧縮ジョブ完了後に参照する集計値。"""
+
     processed_files: int
     orig_total: int
     out_total: int
@@ -49,6 +69,8 @@ class CompressionResult:
 
 @dataclass(frozen=True)
 class CompressionRequest:
+    """UI から orchestrator へ渡す圧縮実行パラメータ一式。"""
+
     input_dir: str
     output_dir: str
     jpg_quality: int
@@ -76,6 +98,11 @@ class CompressionRequest:
         progress_func: Callable[[int, int], None],
         stats_func: Callable[[int, int, int, float], None],
     ) -> dict[str, Any]:
+        """旧 `run_compression_job` 呼び出し形式へ橋渡しする。
+
+        orchestrator 移行中も既存 API を壊さないため、dataclass を一度辞書へ展開して
+        従来のキーワード引数構造を維持する。
+        """
         return {
             'input_dir': self.input_dir,
             'output_dir': self.output_dir,

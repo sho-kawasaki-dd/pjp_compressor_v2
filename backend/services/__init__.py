@@ -1,1 +1,4 @@
-"""Backend service facades for phased extraction from backend.core.compressor_utils."""
+"""backend.services パッケージ。
+
+段階的な責務分離のために、core 実装をサービス窓口として再公開する。
+"""

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""Tkinter UI のイベント処理とバックグラウンド実行制御を担当する。"""
+
 import threading
 import tkinter as tk
 from pathlib import Path
@@ -17,9 +19,11 @@ from shared.configs import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTE
 
 class TkUiControllerMixin:
     def _controller_host(self) -> TkUiControllerHostProtocol:
+        """mixin から `App` 実体を型付きで参照する。"""
         return cast(TkUiControllerHostProtocol, self)
 
     def _schedule_on_ui_thread(self, callback: Callable[[], None]) -> None:
+        """Tk のメインスレッドへ安全に処理を戻す。"""
         self._controller_host().after(0, callback)
 
     @staticmethod
@@ -30,6 +34,7 @@ class TkUiControllerMixin:
             pass
 
     def _update_pdf_controls(self) -> None:
+        """選択中の PDF エンジンとモードに合わせて関連 UI を有効/無効化する。"""
         host = self._controller_host()
         engine = host.pdf_engine.get()
 
@@ -41,6 +46,7 @@ class TkUiControllerMixin:
             lossy_active = mode in ('lossy', 'both')
             lossless_active = mode in ('lossless', 'both')
 
+            # 非可逆設定は mode に応じて一括で活性制御する。
             lossy_state = 'normal' if lossy_active else 'disabled'
             for widget in host._native_lossy_widgets:
                 self._set_widget_state(widget, lossy_state)
@@ -52,6 +58,7 @@ class TkUiControllerMixin:
             else:
                 host.jpeg_note_label.pack_forget()
 
+            # 可逆設定は pikepdf を使うモードでのみ触れるようにする。
             lossless_state = 'normal' if lossless_active else 'disabled'
             for widget in host._native_lossless_widgets:
                 self._set_widget_state(widget, lossless_state)
@@ -69,6 +76,7 @@ class TkUiControllerMixin:
             self._set_widget_state(widget, 'normal' if gs_lossless else 'disabled')
 
     def _refresh_pdf_engine_status(self) -> None:
+        """依存ライブラリ検出結果を表示し、使えないエンジンを無効化する。"""
         host = self._controller_host()
         report = host.capabilities
         parts = [
@@ -88,6 +96,7 @@ class TkUiControllerMixin:
         host.pdf_engine_status_var.set(f"（{', '.join(parts)}）")
 
     def _update_resize_controls(self) -> None:
+        """リサイズ設定の入力欄を現在のモードに合わせて切り替える。"""
         host = self._controller_host()
         enabled = host.resize_enabled.get()
         mode = host.resize_mode.get()
@@ -116,6 +125,7 @@ class TkUiControllerMixin:
             self._validate_and_fix_dirs()
 
     def _on_drop_input(self, event: DropEventProtocol) -> None:
+        """ドラッグ&ドロップされたパスから入力フォルダを解決する。"""
         host = self._controller_host()
         try:
             paths = host.tk.splitlist(event.data)
@@ -136,6 +146,7 @@ class TkUiControllerMixin:
                 break
 
     def _validate_and_fix_dirs(self) -> None:
+        """入出力の重なりを検知し、危険な組み合わせを既定値へ戻す。"""
         host = self._controller_host()
         new_input, new_output, conflict = self._check_overlap_and_fix(host.input_dir.get(), host.output_dir.get())
         if conflict:
@@ -145,6 +156,7 @@ class TkUiControllerMixin:
             messagebox.showwarning('入出力フォルダの重なり', '入力/出力フォルダが同一または内包関係にあるためデフォルトに戻しました。')
 
     def _paths_overlap(self, a: str, b: str) -> bool:
+        """同一または内包関係のパスかを判定する。"""
         try:
             pa = Path(a).resolve()
             pb = Path(b).resolve()
@@ -159,6 +171,7 @@ class TkUiControllerMixin:
         return input_dir, output_dir, False
 
     def _choose_csv_path(self) -> None:
+        """CSV 保存先をダイアログから選ばせる。"""
         host = self._controller_host()
         path = filedialog.asksaveasfilename(
             initialdir=host.output_dir.get() or str(Path.cwd()),
@@ -169,6 +182,7 @@ class TkUiControllerMixin:
             host.csv_path.set(path)
 
     def _set_status(self, text: str) -> None:
+        """ステータスラベルをスレッドセーフに更新する。"""
         host = self._controller_host()
         if threading.current_thread() is threading.main_thread():
             host.status_var.set(text)
@@ -176,6 +190,7 @@ class TkUiControllerMixin:
         self._schedule_on_ui_thread(lambda: host.status_var.set(text))
 
     def _append_log(self, msg: str) -> None:
+        """ログウィジェットへ 1 行追加し、必要に応じて状態表示も更新する。"""
         host = self._controller_host()
         host.log_text.insert('end', msg + '\n')
         host.log_text.see('end')
@@ -187,12 +202,14 @@ class TkUiControllerMixin:
             host.status_var.set('失敗（詳細はログ）')
 
     def log(self, msg: str) -> None:
+        """どのスレッドからでも安全にログを追記する。"""
         if threading.current_thread() is threading.main_thread():
             self._append_log(msg)
             return
         self._schedule_on_ui_thread(lambda: self._append_log(msg))
 
     def _update_progress_ui(self, current: int, total: int) -> None:
+        """進捗バーと状態文字列を同時に更新する。"""
         host = self._controller_host()
         pct = 100 if total <= 0 else int(current / total * 100)
         host.progress['value'] = pct
@@ -200,12 +217,14 @@ class TkUiControllerMixin:
         host.update_idletasks()
 
     def update_progress(self, current: int, total: int) -> None:
+        """進捗更新を UI スレッドへ中継する。"""
         if threading.current_thread() is threading.main_thread():
             self._update_progress_ui(current, total)
             return
         self._schedule_on_ui_thread(lambda: self._update_progress_ui(current, total))
 
     def _update_stats_ui(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
+        """最終統計表示を画面へ反映する。"""
         host = self._controller_host()
         host.stats_var.set(
             f'統計: 元合計={human_readable(orig_total)}, '
@@ -215,12 +234,14 @@ class TkUiControllerMixin:
         host.status_var.set(f'完了（削減率 {saved_pct:.1f}%）')
 
     def update_stats(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
+        """統計更新を UI スレッドへ中継する。"""
         if threading.current_thread() is threading.main_thread():
             self._update_stats_ui(orig_total, out_total, saved, saved_pct)
             return
         self._schedule_on_ui_thread(lambda: self._update_stats_ui(orig_total, out_total, saved, saved_pct))
 
     def _on_progress_event(self, event: ProgressEvent) -> None:
+        """backend から届いたイベント種別を UI 更新へ振り分ける。"""
         if event.kind == 'log' and event.message is not None:
             self.log(event.message)
             return
@@ -238,6 +259,7 @@ class TkUiControllerMixin:
             self._set_status('失敗（詳細はログ）')
 
     def start_compress(self) -> None:
+        """入力検証後、圧縮ジョブをバックグラウンドスレッドで開始する。"""
         host = self._controller_host()
         input_dir = host.input_dir.get()
         output_dir = host.output_dir.get()
@@ -303,6 +325,7 @@ class TkUiControllerMixin:
 
         self._set_status('処理中 0% (0/0)')
 
+        # backend は同期処理なので、UI を止めないよう専用スレッドへ逃がす。
         thread = threading.Thread(
             target=run_compression_request,
             kwargs={'request': request, 'event_callback': self._on_progress_event},
@@ -312,6 +335,7 @@ class TkUiControllerMixin:
         thread.start()
 
     def cleanup_input(self) -> None:
+        """入力フォルダの対象拡張子を確認ダイアログ付きで削除する。"""
         host = self._controller_host()
         input_dir = host.input_dir.get()
         if not input_dir or not Path(input_dir).exists():
@@ -329,6 +353,7 @@ class TkUiControllerMixin:
             'サブフォルダ含め削除されます。取り消し不可。',
         ):
             self.log(f'入力フォルダクリーンアップ開始（{exts}）…')
+            # 削除処理も I/O 待ちがあるため、UI 凍結を避けて別スレッド化する。
             thread = threading.Thread(
                 target=cleanup_folder,
                 args=(input_dir, self.log, '入力フォルダ', INPUT_DIR_CLEANUP_EXTENSIONS),
@@ -338,6 +363,7 @@ class TkUiControllerMixin:
             thread.start()
 
     def cleanup_output(self) -> None:
+        """出力フォルダの成果物とログを確認ダイアログ付きで削除する。"""
         host = self._controller_host()
         output_dir = host.output_dir.get()
         if not output_dir or not Path(output_dir).exists():
@@ -364,6 +390,7 @@ class TkUiControllerMixin:
             thread.start()
 
     def on_exit(self) -> None:
+        """処理中スレッドの有無を確認してからアプリを終了する。"""
         host = self._controller_host()
         if any(thread.is_alive() for thread in host.threads):
             if not messagebox.askyesno('終了確認', '処理中のスレッドがあります。終了しますか？'):
