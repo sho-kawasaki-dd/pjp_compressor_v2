@@ -39,7 +39,7 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
         pdf_mode='both',
         pdf_dpi=144,
         pdf_jpeg_quality=65,
-        pdf_png_to_jpeg=True,
+        pdf_png_quality=55,
         pdf_lossless_options={'linearize': True},
         gs_preset='/screen',
         gs_custom_dpi=None,
@@ -56,6 +56,7 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
     job_runner.run_compression_request(request=request, event_callback=events.append)
 
     assert captured['debug_mode'] is True
+    assert captured['pdf_png_quality'] == 55
     assert events == []
 
 

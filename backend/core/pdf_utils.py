@@ -9,6 +9,7 @@ from __future__ import annotations
 import io
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, cast
 
@@ -20,8 +21,12 @@ from backend.settings import (
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
+
+
+PDF_PNG_LIKE_EXTENSIONS = frozenset({'png', 'bmp', 'tiff', 'tif', 'gif'})
+PDF_UNSUPPORTED_RASTER_EXTENSIONS = frozenset({'jbig2', 'jpx'})
 
 
 def _import_fitz():
@@ -44,12 +49,119 @@ def _import_pikepdf():
         return None, e
 
 
+def _normalize_pdf_png_source_image(pil_img: Image.Image) -> Image.Image:
+    """PNG 系量子化へ渡す前に Pillow 画像モードを正規化する。
+
+    PDF から抽出される画像は palette/CMYK/LA など多様なモードを取りうる。
+    pngquant と Pillow quantize の双方が安定して扱える形へ寄せておくと、
+    フォールバック条件と出力差を読み解きやすくなる。
+    """
+    has_alpha = 'A' in pil_img.getbands() or 'transparency' in pil_img.info
+
+    if pil_img.mode in ('RGB', 'RGBA', 'L'):
+        return pil_img
+    if pil_img.mode == 'LA':
+        return pil_img.convert('RGBA')
+    if pil_img.mode == 'P':
+        return pil_img.convert('RGBA' if has_alpha else 'RGB')
+    return pil_img.convert('RGBA' if has_alpha else 'RGB')
+
+
+def _get_pillow_quantize_method(pil_img: Image.Image) -> int:
+    """256 色固定フォールバックで使う量子化アルゴリズムを返す。"""
+    quantize_enum = getattr(Image, 'Quantize', None)
+    if pil_img.mode == 'RGBA':
+        return getattr(quantize_enum, 'FASTOCTREE', 2) if quantize_enum else 2
+    return getattr(quantize_enum, 'MEDIANCUT', 0) if quantize_enum else 0
+
+
+def _compress_pdf_png_with_pillow(pil_img: Image.Image) -> bytes:
+    """pngquant が使えない場合の 256 色固定フォールバックを生成する。
+
+    GUI から渡る PNG 品質値は pngquant 専用の調整ノブとして扱うため、
+    Pillow フォールバック時は値を参照せず、常に 256 色固定へ減色する。
+    """
+    normalized = _normalize_pdf_png_source_image(pil_img)
+    quantized = normalized.quantize(colors=256, method=_get_pillow_quantize_method(normalized))
+    buffer = io.BytesIO()
+    quantized.save(buffer, format='PNG', optimize=True)
+    return buffer.getvalue()
+
+
+def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> tuple[bytes | None, dict[str, Any]]:
+    """pngquant を使って PDF 内 PNG 系画像を量子化する。
+
+    pngquant はファイルベースの CLI なので、一時 PNG を経由して実行する。
+    ここで失敗しても PDF 圧縮全体を止めず、呼び出し側が Pillow 256 色固定へ
+    退避できるように詳細だけ返す。
+    """
+    pngquant_exe = shutil.which('pngquant')
+    if not pngquant_exe:
+        return None, {'fallback_reason': 'pngquant_unavailable'}
+
+    safe_quality = max(0, min(100, int(png_quality)))
+    quality_min = max(0, safe_quality - 20)
+    quality_max = safe_quality
+    normalized = _normalize_pdf_png_source_image(pil_img)
+
+    with tempfile.TemporaryDirectory(prefix='pjp_pdf_png_') as temp_dir:
+        temp_root = Path(temp_dir)
+        src_path = temp_root / 'source.png'
+        out_path = temp_root / 'quantized.png'
+        normalized.save(src_path, format='PNG', optimize=True)
+
+        cmd = [
+            pngquant_exe,
+            f'--quality={quality_min}-{quality_max}',
+            '--speed=3',
+            '--force',
+            '--output', str(out_path),
+            str(src_path),
+        ]
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+        )
+        if result.returncode == 0 and out_path.exists():
+            return out_path.read_bytes(), {
+                'quality_range': (quality_min, quality_max),
+                'fallback_reason': None,
+            }
+
+        return None, {
+            'quality_range': (quality_min, quality_max),
+            'fallback_reason': result.stderr.strip() or f'pngquant_exit_{result.returncode}',
+        }
+
+
+def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int) -> tuple[bytes, dict[str, Any]]:
+    """PDF 内 PNG 系画像を pngquant 優先、Pillow 256 色固定フォールバックで再圧縮する。"""
+    quantized_bytes, pngquant_meta = _compress_pdf_png_with_pngquant(pil_img, png_quality)
+    if quantized_bytes is not None:
+        return quantized_bytes, {
+            'quantizer': 'pngquant',
+            'quality_range': pngquant_meta.get('quality_range'),
+            'fallback_reason': None,
+        }
+
+    return _compress_pdf_png_with_pillow(pil_img), {
+        'quantizer': 'Pillow 256-color fallback',
+        'quality_range': None,
+        'fallback_reason': pngquant_meta.get('fallback_reason'),
+    }
+
+
 def compress_pdf_lossy(
     input_path,
     output_path,
     target_dpi=PDF_LOSSY_DPI_DEFAULT,
     jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     debug=False,
 ):
     """PyMuPDF で PDF 内の実描画画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
@@ -81,10 +193,13 @@ def compress_pdf_lossy(
             'skip_unsupported_ext': 0,
             'skip_pil_open_failed': 0,
             'skip_not_smaller': 0,
+            'pngquant_used': 0,
+            'pillow_png_fallback_used': 0,
             'replaced': 0,
         }
         debug_seen_xrefs = set()
         debug_rows = []
+        png_quantizers_used: set[str] = set()
 
         def _rect_from_bbox(bbox):
             if bbox is None:
@@ -162,7 +277,7 @@ def compress_pdf_lossy(
                 img_ext = str(base_image.get('ext', '')).lower()
                 orig_size = len(img_bytes)
 
-                if img_ext in ('jbig2', 'tiff', 'tif', 'jpx'):
+                if img_ext in PDF_UNSUPPORTED_RASTER_EXTENSIONS:
                     processed_xrefs[xref] = 'unsupported_ext'
                     skipped_count += 1
                     debug_stats['skip_unsupported_ext'] += 1
@@ -213,15 +328,21 @@ def compress_pdf_lossy(
                     resized = True
                     resized_to = (new_w, new_h)
 
-                is_lossless = img_ext in ('png', 'bmp', 'tiff', 'tif', 'gif')
-                buf = io.BytesIO()
+                is_png_like = img_ext in PDF_PNG_LIKE_EXTENSIONS
+                png_metadata: dict[str, Any] | None = None
 
-                if is_lossless and not png_to_jpeg:
-                    if pil_img.mode not in ('RGB', 'RGBA', 'L', 'LA'):
-                        pil_img = pil_img.convert('RGBA' if ('A' in pil_img.mode or pil_img.mode == 'P') else 'RGB')
+                if is_png_like:
+                    # PNG 系画像は JPEG へ逃がさず、常に量子化済み PNG として再保存する。
+                    # これにより、今回廃止対象の PNG→JPEG 変換を根本から排除できる。
+                    new_bytes, png_metadata = _compress_pdf_png_image(pil_img, png_quality)
                     output_format = 'PNG'
-                    pil_img.save(buf, format='PNG', optimize=True)
+                    png_quantizers_used.add(str(png_metadata['quantizer']))
+                    if png_metadata['quantizer'] == 'pngquant':
+                        debug_stats['pngquant_used'] += 1
+                    else:
+                        debug_stats['pillow_png_fallback_used'] += 1
                 else:
+                    buf = io.BytesIO()
                     if pil_img.mode in ('RGBA', 'PA', 'LA', 'P'):
                         if pil_img.mode == 'P':
                             pil_img = pil_img.convert('RGBA')
@@ -233,8 +354,8 @@ def compress_pdf_lossy(
                         pil_img = pil_img.convert('RGB')
                     output_format = 'JPEG'
                     pil_img.save(buf, format='JPEG', quality=jpeg_quality, optimize=True)
+                    new_bytes = buf.getvalue()
 
-                new_bytes = buf.getvalue()
                 new_size = len(new_bytes)
 
                 row = {
@@ -250,6 +371,9 @@ def compress_pdf_lossy(
                     'orig_size': orig_size,
                     'new_size': new_size,
                     'output_format': output_format,
+                    'png_quantizer': png_metadata.get('quantizer') if png_metadata else None,
+                    'png_quality_range': png_metadata.get('quality_range') if png_metadata else None,
+                    'png_fallback_reason': png_metadata.get('fallback_reason') if png_metadata else None,
                 }
 
                 if new_size < orig_size:
@@ -290,8 +414,8 @@ def compress_pdf_lossy(
 
         total_images = replaced_count + skipped_count
         detail = f"一意の画像{total_images}個中{replaced_count}個を再圧縮"
-        if png_to_jpeg:
-            detail += ', PNG→JPEG変換あり'
+        if png_quantizers_used:
+            detail += f", PNG量子化={', '.join(sorted(png_quantizers_used))}"
         return True, f"PDF非可逆圧縮(PyMuPDF): {input_file.name} → OK ({detail}, DPI={target_dpi}, JPEG品質={jpeg_quality})"
     except Exception as e:
         return False, f"PDF非可逆圧縮失敗: {input_file.name} ({e})"
@@ -430,7 +554,7 @@ def compress_pdf_native(
     mode='both',
     target_dpi=PDF_LOSSY_DPI_DEFAULT,
     jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     lossless_options=None,
     debug=False,
 ):
@@ -442,14 +566,14 @@ def compress_pdf_native(
         mode = 'both'
 
     if mode == 'lossy':
-        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_to_jpeg, debug)
+        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_quality, debug)
     if mode == 'lossless':
         return compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
 
     # `both` は一旦非可逆で画像を落としてから、最終 PDF 全体を可逆最適化する。
     tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_lossy.pdf')
     try:
-        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_to_jpeg, debug)
+        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_quality, debug)
         if not ok_lossy:
             ok_ll, msg_ll = compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
             return ok_ll, f"{msg_lossy} / {msg_ll}"

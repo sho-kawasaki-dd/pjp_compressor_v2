@@ -105,7 +105,7 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         pdf_mode=app.pdf_mode.get(),
         pdf_dpi=app.pdf_dpi.get(),
         pdf_jpeg_quality=app.pdf_jpeg_quality.get(),
-        pdf_png_to_jpeg=app.pdf_png_to_jpeg.get(),
+        pdf_png_quality=app.pdf_png_quality.get(),
         pdf_lossless_options=pdf_lossless_options,
         gs_preset=app.gs_preset.get(),
         gs_custom_dpi=gs_custom_dpi,

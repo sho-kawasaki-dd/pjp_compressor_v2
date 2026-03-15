@@ -52,11 +52,23 @@ class TkUiControllerMixin:
                 self._set_widget_state(widget, lossy_state)
             self._set_widget_state(host.dpi_scale, lossy_state)
             self._set_widget_state(host.jpeg_q_scale, lossy_state)
+            # PDF 内 PNG 系画像の品質スライダーは、pngquant が使える環境だけで有効化する。
+            # Pillow フォールバックでは 256 色固定減色となり品質値を消費しないため、
+            # UI 側でも無効化して意図を明示する。
+            png_quality_state = 'normal' if lossy_active and host.capabilities.pngquant_available else 'disabled'
+            for widget in host._native_png_quality_widgets:
+                self._set_widget_state(widget, png_quality_state)
+            self._set_widget_state(host.pdf_png_q_scale, png_quality_state)
 
-            if lossy_active and not host.pdf_png_to_jpeg.get():
+            if lossy_active:
                 host.jpeg_note_label.pack(side='left', padx=(5, 0))
             else:
                 host.jpeg_note_label.pack_forget()
+
+            if lossy_active and not host.capabilities.pngquant_available:
+                host.pdf_png_fallback_note_label.pack(side='left', padx=(5, 0))
+            else:
+                host.pdf_png_fallback_note_label.pack_forget()
 
             # 可逆設定は pikepdf を使うモードでのみ触れるようにする。
             lossless_state = 'normal' if lossless_active else 'disabled'
@@ -300,9 +312,11 @@ class TkUiControllerMixin:
         self.log(f'出力先: {output_dir}')
 
         if request.pdf_engine == 'native':
+            pdf_png_method = 'pngquant' if host.capabilities.pngquant_available else 'Pillow 256色固定'
             self.log(
                 f'PDF: ネイティブ モード={request.pdf_mode}, DPI={request.pdf_dpi}, '
-                f'JPEG品質={request.pdf_jpeg_quality}, PNG→JPEG={request.pdf_png_to_jpeg}'
+                f'JPEG品質={request.pdf_jpeg_quality}, PNG品質={request.pdf_png_quality}, '
+                f'PNG量子化={pdf_png_method}'
             )
         else:
             if request.gs_preset == 'custom':

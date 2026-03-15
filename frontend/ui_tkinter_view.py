@@ -35,7 +35,7 @@ class TkUiViewMixin:
     pdf_mode: tk.StringVar
     pdf_dpi: tk.IntVar
     pdf_jpeg_quality: tk.IntVar
-    pdf_png_to_jpeg: tk.BooleanVar
+    pdf_png_quality: tk.IntVar
     gs_preset: tk.StringVar
     gs_custom_dpi: tk.IntVar
     gs_use_lossless: tk.BooleanVar
@@ -88,12 +88,15 @@ class TkUiViewMixin:
     native_lossless_lf: ttk.LabelFrame
     gs_lossless_lf: ttk.LabelFrame
     _native_lossy_widgets: list[tk.Widget]
+    _native_png_quality_widgets: list[tk.Widget]
     dpi_val_label: ttk.Label
     dpi_scale: tk.Scale
     jpeg_q_val_label: ttk.Label
     jpeg_q_scale: tk.Scale
+    pdf_png_q_val_label: ttk.Label
+    pdf_png_q_scale: tk.Scale
     jpeg_note_label: ttk.Label
-    png_to_jpeg_cb: ttk.Checkbutton
+    pdf_png_fallback_note_label: ttk.Label
     _native_ll_frame: ttk.Frame
     _native_lossless_widgets: list[ttk.Checkbutton]
     _gs_preset_widgets: list[ttk.Radiobutton]
@@ -305,6 +308,7 @@ class TkUiViewMixin:
         self.lossy_lf = ttk.LabelFrame(parent, text='非可逆オプション')
         self.lossy_lf.pack(fill='x', padx=8, pady=4)
         self._native_lossy_widgets = []
+        self._native_png_quality_widgets = []
 
         dpi_row = ttk.Frame(self.lossy_lf)
         dpi_row.pack(fill='x', padx=5, pady=2)
@@ -352,16 +356,36 @@ class TkUiViewMixin:
 
         self.jpeg_note_label = ttk.Label(jpeg_row, text='※JPEG元画像にのみ適用', foreground='gray')
 
-        png_jpeg_row = ttk.Frame(self.lossy_lf)
-        png_jpeg_row.pack(fill='x', padx=5, pady=2)
-        self.png_to_jpeg_cb = ttk.Checkbutton(
-            png_jpeg_row,
-            text='PNG → JPEG 変換',
-            variable=self.pdf_png_to_jpeg,
-            command=self._update_pdf_controls,
+        png_row = ttk.Frame(self.lossy_lf)
+        png_row.pack(fill='x', padx=5, pady=2)
+        pdf_png_label = ttk.Label(png_row, text='PNG品質:')
+        pdf_png_label.pack(side='left')
+        self._native_lossy_widgets.append(pdf_png_label)
+        self._native_png_quality_widgets.append(pdf_png_label)
+        self.pdf_png_q_val_label = ttk.Label(png_row, text=str(self.pdf_png_quality.get()), width=4)
+        self.pdf_png_q_val_label.pack(side='left', padx=5)
+        self._native_lossy_widgets.append(self.pdf_png_q_val_label)
+        self._native_png_quality_widgets.append(self.pdf_png_q_val_label)
+        self.pdf_png_q_scale = tk.Scale(
+            png_row,
+            from_=0,
+            to=100,
+            orient='horizontal',
+            variable=self.pdf_png_quality,
+            command=lambda v: self.pdf_png_q_val_label.config(text=str(int(float(v)))),
+            length=300,
+            showvalue=False,
+            resolution=1,
         )
-        self.png_to_jpeg_cb.pack(side='left')
-        self._native_lossy_widgets.append(self.png_to_jpeg_cb)
+        self.pdf_png_q_scale.pack(side='left', padx=5)
+        self._native_lossy_widgets.append(self.pdf_png_q_scale)
+        self._native_png_quality_widgets.append(self.pdf_png_q_scale)
+
+        self.pdf_png_fallback_note_label = ttk.Label(
+            png_row,
+            text='※pngquant 未検出時は Pillow の 256 色固定減色へフォールバックするため無効',
+            foreground='gray',
+        )
 
         self.native_lossless_lf = ttk.LabelFrame(parent, text='可逆オプション')
         self.native_lossless_lf.pack(fill='x', padx=8, pady=4)

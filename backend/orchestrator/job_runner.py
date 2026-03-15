@@ -20,7 +20,7 @@ from backend.settings import (
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
 
 from backend.services.archive_service import extract_zip_archives
@@ -48,7 +48,7 @@ def run_compression_job(
     pdf_mode: str = 'both',
     pdf_dpi: int = PDF_LOSSY_DPI_DEFAULT,
     pdf_jpeg_quality: int = PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    pdf_png_to_jpeg: bool = PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    pdf_png_quality: int = PDF_LOSSY_PNG_QUALITY_DEFAULT,
     pdf_lossless_options: dict[str, Any] | None = None,
     gs_preset: str = GS_DEFAULT_PRESET,
     gs_custom_dpi: int | None = None,
@@ -96,7 +96,7 @@ def run_compression_job(
     # worker task tuple:
     # (
     #   inpath, outpath, ext,
-    #   pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_to_jpeg,
+    #   pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_quality,
     #   pdf_lossless_options, gs_preset, gs_custom_dpi,
     #   jpg_quality, png_quality, use_pngquant, resize_cfg, debug_mode,
     #   csv_input_path, csv_output_path,
@@ -134,7 +134,7 @@ def run_compression_job(
             pdf_mode,
             pdf_dpi,
             pdf_jpeg_quality,
-            pdf_png_to_jpeg,
+            pdf_png_quality,
             ll_opts,
             gs_preset,
             gs_custom_dpi,
@@ -384,7 +384,7 @@ def run_compression_request(
             pdf_mode=request.pdf_mode,
             pdf_dpi=request.pdf_dpi,
             pdf_jpeg_quality=request.pdf_jpeg_quality,
-            pdf_png_to_jpeg=request.pdf_png_to_jpeg,
+            pdf_png_quality=request.pdf_png_quality,
             pdf_lossless_options=request.pdf_lossless_options,
             gs_preset=request.gs_preset,
             gs_custom_dpi=request.gs_custom_dpi,

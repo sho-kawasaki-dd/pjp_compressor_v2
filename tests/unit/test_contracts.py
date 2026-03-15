@@ -40,7 +40,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
         pdf_mode='both',
         pdf_dpi=144,
         pdf_jpeg_quality=60,
-        pdf_png_to_jpeg=False,
+        pdf_png_quality=58,
         pdf_lossless_options={'linearize': True},
         gs_preset='/screen',
         gs_custom_dpi=None,
@@ -64,6 +64,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
     )
 
     assert kwargs['debug_mode'] is True
+    assert kwargs['pdf_png_quality'] == 58
     assert kwargs['resize_enabled'] == {'enabled': True, 'mode': 'long_edge', 'long_edge': 1280}
     assert kwargs['log_func'].__self__ is log_messages
     assert callable(kwargs['progress_func'])

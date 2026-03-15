@@ -14,7 +14,7 @@ from backend.settings import (
     GS_DEFAULT_PRESET,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
 
 from backend.core.archive_utils import extract_zip_archives
@@ -57,7 +57,7 @@ def compress_folder(
     pdf_mode='both',
     pdf_dpi=PDF_LOSSY_DPI_DEFAULT,
     pdf_jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    pdf_png_to_jpeg=PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    pdf_png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     pdf_lossless_options=None,
     gs_preset=GS_DEFAULT_PRESET,
     gs_custom_dpi=None,
@@ -89,7 +89,7 @@ def compress_folder(
         pdf_mode=pdf_mode,
         pdf_dpi=pdf_dpi,
         pdf_jpeg_quality=pdf_jpeg_quality,
-        pdf_png_to_jpeg=pdf_png_to_jpeg,
+        pdf_png_quality=pdf_png_quality,
         pdf_lossless_options=pdf_lossless_options,
         gs_preset=gs_preset,
         gs_custom_dpi=gs_custom_dpi,

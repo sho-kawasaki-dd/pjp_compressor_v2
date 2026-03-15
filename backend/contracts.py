@@ -80,7 +80,7 @@ class CompressionRequest:
     pdf_mode: str
     pdf_dpi: int
     pdf_jpeg_quality: int
-    pdf_png_to_jpeg: bool
+    pdf_png_quality: int
     pdf_lossless_options: dict[str, Any] | None
     gs_preset: str
     gs_custom_dpi: int | None
@@ -117,7 +117,7 @@ class CompressionRequest:
             'pdf_mode': self.pdf_mode,
             'pdf_dpi': self.pdf_dpi,
             'pdf_jpeg_quality': self.pdf_jpeg_quality,
-            'pdf_png_to_jpeg': self.pdf_png_to_jpeg,
+            'pdf_png_quality': self.pdf_png_quality,
             'pdf_lossless_options': self.pdf_lossless_options,
             'gs_preset': self.gs_preset,
             'gs_custom_dpi': self.gs_custom_dpi,

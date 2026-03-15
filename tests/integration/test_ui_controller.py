@@ -90,7 +90,7 @@ class DummyRequest:
     pdf_mode: str = 'both'
     pdf_dpi: int = 144
     pdf_jpeg_quality: int = 70
-    pdf_png_to_jpeg: bool = True
+    pdf_png_quality: int = 60
     gs_preset: str = '/screen'
     gs_custom_dpi: int | None = None
     jpg_quality: int = 70
@@ -110,7 +110,7 @@ class ControllerHost(TkUiControllerMixin):
         self.pdf_mode = DummyVar('both')
         self.pdf_dpi = DummyVar(144)
         self.pdf_jpeg_quality = DummyVar(70)
-        self.pdf_png_to_jpeg = DummyVar(True)
+        self.pdf_png_quality = DummyVar(60)
         self.gs_preset = DummyVar('/screen')
         self.gs_custom_dpi = DummyVar(150)
         self.gs_use_lossless = DummyVar(True)
@@ -133,9 +133,12 @@ class ControllerHost(TkUiControllerMixin):
         self.native_rb = DummyWidget()
         self.gs_rb = DummyWidget()
         self._native_lossy_widgets = [DummyWidget()]
+        self._native_png_quality_widgets = [DummyWidget()]
         self.dpi_scale = DummyWidget()
         self.jpeg_q_scale = DummyWidget()
+        self.pdf_png_q_scale = DummyWidget()
         self.jpeg_note_label = DummyWidget()
+        self.pdf_png_fallback_note_label = DummyWidget()
         self._native_lossless_widgets = [DummyWidget()]
         self._gs_custom_dpi_widgets = [DummyWidget()]
         self._gs_lossless_widgets = [DummyWidget()]
@@ -213,3 +216,25 @@ def test_start_compress_spawns_background_runner(
     assert len(host.threads) == 1
     assert host.threads[0].started is True
     assert host.threads[0].kwargs['request'].debug_mode is True
+
+
+def test_update_pdf_controls_disables_pdf_png_slider_without_pngquant(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+
+    host._update_pdf_controls()
+
+    assert all(widget.state == 'disabled' for widget in host._native_png_quality_widgets)
+    assert host.pdf_png_q_scale.state == 'disabled'
+    assert host.pdf_png_fallback_note_label.packed is True
+    assert host.jpeg_note_label.packed is True
+
+
+def test_update_pdf_controls_enables_pdf_png_slider_with_pngquant(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe')
+
+    host._update_pdf_controls()
+
+    assert all(widget.state == 'normal' for widget in host._native_png_quality_widgets)
+    assert host.pdf_png_q_scale.state == 'normal'
+    assert host.pdf_png_fallback_note_label.packed is False

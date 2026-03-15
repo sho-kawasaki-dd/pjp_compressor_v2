@@ -21,7 +21,7 @@ def process_single_file(args):
         pdf_mode,
         pdf_dpi,
         pdf_jpeg_quality,
-        pdf_png_to_jpeg,
+        pdf_png_quality,
         pdf_lossless_options,
         gs_preset,
         gs_custom_dpi,
@@ -63,7 +63,7 @@ def process_single_file(args):
                 mode=pdf_mode,
                 target_dpi=pdf_dpi,
                 jpeg_quality=pdf_jpeg_quality,
-                png_to_jpeg=pdf_png_to_jpeg,
+                png_quality=pdf_png_quality,
                 lossless_options=pdf_lossless_options,
                 debug=debug_mode,
             )

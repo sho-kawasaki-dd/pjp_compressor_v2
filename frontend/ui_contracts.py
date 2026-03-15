@@ -26,7 +26,7 @@ class CompressionRequestAppProtocol(Protocol):
     pdf_mode: tk.StringVar
     pdf_dpi: tk.IntVar
     pdf_jpeg_quality: tk.IntVar
-    pdf_png_to_jpeg: tk.BooleanVar
+    pdf_png_quality: tk.IntVar
     pdf_ll_linearize: tk.BooleanVar
     pdf_ll_object_streams: tk.BooleanVar
     pdf_ll_clean_metadata: tk.BooleanVar
@@ -72,9 +72,12 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     native_frame: ttk.Frame
     gs_frame: ttk.Frame
     _native_lossy_widgets: list[tk.Misc]
+    _native_png_quality_widgets: list[tk.Misc]
     dpi_scale: tk.Scale
     jpeg_q_scale: tk.Scale
+    pdf_png_q_scale: tk.Scale
     jpeg_note_label: ttk.Label
+    pdf_png_fallback_note_label: ttk.Label
     _native_lossless_widgets: list[ttk.Checkbutton]
     _gs_custom_dpi_widgets: list[tk.Misc]
     _gs_lossless_widgets: list[ttk.Checkbutton]

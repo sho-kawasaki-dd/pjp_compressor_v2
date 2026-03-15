@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -15,6 +16,12 @@ pytestmark = pytest.mark.unit
 def _make_jpeg_bytes(*, size: tuple[int, int], quality: int) -> bytes:
     buffer = io.BytesIO()
     Image.new('RGB', size, color=(32, 96, 192)).save(buffer, 'JPEG', quality=quality)
+    return buffer.getvalue()
+
+
+def _make_png_bytes(*, size: tuple[int, int]) -> bytes:
+    buffer = io.BytesIO()
+    Image.new('RGBA', size, color=(32, 160, 96, 180)).save(buffer, 'PNG', optimize=True)
     return buffer.getvalue()
 
 
@@ -134,3 +141,59 @@ def test_compress_pdf_lossy_skips_missing_xref_without_extracting(
     captured = capsys.readouterr().out
     assert 'skip_xref_missing: 1' in captured
     assert 'skip_zero_rect: 1' in captured
+
+
+def test_compress_pdf_lossy_png_uses_pngquant_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_png_bytes(size=(120, 120))
+    page = _FakePage([{'xref': 15, 'bbox': (0.0, 0.0, 140.0, 140.0)}])
+    fake_doc = _FakeDoc([page], extracted_images={15: {'image': original_bytes, 'ext': 'png'}})
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda name: 'C:/tools/pngquant.exe' if name == 'pngquant' else None)
+
+    seen_cmds: list[list[str]] = []
+
+    def fake_run(cmd, **_kwargs):
+        seen_cmds.append(cmd)
+        out_index = cmd.index('--output') + 1
+        out_path = Path(cmd[out_index])
+        out_path.write_bytes(_make_png_bytes(size=(16, 16)))
+        return SimpleNamespace(returncode=0, stderr='')
+
+    monkeypatch.setattr(pdf_utils.subprocess, 'run', fake_run)
+
+    ok, message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        png_quality=62,
+    )
+
+    assert ok is True
+    assert '--quality=42-62' in seen_cmds[0]
+    assert len(page.replace_calls) == 1
+    assert 'PNG量子化=pngquant' in message
+
+
+def test_compress_pdf_png_image_falls_back_to_fixed_palette_without_pngquant(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda _name: None)
+    source = Image.new('RGBA', (64, 64), color=(48, 144, 220, 180))
+
+    bytes_low, meta_low = pdf_utils._compress_pdf_png_image(source, 15)
+    bytes_high, meta_high = pdf_utils._compress_pdf_png_image(source, 95)
+
+    assert meta_low['quantizer'] == 'Pillow 256-color fallback'
+    assert meta_high['quantizer'] == 'Pillow 256-color fallback'
+    assert bytes_low == bytes_high
+
+    quantized = Image.open(io.BytesIO(bytes_low))
+    colors = quantized.getcolors(maxcolors=257)
+    assert colors is not None
+    assert len(colors) <= 256

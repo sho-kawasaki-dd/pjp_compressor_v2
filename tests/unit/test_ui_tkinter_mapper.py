@@ -35,7 +35,7 @@ class DummyApp:
         self.pdf_mode = DummyVar('both')
         self.pdf_dpi = DummyVar(144)
         self.pdf_jpeg_quality = DummyVar(65)
-        self.pdf_png_to_jpeg = DummyVar(True)
+        self.pdf_png_quality = DummyVar(62)
         self.pdf_ll_linearize = DummyVar(True)
         self.pdf_ll_object_streams = DummyVar(True)
         self.pdf_ll_clean_metadata = DummyVar(True)
@@ -96,6 +96,7 @@ def test_build_compression_request_includes_debug_mode_and_trimmed_csv() -> None
     result = build_compression_request(app)
 
     assert result.request.debug_mode is True
+    assert result.request.pdf_png_quality == 62
     assert result.request.csv_path == 'out/log.csv'
     assert result.request.resize_config == {
         'enabled': True,

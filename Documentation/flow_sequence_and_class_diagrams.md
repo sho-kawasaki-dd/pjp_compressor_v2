@@ -26,10 +26,18 @@ flowchart TD
     L -- PDF --> M{pdf_engine}
     M -- ghostscript --> N[Ghostscript圧縮]
     M -- native --> O[PyMuPDF + pikepdf]
+    O --> O3{PDF内PNG系画像?}
+    O3 -- はい --> O4{pngquant 利用可?}
+    O4 -- はい --> O5[pngquant で PNG のまま量子化]
+    O4 -- いいえ --> O6[Pillow 256色固定減色へフォールバック]
+    O3 -- いいえ --> O7[JPEG系画像は JPEG 再圧縮]
     O --> O1{debug_mode ON?}
     O1 -- はい --> O2[PyMuPDF 非可逆段の debug stats を標準出力へ出力]
     O1 -- いいえ --> U
     O2 --> U
+    O5 --> O1
+    O6 --> O1
+    O7 --> O1
     L -- JPG/JPEG --> P[Pillow圧縮]
     L -- PNG --> Q{use_pngquant}
     Q -- true --> R[pngquant圧縮]
@@ -87,6 +95,16 @@ sequenceDiagram
             else request.pdf_engine == native
                 Worker->>Svc: pdf_service
                 Svc->>Native: PDF圧縮
+                alt PDF内PNG系画像 and pngquant available
+                    Native->>PNGQ: PNGのまま量子化
+                    PNGQ-->>Native: 量子化済みPNG
+                else PDF内PNG系画像 and pngquant unavailable
+                    Native->>PIL: 256色固定減色PNG
+                    PIL-->>Native: フォールバックPNG
+                else JPEG系画像
+                    Native->>PIL: JPEG再圧縮
+                    PIL-->>Native: 圧縮済みJPEG
+                end
                 alt request.debug_mode == True
                     Native-->>FS: 非可逆段の debug stats を標準出力へ出力
                 end
@@ -128,6 +146,7 @@ classDiagram
         +pdf_mode: StringVar
         +pdf_dpi: IntVar
         +pdf_jpeg_quality: IntVar
+        +pdf_png_quality: IntVar
         +gs_preset: StringVar
         +gs_custom_dpi: IntVar
         +jpg_quality: IntVar
@@ -182,6 +201,7 @@ classDiagram
         +output_dir
         +pdf_engine
         +pdf_mode
+        +pdf_png_quality
         +use_pngquant
         +resize_config
         +csv_enable
@@ -265,7 +285,22 @@ classDiagram
     旧 import 互換のための再エクスポート層です。
     新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
 
-この再編が必要だった理由:
+## 今回の改修（v2.4.0 / 2026年3月16日追記）
+
+- 対象バージョンは `pyproject.toml` の `2.4.0` です。
+- ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ逃がさず PNG のまま量子化するフローへ変更しました。
+- PDF 用設定から `PNG→JPEG変換` を廃止し、`PNG品質` スライダーを追加しました。
+- `pngquant` が利用可能な環境では、PDF 用 PNG 品質スライダー値を上限とした quality 範囲で量子化します。
+- `pngquant` が利用できない環境では、Pillow の 256 色固定減色へフォールバックし、UI では PDF 用 PNG 品質スライダーを無効化して理由を注記します。
+- `backend/contracts.py` の `CompressionRequest` は `pdf_png_quality` を持つようになり、worker まで同値が伝搬します。
+
+この改修が必要だった理由:
+
+- PDF 内 PNG 系画像を JPEG へ逃がす設計は、透明情報や PNG 素材由来の特性を崩しやすく、設定意図が UI から読み取りにくかったため。
+- `pngquant` が導入されている環境と未導入の環境で、どの品質ノブが実際に効くのかを UI と backend の両方で明確にする必要があったため。
+- `pdf_png_quality` を request 契約へ昇格させておくことで、controller のログ、worker の分岐、将来の回帰テストが同じ意味で追えるようになるため。
+
+## 設定レイヤ再編が必要だった理由
 
 - shared を「なんでも置き場」にすると、責務境界が曖昧になり、どの層がその値を所有しているのか説明しづらくなるため。
 - backend の検証ロジックと frontend の表示ラベルを切り離さないと、画面都合の変更が処理条件へ波及しやすくなるため。
@@ -319,7 +354,7 @@ class CompressionRequestAppProtocol(Protocol):
     pdf_mode: tk.StringVar
     pdf_dpi: tk.IntVar
     pdf_jpeg_quality: tk.IntVar
-    pdf_png_to_jpeg: tk.BooleanVar
+    pdf_png_quality: tk.IntVar
     pdf_ll_linearize: tk.BooleanVar
     pdf_ll_object_streams: tk.BooleanVar
     pdf_ll_clean_metadata: tk.BooleanVar

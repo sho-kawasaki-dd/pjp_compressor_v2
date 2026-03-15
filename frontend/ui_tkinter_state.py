@@ -9,7 +9,7 @@ from backend.settings import (
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
-    PDF_LOSSY_PNG_TO_JPEG_DEFAULT,
+    PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
 from frontend.settings import (
     COPY_NON_TARGET_FILES_DEFAULT,
@@ -33,7 +33,7 @@ class TkUiStateMixin:
         self.pdf_mode: tk.StringVar = tk.StringVar(value='both')
         self.pdf_dpi: tk.IntVar = tk.IntVar(value=PDF_LOSSY_DPI_DEFAULT)
         self.pdf_jpeg_quality: tk.IntVar = tk.IntVar(value=PDF_LOSSY_JPEG_QUALITY_DEFAULT)
-        self.pdf_png_to_jpeg: tk.BooleanVar = tk.BooleanVar(value=PDF_LOSSY_PNG_TO_JPEG_DEFAULT)
+        self.pdf_png_quality: tk.IntVar = tk.IntVar(value=PDF_LOSSY_PNG_QUALITY_DEFAULT)
 
         # pikepdf の可逆最適化オプション。
         defaults = PDF_LOSSLESS_OPTIONS_DEFAULT
