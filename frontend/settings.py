@@ -5,22 +5,78 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+
+from typing import Any
 
 from shared.runtime_paths import APP_BASE_DIR, RESOURCE_BASE_DIR
 
 
-def _load_ui_catalogs() -> tuple[dict[str, str], dict[str, str], tuple[str, ...]]:
-    """UI 表示用の静的カタログを JSON から読み込む。"""
-    resource_path = RESOURCE_BASE_DIR / 'frontend' / 'config_data' / 'ui_catalogs.json'
+UI_CATALOGS_PATH = RESOURCE_BASE_DIR / 'frontend' / 'config_data' / 'ui_catalogs.json'
+APP_SETTINGS_DEFAULTS = {
+    'play_startup_sound': True,
+    'play_cleanup_sound': True,
+}
+
+
+def _read_ui_catalogs_payload(resource_path: Path | None = None) -> dict[str, Any]:
+    """UI カタログ JSON 全体を読み込んで返す。"""
+    target_path = resource_path or UI_CATALOGS_PATH
     try:
-        payload = json.loads(resource_path.read_text(encoding='utf-8'))
+        payload = json.loads(target_path.read_text(encoding='utf-8'))
     except FileNotFoundError as exc:
-        raise RuntimeError(f'UI カタログが見つかりません: {resource_path}') from exc
+        raise RuntimeError(f'UI カタログが見つかりません: {target_path}') from exc
     except json.JSONDecodeError as exc:
-        raise RuntimeError(f'UI カタログ JSON の形式が不正です: {resource_path}') from exc
+        raise RuntimeError(f'UI カタログ JSON の形式が不正です: {target_path}') from exc
 
     if not isinstance(payload, dict):
         raise RuntimeError('UI カタログ JSON のルートは object である必要があります')
+    return payload
+
+
+def load_app_settings(resource_path: Path | None = None) -> dict[str, bool]:
+    """永続化されたアプリ設定を読み込み、欠落値には既定値を補う。"""
+    payload = _read_ui_catalogs_payload(resource_path)
+    settings = payload.get('app_settings')
+    if not isinstance(settings, dict):
+        return dict(APP_SETTINGS_DEFAULTS)
+
+    resolved = dict(APP_SETTINGS_DEFAULTS)
+    for key in resolved:
+        value = settings.get(key)
+        if isinstance(value, bool):
+            resolved[key] = value
+    return resolved
+
+
+def save_app_settings(
+    *,
+    play_startup_sound: bool,
+    play_cleanup_sound: bool,
+    resource_path: Path | None = None,
+) -> bool:
+    """app_settings セクションだけを更新して JSON へ保存する。"""
+    target_path = resource_path or UI_CATALOGS_PATH
+    try:
+        payload = _read_ui_catalogs_payload(target_path)
+    except RuntimeError:
+        return False
+
+    payload['app_settings'] = {
+        'play_startup_sound': bool(play_startup_sound),
+        'play_cleanup_sound': bool(play_cleanup_sound),
+    }
+
+    try:
+        target_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+    except OSError:
+        return False
+    return True
+
+
+def _load_ui_catalogs() -> tuple[dict[str, str], dict[str, str], tuple[str, ...]]:
+    """UI 表示用の静的カタログを JSON から読み込む。"""
+    payload = _read_ui_catalogs_payload()
 
     pdf_modes = payload.get('pdf_compress_modes')
     gs_presets = payload.get('gs_presets')

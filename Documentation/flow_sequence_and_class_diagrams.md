@@ -9,13 +9,27 @@
 
 ```mermaid
 flowchart TD
-    A[アプリ起動] --> A1[detect_capabilities 実行]
+    A[アプリ起動] --> A0[ui_catalogs.json から UI カタログと app_settings を読込]
+    A0 --> A1[detect_capabilities 実行]
     A1 --> A2[CapabilityReportでUI状態を制御]
-    A2 --> B[入力フォルダを指定]
+    A2 --> A3[圧縮設定 / アプリ設定 / ログ の各タブを構築]
+    A3 --> A4{play_startup_sound ?}
+    A4 -- はい --> A5[open_window.wav を再生]
+    A4 -- いいえ --> B
+    A5 --> B[入力フォルダを指定]
     B --> C[出力フォルダを指定]
+    C --> C1{Windows かつ Desktop 既定フォルダ不足?}
+    C1 -- はい --> C2{play_startup_sound ?}
+    C2 -- はい --> C3[notice.wav を再生]
+    C2 -- いいえ --> C4[Desktop 作成確認ダイアログ]
+    C3 --> C4[Desktop 作成確認ダイアログ]
+    C1 -- いいえ --> D
+    C4 --> D
     C --> D[圧縮設定]
     D --> D1[出力設定で debug_mode を選択 任意]
-    D1 --> E[CompressionRequest を組み立て]
+    D1 --> D2[アプリ設定タブで効果音トグル変更 任意]
+    D2 --> D3[変更時は app_settings を JSON へ即時保存]
+    D3 --> E[CompressionRequest を組み立て]
     E --> F[run_compression_request 呼び出し]
     F --> G[run_compression_job 実行]
     G --> H[ZIP展開ON時は一時作業領域で再帰展開 最大25サイクル]
@@ -54,6 +68,7 @@ flowchart TD
     U --> V{全タスク完了?}
     V -- いいえ --> L
     V -- はい --> W[ProgressEvent stats とCSV出力]
+    W --> X[クリーンアップ実行時は play_cleanup_sound に応じて warning.wav 再生]
 ```
 
 ## シーケンス図（圧縮処理の全体フロー）
@@ -62,6 +77,7 @@ flowchart TD
 sequenceDiagram
     participant User as ユーザー
     participant App as GUI(App)
+    participant Config as frontend.settings
     participant Ctrl as Controller
     participant Mapper as RequestMapper
     participant Cap as CapabilityDetector
@@ -75,9 +91,17 @@ sequenceDiagram
     participant PNGQ as pngquant
     participant PIL as Pillow
 
+    App->>Config: load_app_settings() / UIカタログ読込
+    Config-->>App: app_settings + 表示カタログ
     App->>Cap: detect_capabilities()
     Cap-->>App: CapabilityReport
+    alt play_startup_sound == True
+        App->>App: open_window.wav 再生
+    end
     User->>App: 入力/出力フォルダ・圧縮設定
+    User->>App: アプリ設定タブで効果音トグル変更
+    App->>Config: save_app_settings()
+    Config-->>App: 保存結果
     User->>Ctrl: 圧縮開始クリック
     Ctrl->>Mapper: build_compression_request()
     Mapper-->>Ctrl: CompressionRequest(debug_mode を含む)
@@ -134,6 +158,10 @@ sequenceDiagram
 
     Runner->>Ctr: ProgressEvent(kind=stats)
     Ctr-->>App: 統計イベント通知
+    User->>Ctrl: クリーンアップ実行
+    alt play_cleanup_sound == True
+        Ctrl->>App: warning.wav 再生
+    end
     App-->>User: 完了・統計表示
 ```
 
@@ -144,6 +172,8 @@ classDiagram
     class App {
         +input_dir: StringVar
         +output_dir: StringVar
+        +play_startup_sound: BooleanVar
+        +play_cleanup_sound: BooleanVar
         +pdf_engine: StringVar
         +pdf_mode: StringVar
         +pdf_dpi: IntVar
@@ -161,7 +191,13 @@ classDiagram
         +start_compress()
         +cleanup_input()
         +cleanup_output()
+        +_save_app_settings()
         +log()
+    }
+
+    class FrontendSettings {
+        +load_app_settings()
+        +save_app_settings()
     }
 
     class CapabilityDetector {
@@ -253,6 +289,7 @@ classDiagram
 
     App --> CapabilityDetector : 起動時に実行
     CapabilityDetector --> CapabilityReport : 返却
+    App --> FrontendSettings : app_settings読込/保存
     App --> Contracts : Request/Eventを利用
     App --> TkUiStateMixin : 状態初期化
     App --> TkUiViewMixin : 画面構築
@@ -272,24 +309,24 @@ classDiagram
 設定まわりは単一の `shared/configs.py` から、所有責務ごとの層へ再編しました。
 
 - `shared/runtime_paths.py`
-    通常実行と PyInstaller 実行の両方で使う `APP_BASE_DIR` / `RESOURCE_BASE_DIR` を提供します。
-    Path 計算や `sys.frozen` / `sys._MEIPASS` 判定のような runtime 依存ロジックはここへ集約します。
+  通常実行と PyInstaller 実行の両方で使う `APP_BASE_DIR` / `RESOURCE_BASE_DIR` を提供します。
+  Path 計算や `sys.frozen` / `sys._MEIPASS` 判定のような runtime 依存ロジックはここへ集約します。
 - `backend/settings.py`
-    PDF 圧縮既定値、Ghostscript 既定プリセット、backend が許可する PDF モード値を保持します。
-    backend は UI 表示ラベルに依存せず、`PDF_ALLOWED_MODES` のような処理都合の値だけを参照します。
+  PDF 圧縮既定値、Ghostscript 既定プリセット、backend が許可する PDF モード値を保持します。
+  backend は UI 表示ラベルに依存せず、`PDF_ALLOWED_MODES` のような処理都合の値だけを参照します。
 - `frontend/settings.py`
-    UI の既定値、cleanup 対象拡張子、サウンド/画像リソースパス、表示カタログローダを保持します。
-    frontend が JSON を読む責務はここに閉じ込め、画面コードはロード済み定数だけを使います。
+  UI の既定値、cleanup 対象拡張子、サウンド/画像リソースパス、表示カタログローダを保持します。
+  frontend が JSON を読む責務はここに閉じ込め、画面コードはロード済み定数だけを使います。
 - `frontend/config_data/ui_catalogs.json`
-    純粋データだけを置く領域です。現時点では PDF モード表示名、Ghostscript プリセット表示名、長辺プリセットを管理します。
-    Path、OS 判定、PyInstaller 判定のようなロジックはここへ入れません。
+  純粋データだけを置く領域です。現時点では PDF モード表示名、Ghostscript プリセット表示名、長辺プリセットを管理します。
+  Path、OS 判定、PyInstaller 判定のようなロジックはここへ入れません。
 - `shared/configs.py`
-    旧 import 互換のための再エクスポート層です。
-    新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
+  旧 import 互換のための再エクスポート層です。
+  新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
 
-## 今回の改修（v2.4.0 / 2026年3月16日追記）
+## 今回の改修（v2.5.0 / 2026年3月30日追記）
 
-- 対象バージョンは `pyproject.toml` の `2.4.0` です。
+- 対象バージョンは `pyproject.toml` の `2.5.0` です。
 - ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ逃がさず PNG のまま量子化するフローへ変更しました。
 - PDF 用設定から `PNG→JPEG変換` を廃止し、`PNG品質` スライダーを追加しました。
 - `pngquant` が利用可能な環境では、PDF 用 PNG 品質スライダー値を上限とした quality 範囲で量子化します。

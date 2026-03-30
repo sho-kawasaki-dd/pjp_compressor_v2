@@ -12,6 +12,7 @@ from backend.settings import (
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
 from frontend.settings import (
+    APP_SETTINGS_DEFAULTS,
     COPY_NON_TARGET_FILES_DEFAULT,
     DEBUG_MODE_DEFAULT,
 )
@@ -20,9 +21,12 @@ from frontend.settings import (
 class TkUiStateMixin:
     default_input_dir: str
     default_output_dir: str
+    app_settings: dict[str, bool]
 
     def initialize_ui_state(self) -> None:
         """画面全体で共有する Tk 変数を用途別に初期化する。"""
+        app_settings = dict(APP_SETTINGS_DEFAULTS)
+        app_settings.update(getattr(self, 'app_settings', {}))
 
         # 入出力フォルダ関連。
         self.input_dir: tk.StringVar = tk.StringVar(value=self.default_input_dir)
@@ -67,6 +71,8 @@ class TkUiStateMixin:
         self.debug_mode: tk.BooleanVar = tk.BooleanVar(value=DEBUG_MODE_DEFAULT)
         self.copy_non_target_files: tk.BooleanVar = tk.BooleanVar(value=COPY_NON_TARGET_FILES_DEFAULT)
         self.auto_switch_log_tab: tk.BooleanVar = tk.BooleanVar(value=True)
+        self.play_startup_sound: tk.BooleanVar = tk.BooleanVar(value=app_settings['play_startup_sound'])
+        self.play_cleanup_sound: tk.BooleanVar = tk.BooleanVar(value=app_settings['play_cleanup_sound'])
 
         # 画面下部の状態表示。
         self.status_var: tk.StringVar = tk.StringVar(value='待機中')

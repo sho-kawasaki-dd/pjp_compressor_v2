@@ -29,9 +29,13 @@ class DummyWidget:
     def __init__(self):
         self.state = None
         self.packed = False
+        self.text = None
 
-    def config(self, state=None):
-        self.state = state
+    def config(self, state=None, text=None):
+        if state is not None:
+            self.state = state
+        if text is not None:
+            self.text = text
 
     def pack(self, **_kwargs):
         self.packed = True
@@ -119,10 +123,13 @@ class ControllerHost(TkUiControllerMixin):
         self.use_pngquant = DummyVar(True)
         self.resize_enabled = DummyVar(False)
         self.auto_switch_log_tab = DummyVar(True)
+        self.play_startup_sound = DummyVar(True)
+        self.play_cleanup_sound = DummyVar(True)
         self.status_var = DummyVar('待機中')
         self.stats_var = DummyVar('')
         self.pdf_engine_status_var = DummyVar('')
         self.notebook = DummyNotebook()
+        self.app_settings_tab = object()
         self.log_tab = object()
         self.log_text = DummyText()
         self.progress = DummyProgressbar(value=0)
@@ -138,7 +145,9 @@ class ControllerHost(TkUiControllerMixin):
         self.jpeg_q_scale = DummyWidget()
         self.pdf_png_q_scale = DummyWidget()
         self.jpeg_note_label = DummyWidget()
+        self.pdf_png_method_label = DummyWidget()
         self.pdf_png_fallback_note_label = DummyWidget()
+        self.png_engine_note_label = DummyWidget()
         self._native_lossless_widgets = [DummyWidget()]
         self._gs_custom_dpi_widgets = [DummyWidget()]
         self._gs_lossless_widgets = [DummyWidget()]
@@ -225,8 +234,11 @@ def test_update_pdf_controls_disables_pdf_png_slider_without_pngquant(tmp_path: 
 
     assert all(widget.state == 'disabled' for widget in host._native_png_quality_widgets)
     assert host.pdf_png_q_scale.state == 'disabled'
+    assert host.pdf_png_method_label.packed is True
+    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: Pillow 256色固定'
     assert host.pdf_png_fallback_note_label.packed is True
     assert host.jpeg_note_label.packed is True
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow'
 
 
 def test_update_pdf_controls_enables_pdf_png_slider_with_pngquant(tmp_path: Path) -> None:
@@ -237,4 +249,91 @@ def test_update_pdf_controls_enables_pdf_png_slider_with_pngquant(tmp_path: Path
 
     assert all(widget.state == 'normal' for widget in host._native_png_quality_widgets)
     assert host.pdf_png_q_scale.state == 'normal'
+    assert host.pdf_png_method_label.packed is True
+    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: pngquant'
     assert host.pdf_png_fallback_note_label.packed is False
+
+
+def test_update_pdf_controls_hides_pdf_png_method_label_when_lossy_disabled(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.pdf_mode.set('lossless')
+
+    host._update_pdf_controls()
+
+    assert host.pdf_png_method_label.packed is False
+
+
+def test_update_png_engine_labels_tracks_pngquant_checkbox(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe')
+
+    host.use_pngquant.set(True)
+    host._update_png_engine_labels()
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: pngquant'
+
+    host.use_pngquant.set(False)
+    host._update_png_engine_labels()
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow'
+
+
+def test_save_app_settings_passes_current_toggle_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    captured: dict[str, bool] = {}
+
+    def fake_save_app_settings(*, play_startup_sound: bool, play_cleanup_sound: bool) -> bool:
+        captured['play_startup_sound'] = play_startup_sound
+        captured['play_cleanup_sound'] = play_cleanup_sound
+        return True
+
+    host.play_startup_sound.set(False)
+    host.play_cleanup_sound.set(True)
+    monkeypatch.setattr(controller_module, 'save_app_settings', fake_save_app_settings)
+
+    saved = host._save_app_settings()
+
+    assert saved is True
+    assert captured == {
+        'play_startup_sound': False,
+        'play_cleanup_sound': True,
+    }
+
+
+def test_cleanup_input_skips_warning_sound_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    input_dir = tmp_path / 'input'
+    input_dir.mkdir()
+    host.input_dir.set(str(input_dir))
+    host.play_cleanup_sound.set(False)
+    played: list[Path] = []
+
+    monkeypatch.setattr(controller_module, 'play_sound', lambda sound_file: played.append(Path(sound_file)))
+    monkeypatch.setattr(controller_module.messagebox, 'askyesno', lambda *args, **kwargs: False)
+
+    host.cleanup_input()
+
+    assert played == []
+
+
+def test_cleanup_output_plays_warning_sound_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    output_dir = tmp_path / 'output'
+    output_dir.mkdir()
+    host.output_dir.set(str(output_dir))
+    host.play_cleanup_sound.set(True)
+    played: list[Path] = []
+
+    monkeypatch.setattr(controller_module, 'play_sound', lambda sound_file: played.append(Path(sound_file)))
+    monkeypatch.setattr(controller_module.messagebox, 'askyesno', lambda *args, **kwargs: False)
+
+    host.cleanup_output()
+
+    assert played == [controller_module.SOUNDS_DIR / 'warning.wav']

@@ -21,5 +21,9 @@
     "2048",
     "2560",
     "3840"
-  ]
+  ],
+  "app_settings": {
+    "play_startup_sound": true,
+    "play_cleanup_sound": true
+  }
 }

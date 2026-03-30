@@ -77,6 +77,7 @@ def run_tkinter_app() -> int:
         app.after(_SPLASH_MIN_VISIBLE_MS, _show_main_window)
 
     startup_sound = SOUNDS_DIR / "open_window.wav"
-    app.after(120, lambda: play_sound(startup_sound))
+    if app.play_startup_sound.get():
+        app.after(120, lambda: play_sound(startup_sound))
     app.mainloop()
     return 0

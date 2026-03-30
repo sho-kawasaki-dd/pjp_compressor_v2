@@ -36,6 +36,7 @@ from frontend.settings import (
     APP_DEFAULT_WINDOW_SIZE,
     IMAGES_DIR,
     SOUNDS_DIR,
+    load_app_settings,
 )
 from frontend.ui_tkinter_state import TkUiStateMixin
 from frontend.ui_tkinter_view import TkUiViewMixin
@@ -66,8 +67,10 @@ def get_default_dirs():
         missing_targets.append(('圧縮済みファイル', output_dir))
 
     if missing_targets:
+        app_settings = load_app_settings()
         missing_names = '」「'.join(name for name, _ in missing_targets)
-        play_sound(SOUNDS_DIR / 'notice.wav')
+        if app_settings['play_startup_sound']:
+            play_sound(SOUNDS_DIR / 'notice.wav')
         if messagebox.askquestion(
             "Desktopフォルダ作成",
             f"デスクトップに「{missing_names}」フォルダを作成してよいですか？"
@@ -108,6 +111,7 @@ class App(
         self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 140))
 
         self.threads: list[threading.Thread] = []
+        self.app_settings = load_app_settings()
         # 起動時副作用、既定値決定、能力検出、UI 構築の順で進めると責務が追いやすい。
         self._initialize_runtime_side_effects()
         self.default_input_dir, self.default_output_dir = self._resolve_default_dirs()
@@ -119,6 +123,7 @@ class App(
         # ── 初期状態更新 ──
         self._refresh_pdf_engine_status()
         self._update_pdf_controls()
+        self._update_png_engine_labels()
         self._update_resize_controls()
 
         self.protocol("WM_DELETE_WINDOW", self.on_exit)

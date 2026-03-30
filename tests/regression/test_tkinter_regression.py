@@ -215,3 +215,11 @@ def test_zip_matrix_full_regression(tk_regression_app) -> None:
     app.csv_path.set(str(output_dir / 'zip_cases.csv'))
 
     run_zip_matrix_tests(app, input_dir, output_dir)
+
+
+def test_app_settings_tab_is_built_with_sound_toggles(tk_regression_app) -> None:
+    app, _input_dir, _output_dir = tk_regression_app
+
+    assert len(app.notebook.tabs()) == 3
+    assert app.play_startup_sound.get() is True
+    assert app.play_cleanup_sound.get() is True

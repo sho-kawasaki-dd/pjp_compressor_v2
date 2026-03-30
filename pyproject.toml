@@ -1,6 +1,6 @@
 [project]
 name = "pjp-compressor-v2"
-version = "2.4.0"
+version = "2.5.0"
 description = "PDF, JPEG, PNG compressor GUI application version 2."
 readme = "./Documentation/README.md"
 requires-python = ">=3.13"
@@ -12,6 +12,7 @@ dependencies = [
     "pygame>=2.3.0",
     "pyinstaller>=6.19.0",
     "pytest>=9.0.2",
+    "panflute>=2.3.1",
 ]
 
 [project.optional-dependencies]

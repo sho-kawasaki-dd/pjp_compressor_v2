@@ -12,6 +12,7 @@ from backend.core.compressor_utils import cleanup_folder, count_target_files, hu
 from backend.contracts import ProgressEvent
 from backend.orchestrator.job_runner import run_compression_request
 from frontend.settings import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
+from frontend.settings import save_app_settings
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
@@ -33,10 +34,39 @@ class TkUiControllerMixin:
         except tk.TclError:
             pass
 
+    def _pdf_png_engine_label_text(self) -> str:
+        """PDF 内 PNG 再圧縮で使う量子化エンジン表記を返す。"""
+        host = self._controller_host()
+        if host.capabilities.pngquant_available:
+            return 'PNG圧縮エンジン: pngquant'
+        return 'PNG圧縮エンジン: Pillow 256色固定'
+
+    def _image_png_engine_label_text(self) -> str:
+        """通常 PNG 圧縮で使うエンジン表記を返す。"""
+        host = self._controller_host()
+        if host.use_pngquant.get() and host.capabilities.pngquant_available:
+            return 'PNG圧縮エンジン: pngquant'
+        return 'PNG圧縮エンジン: Pillow'
+
+    def _update_png_engine_labels(self) -> None:
+        """PNG 圧縮エンジン注記ラベルの文言を現在状態へ同期する。"""
+        host = self._controller_host()
+        host.pdf_png_method_label.config(text=self._pdf_png_engine_label_text())
+        host.png_engine_note_label.config(text=self._image_png_engine_label_text())
+
+    def _save_app_settings(self) -> bool:
+        """アプリ設定タブのトグル状態を JSON へ永続化する。"""
+        host = self._controller_host()
+        return save_app_settings(
+            play_startup_sound=host.play_startup_sound.get(),
+            play_cleanup_sound=host.play_cleanup_sound.get(),
+        )
+
     def _update_pdf_controls(self) -> None:
         """選択中の PDF エンジンとモードに合わせて関連 UI を有効/無効化する。"""
         host = self._controller_host()
         engine = host.pdf_engine.get()
+        self._update_png_engine_labels()
 
         if engine == 'native':
             host.gs_frame.pack_forget()
@@ -62,8 +92,10 @@ class TkUiControllerMixin:
 
             if lossy_active:
                 host.jpeg_note_label.pack(side='left', padx=(5, 0))
+                host.pdf_png_method_label.pack(side='left', padx=(8, 0))
             else:
                 host.jpeg_note_label.pack_forget()
+                host.pdf_png_method_label.pack_forget()
 
             if lossy_active and not host.capabilities.pngquant_available:
                 host.pdf_png_fallback_note_label.pack(side='left', padx=(5, 0))
@@ -358,7 +390,8 @@ class TkUiControllerMixin:
 
         count = count_target_files(input_dir, INPUT_DIR_CLEANUP_EXTENSIONS)
         exts = ', '.join(sorted(INPUT_DIR_CLEANUP_EXTENSIONS))
-        play_sound(SOUNDS_DIR / 'warning.wav')
+        if host.play_cleanup_sound.get():
+            play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
             'クリーンアップ確認',
             f'入力フォルダ内の対象ファイルを削除しますか？\n\n'
@@ -386,7 +419,8 @@ class TkUiControllerMixin:
 
         count = count_target_files(output_dir, OUTPUT_DIR_CLEANUP_EXTENSIONS)
         exts = ', '.join(sorted(OUTPUT_DIR_CLEANUP_EXTENSIONS))
-        play_sound(SOUNDS_DIR / 'warning.wav')
+        if host.play_cleanup_sound.get():
+            play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
             'クリーンアップ確認',
             f'出力フォルダ内の対象ファイルを削除しますか？\n\n'

@@ -53,6 +53,8 @@ class TkUiViewMixin:
     extract_zip: tk.BooleanVar
     copy_non_target_files: tk.BooleanVar
     auto_switch_log_tab: tk.BooleanVar
+    play_startup_sound: tk.BooleanVar
+    play_cleanup_sound: tk.BooleanVar
     status_var: tk.StringVar
     pdf_ll_linearize: tk.BooleanVar
     pdf_ll_object_streams: tk.BooleanVar
@@ -67,6 +69,7 @@ class TkUiViewMixin:
     _on_drop_input: Callable[[object], None]
     _update_pdf_controls: Callable[[], None]
     _update_resize_controls: Callable[[], None]
+    _save_app_settings: Callable[[], bool]
     _choose_csv_path: Callable[[], None]
     start_compress: Callable[[], None]
     on_exit: Callable[[], None]
@@ -79,6 +82,7 @@ class TkUiViewMixin:
     notebook: ttk.Notebook
     settings_tab: ttk.Frame
     log_tab: ttk.Frame
+    app_settings_tab: ttk.Frame
     native_rb: ttk.Radiobutton
     gs_rb: ttk.Radiobutton
     pdf_engine_status_var: tk.StringVar
@@ -217,17 +221,62 @@ class TkUiViewMixin:
         tk.Button(row_out, text='クリーンアップ', command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
 
     def _build_notebook(self):
-        """設定タブとログタブを作成する。"""
+        """設定タブ、アプリ設定タブ、ログタブを作成する。"""
         self.notebook = ttk.Notebook(self.main_container)
         self.notebook.pack(fill='both', expand=True, padx=14, pady=8)
 
         self.settings_tab = ttk.Frame(self.notebook)
+        self.app_settings_tab = ttk.Frame(self.notebook)
         self.log_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text=' 圧縮設定 ')
+        self.notebook.add(self.app_settings_tab, text=' アプリ設定 ')
         self.notebook.add(self.log_tab, text=' ログ ')
 
         self._build_settings_tab()
+        self._build_app_settings_tab()
         self._build_log_tab()
+
+    def _build_app_settings_tab(self):
+        """アプリ全体の動作設定を構築する。"""
+        app_outer = tk.LabelFrame(
+            self.app_settings_tab,
+            text=' アプリ設定 ',
+            bg='#f8f7ef',
+            fg='black',
+            bd=1,
+            relief='solid',
+        )
+        app_outer.pack(fill='x', padx=8, pady=(8, 5))
+        app_container = ttk.Frame(app_outer)
+        app_container.pack(fill='x', padx=8, pady=(5, 8))
+
+        startup_row = ttk.Frame(app_container)
+        startup_row.pack(fill='x', padx=5, pady=4)
+        ttk.Checkbutton(
+            startup_row,
+            text='起動時に効果音を鳴らす',
+            variable=self.play_startup_sound,
+            command=self._save_app_settings,
+        ).pack(side='left')
+        ttk.Label(
+            startup_row,
+            text='open_window.wav とデスクトップ作成確認前の notice.wav が対象',
+            foreground='gray',
+        ).pack(side='left', padx=(8, 0))
+
+        cleanup_row = ttk.Frame(app_container)
+        cleanup_row.pack(fill='x', padx=5, pady=4)
+        ttk.Checkbutton(
+            cleanup_row,
+            text='クリーンアップ確認時に効果音を鳴らす',
+            variable=self.play_cleanup_sound,
+            command=self._save_app_settings,
+        ).pack(side='left')
+        ttk.Label(
+            cleanup_row,
+            text='入力/出力フォルダのクリーンアップ確認前の warning.wav が対象',
+            foreground='gray',
+        ).pack(side='left', padx=(8, 0))
 
     def _build_settings_tab(self):
         """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
@@ -381,6 +430,12 @@ class TkUiViewMixin:
         self._native_lossy_widgets.append(self.pdf_png_q_scale)
         self._native_png_quality_widgets.append(self.pdf_png_q_scale)
 
+        self.pdf_png_method_label = ttk.Label(
+            png_row,
+            text='PNG圧縮エンジン: pngquant',
+            foreground='gray',
+        )
+
         self.pdf_png_fallback_note_label = ttk.Label(
             png_row,
             text='※pngquant 未検出時は Pillow の 256 色固定減色へフォールバックするため無効',
@@ -485,6 +540,12 @@ class TkUiViewMixin:
             length=300,
             showvalue=False,
         ).pack(side='left')
+        self.png_engine_note_label = ttk.Label(
+            png_row,
+            text='PNG圧縮エンジン: pngquant',
+            foreground='gray',
+        )
+        self.png_engine_note_label.pack(side='left', padx=(8, 0))
 
         pq_row = ttk.Frame(img_lf)
         pq_row.pack(fill='x', padx=5, pady=2)
@@ -492,6 +553,7 @@ class TkUiViewMixin:
             pq_row,
             text='pngquant 使用（パレット量子化・不可逆）',
             variable=self.use_pngquant,
+            command=self._update_png_engine_labels,
         )
         self.pngquant_check.pack(side='left')
         if not shutil.which('pngquant'):

@@ -46,6 +46,8 @@ class CompressionRequestAppProtocol(Protocol):
     extract_zip: tk.BooleanVar
     debug_mode: tk.BooleanVar
     copy_non_target_files: tk.BooleanVar
+    play_startup_sound: tk.BooleanVar
+    play_cleanup_sound: tk.BooleanVar
 
 
 class DropEventProtocol(Protocol):
@@ -67,6 +69,7 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     pdf_engine_status_var: tk.StringVar
     notebook: ttk.Notebook
     log_tab: ttk.Frame
+    app_settings_tab: ttk.Frame
     native_rb: ttk.Radiobutton
     gs_rb: ttk.Radiobutton
     native_frame: ttk.Frame
@@ -77,7 +80,9 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     jpeg_q_scale: tk.Scale
     pdf_png_q_scale: tk.Scale
     jpeg_note_label: ttk.Label
+    pdf_png_method_label: ttk.Label
     pdf_png_fallback_note_label: ttk.Label
+    png_engine_note_label: ttk.Label
     _native_lossless_widgets: list[ttk.Checkbutton]
     _gs_custom_dpi_widgets: list[tk.Misc]
     _gs_lossless_widgets: list[ttk.Checkbutton]

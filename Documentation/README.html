@@ -106,6 +106,9 @@ id="toc-関連ドキュメント">関連ドキュメント</a></li>
 <ul>
 <li><a href="#年3月30日追記"
 id="toc-年3月30日追記">2026年3月30日追記</a></li>
+<li><a href="#年3月30日追記アプリ設定-効果音"
+id="toc-年3月30日追記アプリ設定-効果音">2026年3月30日追記（アプリ設定 /
+効果音）</a></li>
 </ul></li>
 <li><a href="#主な機能" id="toc-主な機能">主な機能</a></li>
 <li><a href="#動作環境と依存"
@@ -176,7 +179,7 @@ href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md
 </ul>
 <h2 id="今回の改修">今回の改修</h2>
 <ul>
-<li>対象バージョン: <code>2.4.0</code></li>
+<li>対象バージョン: <code>2.5.0</code></li>
 <li>反映日: 2026年3月16日</li>
 <li>ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG
 へ変換せず、PNG のまま量子化するように変更</li>
@@ -214,6 +217,25 @@ image + soft
 mask」であるケースを正しく扱うようにしました。これにより、HTML から
 WeasyPrint で生成した PDF に貼り付けた透過 PNG
 が、非可逆圧縮後に黒背景化するリスクを下げています。</p>
+<h3 id="年3月30日追記アプリ設定-効果音">2026年3月30日追記（アプリ設定 /
+効果音）</h3>
+<ul>
+<li>ノートブックに <code>アプリ設定</code>
+タブを追加し、起動時とクリーンアップ確認時の効果音を個別トグルで切り替え可能に変更</li>
+<li>起動時効果音トグルは、起動直後の <code>open_window.wav</code>
+と、Windows 環境でデスクトップ配下の既定フォルダ作成を尋ねる前の
+<code>notice.wav</code> を共通で制御</li>
+<li>クリーンアップ効果音トグルは、入力/出力フォルダのクリーンアップ確認前に鳴る
+<code>warning.wav</code> を制御</li>
+<li>トグル状態は <code>frontend/config_data/ui_catalogs.json</code> の
+<code>app_settings</code>
+セクションへ永続化され、次回起動時にも復元</li>
+<li><code>frontend/settings.py</code> に JSON 読込保存責務を追加し、UI
+state は <code>play_startup_sound</code> /
+<code>play_cleanup_sound</code> として保持</li>
+</ul>
+<p>今回の追記では、圧縮機能とは独立したアプリ全体の動作設定を GUI
+から扱えるように整理しました。特に、毎回起動音やクリーンアップ警告音が不要な環境でも、コード編集なしで振る舞いを固定できるようになっています。</p>
 <h2 id="主な機能">主な機能</h2>
 <ul>
 <li>PDF 圧縮（Ghostscript / ネイティブエンジンを選択可能）
@@ -289,6 +311,18 @@ PDF の非可逆段のみ標準出力へ詳細診断を出力。GUI のログタ
 <li>使いやすいUI
 <ul>
 <li>入力フォルダのドラッグ＆ドロップ</li>
+<li>ノートブックに <code>アプリ設定</code> タブを追加</li>
+<li>起動時効果音の ON/OFF を切り替え可能
+<ul>
+<li>対象は起動直後の <code>open_window.wav</code>
+と、デスクトップ既定フォルダ作成確認前の <code>notice.wav</code></li>
+</ul></li>
+<li>クリーンアップ確認時の効果音 ON/OFF を切り替え可能
+<ul>
+<li>対象は入力/出力フォルダのクリーンアップ確認前の
+<code>warning.wav</code></li>
+</ul></li>
+<li>効果音トグル状態を JSON に永続化し、再起動後も復元</li>
 <li>入出力フォルダのクリーンアップ（入力:
 .pdf/.jpg/.jpeg/.png/.zip、出力:
 .pdf/.jpg/.jpeg/.png/.csv。サブフォルダ含む）</li>
@@ -370,16 +404,16 @@ one-folder）</h2>
 class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install pyinstaller</span></code></pre></div>
 <div class="sourceCode" id="cb4"><pre
 class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m PyInstaller <span class="op">--</span>clean <span class="op">.</span>\compressor_launcher_tkinter<span class="op">.</span><span class="fu">spec</span></span></code></pre></div>
-<p>生成先は <code>dist/PDF_JPG_PNG_Compressor_v2.4.0/</code>
+<p>生成先は <code>dist/PDF_JPG_PNG_Compressor_v2.5.0/</code>
 です。配布時はこのフォルダ全体を渡してください。</p>
 <p>補足:</p>
 <ul>
 <li>one-folder 配布では <code>sounds/</code>、<code>images/</code>
 に加えて <code>frontend/config_data/ui_catalogs.json</code>
 も同梱されます。</li>
-<li>UI の表示用カタログは JSON から読み込むため、spec
-を介さず独自ビルドする場合も <code>frontend/config_data/</code>
-を配布物へ含めてください。</li>
+<li>UI の表示用カタログと <code>app_settings</code> は JSON
+から読み込むため、spec を介さず独自ビルドする場合も
+<code>frontend/config_data/</code> を配布物へ含めてください。</li>
 </ul>
 <p>PowerShell スクリプト経由で実行する場合:</p>
 <ul>
@@ -402,6 +436,9 @@ macOS: <code>brew install ghostscript</code> / Ubuntu/Debian:
 <code>python compressor_launcher_tkinter.py</code>）。</li>
 <li>入力フォルダを指定します（参照ボタンまたはドラッグ＆ドロップ）。</li>
 <li>出力フォルダを指定します（Windowsは初回起動時にデスクトップ作成提案あり）。</li>
+<li>必要なら <code>アプリ設定</code>
+タブで、起動時効果音とクリーンアップ確認時効果音の ON/OFF
+を切り替えます。</li>
 <li>圧縮設定を行います（PDFエンジン選択、必要に応じてネイティブ/GS各設定、画像品質、リサイズ）。</li>
 <li>圧縮を開始します（ZIP自動展開、進捗表示、CSVログ出力）。必要に応じて「圧縮対象外のファイルを出力フォルダへコピー」をONにします（既定はOFF）。
 <ul>
@@ -418,15 +455,15 @@ xref ごとの統計が出ます。</li>
 <li><code>compressor_launcher_tkinter.py</code>:
 起動エントリポイント（例外処理・クラッシュログ）</li>
 <li><code>frontend/bootstrap.py</code>:
-起動順序の集約（UI生成・起動時サウンド）</li>
+起動順序の集約（UI生成・起動時サウンド、起動音トグル適用）</li>
 <li><code>frontend/ui_tkinter.py</code>: Tkinter
-GUIのファサード（起動時副作用・App初期化・モジュール接続）</li>
+GUIのファサード（起動時副作用・App初期化・モジュール接続・既定フォルダ確認音の制御）</li>
 <li><code>frontend/ui_tkinter_state.py</code>: Tkinter
 <code>Variable</code> 群の状態初期化責務</li>
 <li><code>frontend/ui_tkinter_view.py</code>:
 ウィジェット構築・レイアウト責務</li>
 <li><code>frontend/ui_tkinter_controller.py</code>:
-イベント処理・入力検証・非同期実行・進捗反映責務</li>
+イベント処理・入力検証・非同期実行・進捗反映責務、クリーンアップ音とアプリ設定保存の制御</li>
 <li><code>frontend/ui_tkinter_mapper.py</code>: UI状態から
 <code>CompressionRequest</code> への変換責務</li>
 <li><code>frontend/ui_contracts.py</code>:
@@ -459,10 +496,12 @@ Capability / Result）</li>
 <li><code>backend/settings.py</code>: backend が所有する処理既定値（PDF
 圧縮既定値、Ghostscript 既定プリセット、許可モード）</li>
 <li><code>frontend/settings.py</code>: frontend が所有する UI
-既定値、cleanup 対象、リソースパス、JSON ローダ責務</li>
+既定値、cleanup 対象、リソースパス、UI カタログ / app_settings の JSON
+読込保存責務</li>
 <li><code>frontend/config_data/ui_catalogs.json</code>: UI
-表示用の純粋データ（PDF モード表示名、Ghostscript
-プリセット表示名、長辺プリセット）</li>
+表示用カタログと <code>app_settings</code> を保持する JSON（PDF
+モード表示名、Ghostscript
+プリセット表示名、長辺プリセット、効果音トグル既定値）</li>
 <li><code>shared/configs.py</code>: 旧 import
 パス互換のための再エクスポート層。新規コードでは直接依存しない前提</li>
 </ul>
@@ -568,6 +607,16 @@ PDF/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、
 <ul>
 <li>A:
 できます。設定画面の「CSVログを出力する」のチェックを外すと無効化。保存先を変更する場合はその右の入力欄にパスを直接入力するか「参照」ボタンから選択してください。未指定の場合は出力フォルダにタイムスタンプ付きファイルが作成されます。</li>
+</ul></li>
+<li>Q: 効果音は無効化できますか？
+<ul>
+<li>A: できます。<code>アプリ設定</code>
+タブで「起動時に効果音を鳴らす」「クリーンアップ確認時に効果音を鳴らす」を個別に切り替えてください。起動時トグルは
+<code>open_window.wav</code> と <code>notice.wav</code>
+を、クリーンアップ時トグルは <code>warning.wav</code>
+を対象にします。設定は
+<code>frontend/config_data/ui_catalogs.json</code> の
+<code>app_settings</code> に保存され、次回起動時にも復元されます。</li>
 </ul></li>
 <li>Q: 「デバッグモードで出力」をONにすると何が起きますか？
 <ul>
@@ -1000,9 +1049,9 @@ CSV 出力・ZIP staging・フォールバックコピー、および
 missing xref / zero bbox の分岐を回帰テスト化</li>
 </ul></li>
 </ul></li>
-<li>バージョン: 2.4.0
+<li>バージョン: 2.5.0
 <ul>
-<li>リリース日: 2026年3月16日</li>
+<li>リリース日: 2026年3月30日</li>
 <li>主な変更点:
 <ul>
 <li>ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ変換せず PNG
@@ -1015,6 +1064,20 @@ quality 範囲を自動計算し、未導入時は Pillow の 256
 <li><code>CompressionRequest</code> と worker 配線を
 <code>pdf_png_quality</code> ベースへ移行し、関連 unit/integration
 テストを更新</li>
+<li>ネイティブ PDF 非可逆圧縮で、<code>SMask</code>
+を読み取って透過情報を再構成し、soft mask 付き画像を透過付き PNG
+経路へ送るよう改善</li>
+<li>soft mask
+の抽出または復元に失敗した場合も処理全体は止めず、従来経路へフォールバックしつつ
+debug stats で追跡可能に整理</li>
+<li>ノートブックに <code>アプリ設定</code>
+タブを追加し、起動時効果音（<code>open_window.wav</code> /
+<code>notice.wav</code>）とクリーンアップ確認時効果音（<code>warning.wav</code>）を個別に
+ON/OFF 可能にした</li>
+<li>効果音トグル状態を
+<code>frontend/config_data/ui_catalogs.json</code> の
+<code>app_settings</code>
+へ保存し、次回起動時にも復元するようにした</li>
 </ul></li>
 </ul></li>
 </ul>
