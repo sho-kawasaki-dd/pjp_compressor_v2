@@ -7,7 +7,54 @@ from __future__ import annotations
 """
 
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+
+
+MAX_ZIP_MEMBER_COUNT = 10000
+MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE = 1_000_000_000
+
+
+def _is_zip_symlink(info: zipfile.ZipInfo) -> bool:
+    """UNIX mode を持つ ZIP member が symlink かを判定する。"""
+    mode = (info.external_attr >> 16) & 0o170000
+    return mode == 0o120000
+
+
+def _validate_zip_member_name(member_name: str) -> tuple[bool, str | None]:
+    """ZIP member 名が展開先ディレクトリを脱出しないか検査する。"""
+    normalized = member_name.replace('\\', '/')
+    pure_path = PurePosixPath(normalized)
+    if pure_path.is_absolute():
+        return False, 'absolute_path'
+    parts = [part for part in pure_path.parts if part not in ('', '.')]
+    if not parts:
+        return True, None
+    if any(part == '..' for part in parts):
+        return False, 'path_traversal'
+    if ':' in parts[0]:
+        return False, 'drive_path'
+    return True, None
+
+
+def _collect_safe_zip_members(zip_ref: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    """展開可能な ZIP member のみを返し、危険な内容は例外化する。"""
+    infos = zip_ref.infolist()
+    if len(infos) > MAX_ZIP_MEMBER_COUNT:
+        raise ValueError(f'ZIP member 数が上限({MAX_ZIP_MEMBER_COUNT})を超えています')
+
+    total_uncompressed = 0
+    safe_members: list[zipfile.ZipInfo] = []
+    for info in infos:
+        total_uncompressed += max(0, info.file_size)
+        if total_uncompressed > MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE:
+            raise ValueError(f'ZIP 展開サイズが上限({MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE})を超えています')
+        if _is_zip_symlink(info):
+            raise ValueError(f'危険な ZIP member を検出しました: {info.filename} (symlink)')
+        is_safe, reason = _validate_zip_member_name(info.filename)
+        if not is_safe:
+            raise ValueError(f'危険な ZIP member を検出しました: {info.filename} ({reason})')
+        safe_members.append(info)
+    return safe_members
 
 
 def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
@@ -40,9 +87,10 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
                     rel_zip = zip_path.name
                 try:
                     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                        member_count = len(zip_ref.infolist())
+                        safe_members = _collect_safe_zip_members(zip_ref)
+                        member_count = len(safe_members)
                         # 元 ZIP の隣へ展開することで、後段の相対パス計算を単純に保つ。
-                        zip_ref.extractall(zip_path.parent)
+                        zip_ref.extractall(zip_path.parent, members=safe_members)
                     extracted_total += 1
                     new_zip_handled = True
                     log(f"ZIP展開: {rel_zip}（展開ファイル数: {member_count}、サイクル: {cycle}）")

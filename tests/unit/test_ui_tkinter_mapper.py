@@ -62,6 +62,7 @@ def test_to_non_negative_int_normalizes_invalid_values() -> None:
     assert to_non_negative_int('-4') == 0
     assert to_non_negative_int('3.8') == 3
     assert to_non_negative_int('abc') == 0
+    assert to_non_negative_int('999999', max_value=100) == 100
 
 
 def test_build_resize_config_supports_long_edge_mode() -> None:
@@ -77,6 +78,39 @@ def test_build_resize_config_supports_long_edge_mode() -> None:
     }
     assert resize_width == 0
     assert resize_height == 0
+
+
+def test_build_resize_config_clamps_manual_dimensions() -> None:
+    app = DummyApp()
+    app.resize_mode.set('manual')
+    app.resize_width.set('999999')
+    app.resize_height.set('70000')
+
+    resize_config, resize_width, resize_height = build_resize_config(app)
+
+    assert resize_config == {
+        'enabled': True,
+        'mode': 'manual',
+        'width': 65535,
+        'height': 65535,
+        'keep_aspect': True,
+    }
+    assert resize_width == 65535
+    assert resize_height == 65535
+
+
+def test_build_resize_config_clamps_long_edge_value() -> None:
+    app = DummyApp()
+    app.long_edge_value_str.set('999999')
+
+    resize_config, _resize_width, _resize_height = build_resize_config(app)
+
+    assert resize_config == {
+        'enabled': True,
+        'mode': 'long_edge',
+        'long_edge': 65535,
+        'keep_aspect': True,
+    }
 
 
 def test_resolve_pdf_lossless_options_respects_engine() -> None:
@@ -104,3 +138,13 @@ def test_build_compression_request_includes_debug_mode_and_trimmed_csv() -> None
         'long_edge': 1024,
         'keep_aspect': True,
     }
+
+
+def test_build_compression_request_clamps_custom_gs_dpi() -> None:
+    app = DummyApp()
+    app.gs_preset.set('custom')
+    app.gs_custom_dpi.set(999999)
+
+    result = build_compression_request(app)
+
+    assert result.request.gs_custom_dpi == 600

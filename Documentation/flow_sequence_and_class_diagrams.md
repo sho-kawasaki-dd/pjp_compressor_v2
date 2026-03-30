@@ -32,13 +32,15 @@ flowchart TD
     D3 --> E[CompressionRequest を組み立て]
     E --> F[run_compression_request 呼び出し]
     F --> G[run_compression_job 実行]
-    G --> H[ZIP展開ON時は一時作業領域で再帰展開 最大25サイクル]
+    G --> H[ZIP展開ON時は一時作業領域で再帰展開
+member数 展開後合計サイズ 危険pathを検査]
     H --> I[入力ファイルを再帰走査]
     I --> J[ファイル単位タスク化]
     J --> K[ThreadPoolExecutorで並列処理]
     K --> L{worker_opsで拡張子分岐}
     L -- PDF --> M{pdf_engine}
-    M -- ghostscript --> N[Ghostscript圧縮]
+    M -- ghostscript --> N[Ghostscript圧縮
+timeout DPI正規化 dSAFER]
     M -- native --> O[PyMuPDF + pikepdf]
     O --> O0{透過保持が必要?\nsoft mask または alpha}
     O0 -- はい --> O4{pngquant 利用可?}
@@ -56,7 +58,8 @@ flowchart TD
     O7 --> O1
     L -- JPG/JPEG --> P[Pillow圧縮]
     L -- PNG --> Q{use_pngquant}
-    Q -- true --> R[pngquant圧縮]
+    Q -- true --> R[pngquant圧縮
+quality正規化 timeout]
     Q -- false --> S[Pillow圧縮]
     L -- その他 --> T[圧縮対象外として通過]
     N --> U[ProgressEvent log/progress]
@@ -324,9 +327,9 @@ classDiagram
   旧 import 互換のための再エクスポート層です。
   新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
 
-## 今回の改修（v2.5.0 / 2026年3月30日追記）
+## 今回の改修（v2.4.0 / 2026年3月16日追記）
 
-- 対象バージョンは `pyproject.toml` の `2.5.0` です。
+- 対象バージョンは `pyproject.toml` の `2.4.0` です。
 - ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ逃がさず PNG のまま量子化するフローへ変更しました。
 - PDF 用設定から `PNG→JPEG変換` を廃止し、`PNG品質` スライダーを追加しました。
 - `pngquant` が利用可能な環境では、PDF 用 PNG 品質スライダー値を上限とした quality 範囲で量子化します。
@@ -532,3 +535,18 @@ document.addEventListener("DOMContentLoaded", function () {
 - `tkinterdnd2` の `drop_target_register` / `dnd_bind` は局所 Protocol + `cast` で扱い、広域 suppress を回避。
 - frontend 全体の Pylance 診断で警告 0 を確認。
 - `scripts/tkinter_regression_check.py` を実行し、主要GUIフローが `manual-regression-simulated: PASS` で通過することを確認。
+
+## 今回の改修（2026-03-31）
+
+- Ghostscript / pngquant の subprocess 呼び出しに timeout、引数正規化、ファイル引数区切りを追加し、安全側の実行へ整理。
+- Ghostscript は custom DPI を clamp し、`-dSAFER` を付与したうえでファイル入力を明示的に渡す構成へ変更。
+- pngquant は quality range を clamp し、入力ファイルを `--` 以後へ置く構成へ変更。
+- ZIP 展開は path traversal、絶対パス、Windows ドライブ指定、symlink 相当 entry を拒否し、member 数と展開後合計サイズの上限を追加。
+- UI から backend へ渡る resize 値と Ghostscript custom DPI は mapper 層で clamp し、極端値がそのまま backend へ流れないようにした。
+- `tests/unit/test_archive_utils.py`、`tests/unit/test_image_utils.py`、`tests/unit/test_pdf_utils.py`、`tests/unit/test_ui_tkinter_mapper.py`、`tests/integration/test_job_runner.py` に回帰テストを追加。
+
+運用上の目安:
+
+- コード上の ZIP 展開上限は 1 ZIP あたり展開後合計 1 GB、member 数 10000。
+- ただし実運用では、ZIP 複製、一時展開、出力生成が重なるため、安定運用の目安は ZIP 実サイズ 300 MB から 500 MB 程度。
+- 同一ドライブで入力・一時・出力を扱う場合は、展開後サイズの 2.5 倍から 3 倍程度の空き容量を見込む。

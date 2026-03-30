@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -48,3 +49,36 @@ def test_extract_zip_archives_logs_failures_for_corrupt_zip(tmp_path: Path) -> N
     assert extracted_total == 0
     assert failed_total == 1
     assert any('ZIP展開失敗' in message for message in logs)
+
+
+def test_extract_zip_archives_rejects_path_traversal_member(tmp_path: Path, jpeg_bytes: bytes, zip_factory) -> None:
+    target_dir = tmp_path / 'archives'
+    target_dir.mkdir()
+    bad_zip = target_dir / 'traversal.zip'
+    zip_factory(bad_zip, {'../../escape.jpg': jpeg_bytes})
+
+    logs: list[str] = []
+    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append)
+
+    assert extracted_total == 0
+    assert failed_total == 1
+    assert not (tmp_path / 'escape.jpg').exists()
+    assert any('path_traversal' in message for message in logs)
+
+
+def test_extract_zip_archives_rejects_symlink_member(tmp_path: Path) -> None:
+    target_dir = tmp_path / 'archives'
+    target_dir.mkdir()
+    bad_zip = target_dir / 'symlink.zip'
+    link_info = zipfile.ZipInfo('danger-link')
+    link_info.create_system = 3
+    link_info.external_attr = 0o120777 << 16
+    with zipfile.ZipFile(bad_zip, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr(link_info, 'ignored-target')
+
+    logs: list[str] = []
+    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append)
+
+    assert extracted_total == 0
+    assert failed_total == 1
+    assert any('symlink' in message for message in logs)

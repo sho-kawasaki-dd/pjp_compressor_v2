@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from backend.contracts import CompressionRequest
+from frontend.settings import PDF_LOSSY_DPI_RANGE
 from frontend.ui_contracts import CompressionRequestAppProtocol
+
+
+MAX_RESIZE_DIMENSION = 65535
 
 
 @dataclass(frozen=True)
@@ -18,11 +22,14 @@ class RequestBuildResult:
     resize_height: int
 
 
-def to_non_negative_int(value: str) -> int:
+def to_non_negative_int(value: str, max_value: int | None = None) -> int:
     """入力欄文字列を非負整数へ丸める。"""
     try:
         parsed = int(float(value.strip()))
-        return parsed if parsed >= 0 else 0
+        normalized = parsed if parsed >= 0 else 0
+        if max_value is not None:
+            return min(normalized, max_value)
+        return normalized
     except Exception:
         return 0
 
@@ -30,11 +37,11 @@ def to_non_negative_int(value: str) -> int:
 def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, int | bool | str] | bool, int, int]:
     """UI のリサイズ入力を backend が理解しやすい辞書へ変換する。"""
     mode = app.resize_mode.get()
-    resize_width = to_non_negative_int(app.resize_width.get())
-    resize_height = to_non_negative_int(app.resize_height.get())
+    resize_width = to_non_negative_int(app.resize_width.get(), max_value=MAX_RESIZE_DIMENSION)
+    resize_height = to_non_negative_int(app.resize_height.get(), max_value=MAX_RESIZE_DIMENSION)
 
     try:
-        long_edge = max(0, int(app.long_edge_value_str.get().strip()))
+        long_edge = to_non_negative_int(app.long_edge_value_str.get(), max_value=MAX_RESIZE_DIMENSION)
     except Exception:
         long_edge = 0
 
@@ -92,7 +99,9 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
     lossless_options = build_lossless_options(app)
     pdf_lossless_options = resolve_pdf_lossless_options(app, lossless_options)
 
-    gs_custom_dpi = app.gs_custom_dpi.get() if app.gs_preset.get() == 'custom' else None
+    gs_custom_dpi = None
+    if app.gs_preset.get() == 'custom':
+        gs_custom_dpi = max(PDF_LOSSY_DPI_RANGE[0], min(PDF_LOSSY_DPI_RANGE[1], int(app.gs_custom_dpi.get())))
     # カスタム以外のプリセットでは DPI を使わないため、不要な値は None に揃える。
 
     request = CompressionRequest(

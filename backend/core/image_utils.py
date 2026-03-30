@@ -9,10 +9,24 @@ from pathlib import Path
 from PIL import Image
 
 
+MAX_IMAGE_QUALITY = 100
+PNGQUANT_TIMEOUT_SECONDS = 300
+
+
+def _clamp_quality(value, default=MAX_IMAGE_QUALITY):
+    """品質値を pngquant/Pillow が扱える 0-100 に正規化する。"""
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = default
+    return max(0, min(MAX_IMAGE_QUALITY, parsed))
+
+
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。"""
     input_file = Path(input_path)
     output_file = Path(output_path)
+    safe_quality = _clamp_quality(quality)
 
     try:
         img = Image.open(str(input_file))
@@ -53,11 +67,11 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
                         new_w = w if w > 0 else orig_w
                         new_h = h if h > 0 else orig_h
                     img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-        img.save(str(output_file), optimize=True, quality=quality)
+        img.save(str(output_file), optimize=True, quality=safe_quality)
         msg_extra = ""
         if resize_cfg and resize_cfg.get('enabled'):
             msg_extra = f", resize={img.size[0]}x{img.size[1]}"
-        return True, f"画像圧縮(Pillow): {input_file.name} → OK (quality={quality}{msg_extra})"
+        return True, f"画像圧縮(Pillow): {input_file.name} → OK (quality={safe_quality}{msg_extra})"
     except Exception as e:
         return False, f"画像失敗: {input_file.name} ({e})"
 
@@ -66,14 +80,17 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
     """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。"""
     input_file = Path(input_path)
     output_file = Path(output_path)
+    safe_quality_max = _clamp_quality(quality_max)
+    safe_quality_min = min(_clamp_quality(quality_min, default=safe_quality_max), safe_quality_max)
+    safe_speed = max(1, min(11, int(speed)))
 
     pngquant_exe = shutil.which("pngquant")
     if not pngquant_exe:
         # pngquant は任意依存のため、未導入でも PNG 圧縮処理自体は継続させる。
-        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
     tmp_path = None
     try:
-        qarg = f"{quality_min}-{quality_max}"
+        qarg = f"{safe_quality_min}-{safe_quality_max}"
         src_path = input_file
         resized_wh = None
         if resize_cfg and resize_cfg.get('enabled'):
@@ -124,9 +141,10 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
         cmd = [
             pngquant_exe,
             f"--quality={qarg}",
-            f"--speed={speed}",
+            f"--speed={safe_speed}",
             "--force",
             "--output", str(output_file),
+            "--",
             str(src_path),
         ]
         result = subprocess.run(
@@ -137,15 +155,16 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
             text=True,
             encoding='utf-8',
             errors='replace',
+            timeout=PNGQUANT_TIMEOUT_SECONDS,
         )
         if result.returncode == 0 and output_file.exists():
             msg = f"PNG圧縮(pngquant): {input_file.name} → OK (quality={qarg})"
             if resized_wh and resize_cfg and resize_cfg.get('enabled'):
                 msg += f", resize={resized_wh[0]}x{resized_wh[1]}"
             return True, msg
-        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
     except Exception:
-        return compress_image_pillow(str(input_file), str(output_file), quality_max, resize_cfg=resize_cfg)
+        return compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
     finally:
         try:
             if tmp_path and tmp_path.exists():

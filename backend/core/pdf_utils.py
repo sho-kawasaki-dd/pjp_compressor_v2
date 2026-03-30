@@ -27,6 +27,39 @@ from backend.settings import (
 
 PDF_PNG_LIKE_EXTENSIONS = frozenset({'png', 'bmp', 'tiff', 'tif', 'gif'})
 PDF_UNSUPPORTED_RASTER_EXTENSIONS = frozenset({'jbig2', 'jpx'})
+PROCESS_TIMEOUT_SECONDS = 300
+MAX_IMAGE_QUALITY = 100
+MAX_CUSTOM_DPI = 2400
+
+
+def _clamp_quality(value: int, default: int = PDF_LOSSY_PNG_QUALITY_DEFAULT) -> int:
+    """品質値を 0-100 の範囲へ正規化する。"""
+    try:
+        parsed = int(value)
+    except Exception:
+        parsed = default
+    return max(0, min(MAX_IMAGE_QUALITY, parsed))
+
+
+def _normalize_custom_dpi(value: Any) -> int | None:
+    """Ghostscript の custom DPI を安全な整数レンジへ丸める。"""
+    if value is None:
+        return None
+    try:
+        parsed = int(value)
+    except Exception:
+        return None
+    return max(1, min(MAX_CUSTOM_DPI, parsed))
+
+
+def _sanitize_subprocess_error(message: str, *paths: Path) -> str:
+    """外部コマンドのエラーを短く整形し、内部パス露出を抑える。"""
+    sanitized = ' '.join((message or '').split())
+    for path in paths:
+        path_str = str(path)
+        if path_str:
+            sanitized = sanitized.replace(path_str, path.name)
+    return sanitized[:240]
 
 
 def _import_fitz():
@@ -182,7 +215,7 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
     if not pngquant_exe:
         return None, {'fallback_reason': 'pngquant_unavailable'}
 
-    safe_quality = max(0, min(100, int(png_quality)))
+    safe_quality = _clamp_quality(png_quality)
     quality_min = max(0, safe_quality - 20)
     quality_max = safe_quality
     normalized = _normalize_pdf_png_source_image(pil_img)
@@ -193,33 +226,41 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
         out_path = temp_root / 'quantized.png'
         normalized.save(src_path, format='PNG', optimize=True)
 
-        cmd = [
-            pngquant_exe,
-            f'--quality={quality_min}-{quality_max}',
-            '--speed=3',
-            '--force',
-            '--output', str(out_path),
-            str(src_path),
-        ]
-        result = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=False,
-            text=True,
-            encoding='utf-8',
-            errors='replace',
-        )
-        if result.returncode == 0 and out_path.exists():
-            return out_path.read_bytes(), {
-                'quality_range': (quality_min, quality_max),
-                'fallback_reason': None,
-            }
+        try:
+            cmd = [
+                pngquant_exe,
+                f'--quality={quality_min}-{quality_max}',
+                '--speed=3',
+                '--force',
+                '--output', str(out_path),
+                '--',
+                str(src_path),
+            ]
+            result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=False,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+                timeout=PROCESS_TIMEOUT_SECONDS,
+            )
+            if result.returncode == 0 and out_path.exists():
+                return out_path.read_bytes(), {
+                    'quality_range': (quality_min, quality_max),
+                    'fallback_reason': None,
+                }
 
-        return None, {
-            'quality_range': (quality_min, quality_max),
-            'fallback_reason': result.stderr.strip() or f'pngquant_exit_{result.returncode}',
-        }
+            return None, {
+                'quality_range': (quality_min, quality_max),
+                'fallback_reason': _sanitize_subprocess_error(result.stderr, src_path, out_path) or f'pngquant_exit_{result.returncode}',
+            }
+        except subprocess.TimeoutExpired:
+            return None, {
+                'quality_range': (quality_min, quality_max),
+                'fallback_reason': 'pngquant_timeout',
+            }
 
 
 def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int) -> tuple[bytes, dict[str, Any]]:
@@ -601,20 +642,22 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
         gs_exe,
         '-sDEVICE=pdfwrite',
         '-dCompatibilityLevel=1.4',
+        '-dSAFER',
         '-dNOPAUSE',
         '-dQUIET',
         '-dBATCH',
     ]
 
-    if preset == 'custom' and custom_dpi:
+    safe_custom_dpi = _normalize_custom_dpi(custom_dpi)
+    if preset == 'custom' and safe_custom_dpi:
         # カスタム DPI は各画像種別を明示指定し、プリセットより優先して解像度を固定する。
         cmd.extend([
             '-dColorImageDownsampleType=/Bicubic',
-            f'-dColorImageResolution={custom_dpi}',
+            f'-dColorImageResolution={safe_custom_dpi}',
             '-dGrayImageDownsampleType=/Bicubic',
-            f'-dGrayImageResolution={custom_dpi}',
+            f'-dGrayImageResolution={safe_custom_dpi}',
             '-dMonoImageDownsampleType=/Bicubic',
-            f'-dMonoImageResolution={custom_dpi * 2}',
+            f'-dMonoImageResolution={safe_custom_dpi * 2}',
         ])
     else:
         valid_presets = ['screen', 'ebook', 'printer', 'prepress', 'default']
@@ -623,11 +666,19 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
 
     cmd.extend([
         f'-sOutputFile={str(output_file)}',
+        '-f',
         str(input_file),
     ])
 
     try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)
+        result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+            timeout=PROCESS_TIMEOUT_SECONDS,
+        )
 
         if result.returncode == 0 and output_file.exists():
             orig_size = input_file.stat().st_size
@@ -638,9 +689,13 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
                 shutil.copy2(str(input_file), str(output_file))
                 return True, f"PDF圧縮(GS): {input_file.name} → 圧縮効果なし（元ファイルを維持）"
 
-            mode_str = f'custom_dpi={custom_dpi}' if preset == 'custom' else f'preset={preset}'
+            mode_str = f'custom_dpi={safe_custom_dpi}' if preset == 'custom' and safe_custom_dpi else f'preset={preset}'
             return True, f"PDF圧縮(GS): {input_file.name} → OK ({mode_str})"
-        return False, f"PDF圧縮(GS) エラー: {result.stderr.strip()}"
+        detail = _sanitize_subprocess_error(result.stderr, input_file, output_file)
+        return False, f"PDF圧縮(GS) エラー: {detail or f'gs_exit_{result.returncode}'}"
+
+    except subprocess.TimeoutExpired:
+        return False, f"PDF圧縮(GS) タイムアウト: {input_file.name}"
 
     except Exception as e:
         return False, f"PDF圧縮(GS) 実行失敗: {e}"

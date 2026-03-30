@@ -73,3 +73,31 @@ def test_compress_png_pngquant_reports_resize_when_external_tool_succeeds(
     assert output_path.read_bytes() == b'pngquant-output'
     assert 'resize=300x150' in message
     assert not output_path.with_suffix('.png.tmp_resize.png').exists()
+
+
+def test_compress_png_pngquant_clamps_quality_and_uses_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    sample_paths,
+    image_factory,
+) -> None:
+    input_path = image_factory(sample_paths.input_dir / 'sample.png', size=(320, 240), fmt='PNG')
+    output_path = sample_paths.output_dir / 'sample.png'
+    seen: dict[str, object] = {}
+
+    def fake_run(cmd, **kwargs):
+        seen['cmd'] = cmd
+        seen['timeout'] = kwargs.get('timeout')
+        Path(cmd[5]).write_bytes(b'pngquant-output')
+        return subprocess.CompletedProcess(cmd, 0, stdout='', stderr='')
+
+    monkeypatch.setattr(image_utils.shutil, 'which', lambda _: 'C:/tools/pngquant.exe')
+    monkeypatch.setattr(image_utils.subprocess, 'run', fake_run)
+
+    ok, message = image_utils.compress_png_pngquant(input_path, output_path, -15, 180, speed=99)
+
+    assert ok is True
+    assert '--quality=0-100' in seen['cmd']
+    assert '--speed=11' in seen['cmd']
+    assert '--' in seen['cmd']
+    assert seen['timeout'] == image_utils.PNGQUANT_TIMEOUT_SECONDS
+    assert 'quality=0-100' in message

@@ -192,8 +192,40 @@ def test_compress_pdf_lossy_png_uses_pngquant_when_available(
 
     assert ok is True
     assert '--quality=42-62' in seen_cmds[0]
+    assert '--' in seen_cmds[0]
     assert len(page.replace_calls) == 1
     assert 'PNG量子化=pngquant' in message
+
+
+def test_compress_pdf_ghostscript_clamps_custom_dpi_and_uses_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test with more bytes')
+    seen: dict[str, object] = {}
+
+    monkeypatch.setattr(pdf_utils, 'get_ghostscript_path', lambda: 'C:/tools/gswin64c.exe')
+
+    def fake_run(cmd, **kwargs):
+        seen['cmd'] = cmd
+        seen['timeout'] = kwargs.get('timeout')
+        output_path.write_bytes(b'%PDF-1.4')
+        return SimpleNamespace(returncode=0, stderr='')
+
+    monkeypatch.setattr(pdf_utils.subprocess, 'run', fake_run)
+
+    ok, message = pdf_utils.compress_pdf_ghostscript(input_path, output_path, preset='custom', custom_dpi=99999)
+
+    assert ok is True
+    assert '-dSAFER' in seen['cmd']
+    assert '-dColorImageResolution=2400' in seen['cmd']
+    assert '-dGrayImageResolution=2400' in seen['cmd']
+    assert '-dMonoImageResolution=4800' in seen['cmd']
+    assert '-f' in seen['cmd']
+    assert seen['timeout'] == pdf_utils.PROCESS_TIMEOUT_SECONDS
+    assert 'custom_dpi=2400' in message
 
 
 def test_compress_pdf_png_image_falls_back_to_fixed_palette_without_pngquant(
