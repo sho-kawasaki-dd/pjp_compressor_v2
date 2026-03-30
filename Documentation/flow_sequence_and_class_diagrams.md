@@ -26,7 +26,9 @@ flowchart TD
     L -- PDF --> M{pdf_engine}
     M -- ghostscript --> N[Ghostscript圧縮]
     M -- native --> O[PyMuPDF + pikepdf]
-    O --> O3{PDF内PNG系画像?}
+    O --> O0{透過保持が必要?\nsoft mask または alpha}
+    O0 -- はい --> O4{pngquant 利用可?}
+    O0 -- いいえ --> O3{PDF内PNG系画像?}
     O3 -- はい --> O4{pngquant 利用可?}
     O4 -- はい --> O5[pngquant で PNG のまま量子化]
     O4 -- いいえ --> O6[Pillow 256色固定減色へフォールバック]
@@ -95,10 +97,10 @@ sequenceDiagram
             else request.pdf_engine == native
                 Worker->>Svc: pdf_service
                 Svc->>Native: PDF圧縮
-                alt PDF内PNG系画像 and pngquant available
+                alt soft mask 付き画像 or PDF内PNG系画像 and pngquant available
                     Native->>PNGQ: PNGのまま量子化
                     PNGQ-->>Native: 量子化済みPNG
-                else PDF内PNG系画像 and pngquant unavailable
+                else soft mask 付き画像 or PDF内PNG系画像 and pngquant unavailable
                     Native->>PIL: 256色固定減色PNG
                     PIL-->>Native: フォールバックPNG
                 else JPEG系画像
@@ -299,6 +301,28 @@ classDiagram
 - PDF 内 PNG 系画像を JPEG へ逃がす設計は、透明情報や PNG 素材由来の特性を崩しやすく、設定意図が UI から読み取りにくかったため。
 - `pngquant` が導入されている環境と未導入の環境で、どの品質ノブが実際に効くのかを UI と backend の両方で明確にする必要があったため。
 - `pdf_png_quality` を request 契約へ昇格させておくことで、controller のログ、worker の分岐、将来の回帰テストが同じ意味で追えるようになるため。
+
+## PDF soft mask 透過保持（2026年3月30日追記）
+
+`backend/core/pdf_utils.py` の `compress_pdf_lossy()` は、PDF 画像本体とは別 xref に置かれた `SMask` を読み取り、透過を 1 枚の Pillow 画像へ再構成してから再圧縮するようになりました。
+
+今回の変更内容:
+
+- `doc.extract_image(xref)` の戻り値に `smask` がある場合、mask 側の画像も抽出して alpha として再構成します。
+- 内部拡張子が JPEG 系でも、再構成後に透過が存在する画像は PNG 再圧縮経路へ送ります。
+- `pngquant` が利用できない場合でも、透過付き画像は Pillow の 256 色固定減色 PNG へフォールバックします。
+- soft mask の抽出または decode に失敗した場合は、処理全体を止めずに従来の raster 圧縮へ戻し、debug stats に失敗件数を残します。
+
+この変更が必要だった理由:
+
+- WeasyPrint 由来 PDF では、HTML 上の透過 PNG が PDF 内部で `base image + /SMask` に分かれて格納されることがあるため。
+- 画像本体だけを再圧縮して `replace_image()` すると、見た目は PNG 素材でも透過情報を取り落として黒背景化し得るため。
+- ext ベースだけで PNG/JPEG を分けると、「見た目は透過ありだが内部形式は JPEG + soft mask」というケースを正しく扱えないため。
+
+関連テスト:
+
+- `tests/unit/test_pdf_utils.py` で、soft mask を再構成して透過を保ったまま PNG 経路へ送ることを unit テスト化しています。
+- 同ファイルで、soft mask 抽出失敗時に処理全体は継続し、debug 出力で追跡できることも確認しています。
 
 ## 設定レイヤ再編が必要だった理由
 
