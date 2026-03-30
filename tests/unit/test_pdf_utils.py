@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""PDF 圧縮 helper の分岐と回帰点を直接固定する unit test。"""
+
 import io
 from pathlib import Path
 from types import SimpleNamespace
@@ -14,18 +16,24 @@ pytestmark = pytest.mark.unit
 
 
 def _make_jpeg_bytes(*, size: tuple[int, int], quality: int) -> bytes:
+    """再圧縮比較に使う JPEG バイト列を作る。"""
+
     buffer = io.BytesIO()
     Image.new('RGB', size, color=(32, 96, 192)).save(buffer, 'JPEG', quality=quality)
     return buffer.getvalue()
 
 
 def _make_png_bytes(*, size: tuple[int, int]) -> bytes:
+    """PNG 量子化経路用の入力画像を作る。"""
+
     buffer = io.BytesIO()
     Image.new('RGBA', size, color=(32, 160, 96, 180)).save(buffer, 'PNG', optimize=True)
     return buffer.getvalue()
 
 
 def _make_mask_png_bytes(*, size: tuple[int, int]) -> bytes:
+    """soft mask 再構成テスト用の alpha mask 画像を作る。"""
+
     buffer = io.BytesIO()
     mask = Image.linear_gradient('L').resize(size)
     mask.save(buffer, 'PNG', optimize=True)
@@ -33,6 +41,8 @@ def _make_mask_png_bytes(*, size: tuple[int, int]) -> bytes:
 
 
 def _assert_image_has_nontrivial_alpha(image_bytes: bytes) -> None:
+    """完全不透明ではない alpha が保持されていることを検査する。"""
+
     image = Image.open(io.BytesIO(image_bytes))
     assert image.format == 'PNG'
     rgba = image.convert('RGBA')
@@ -42,12 +52,16 @@ def _assert_image_has_nontrivial_alpha(image_bytes: bytes) -> None:
 
 
 class _FakeRect:
+    """fitz.Rect の width/height 参照だけを再現する偽物。"""
+
     def __init__(self, bbox: tuple[float, float, float, float]):
         self.width = float(bbox[2] - bbox[0])
         self.height = float(bbox[3] - bbox[1])
 
 
 class _FakePage:
+    """画像列挙と replace 呼び出しを観測する fake page。"""
+
     def __init__(self, image_infos: list[dict[str, object]]):
         self._image_infos = image_infos
         self.replace_calls: list[tuple[int, bytes]] = []
@@ -64,6 +78,8 @@ class _FakePage:
 
 
 class _FakeDoc:
+    """compress_pdf_lossy が依存する fitz.Document 面だけを持つ fake doc。"""
+
     def __init__(self, pages: list[_FakePage], extracted_images: dict[int, dict[str, object] | None]):
         self._pages = pages
         self._extracted_images = extracted_images
@@ -89,6 +105,8 @@ class _FakeDoc:
 
 
 class _FakeFitzModule:
+    """pdf_utils へ差し込む fitz モジュール代替。"""
+
     def __init__(self, doc: _FakeDoc):
         self._doc = doc
 

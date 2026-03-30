@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""UI 設定 JSON の既定値解決と保存を確認する unit test。"""
+
 import json
 from pathlib import Path
 

@@ -4,6 +4,9 @@ from __future__ import annotations
 
 圧縮ジョブ本体は「ZIP を入力としてどう扱うか」だけを判断し、実際の再帰展開と
 循環防止はこのモジュールに閉じ込める。
+
+重要なのは展開成功率よりも安全性であり、危険な member や異常に大きい展開を
+検出したら、無理に続行せず失敗として上位へ返す。
 """
 
 import zipfile
@@ -37,7 +40,12 @@ def _validate_zip_member_name(member_name: str) -> tuple[bool, str | None]:
 
 
 def _collect_safe_zip_members(zip_ref: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
-    """展開可能な ZIP member のみを返し、危険な内容は例外化する。"""
+    """展開可能な ZIP member のみを返し、危険な内容は例外化する。
+
+    `extractall` の前に安全な member 一覧へ絞ることで、path traversal や symlink を
+    個別に見落とさないようにする。ここで例外化しておけば、呼び出し側は「この ZIP は
+    危険なので丸ごと失敗」として扱える。
+    """
     infos = zip_ref.infolist()
     if len(infos) > MAX_ZIP_MEMBER_COUNT:
         raise ValueError(f'ZIP member 数が上限({MAX_ZIP_MEMBER_COUNT})を超えています')
@@ -58,7 +66,11 @@ def _collect_safe_zip_members(zip_ref: zipfile.ZipFile) -> list[zipfile.ZipInfo]
 
 
 def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
-    """入力フォルダ配下の ZIP を再帰的に展開する。無限ループ防止のため複数対策を実施。"""
+    """入力フォルダ配下の ZIP を再帰的に展開する。無限ループ防止のため複数対策を実施する。
+
+    ZIP の中にさらに ZIP があるケースを扱うため再帰的に探索するが、同じ ZIP の再処理
+    と循環的な増殖を防ぐため、処理済み集合とサイクル上限を併用する。
+    """
     if not target_dir:
         return 0, 0
     base_dir = Path(target_dir)

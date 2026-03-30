@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""設定分割後も legacy re-export が壊れていないことを確認する unit test。"""
+
 import pytest
 
 import backend.settings as backend_settings
@@ -22,5 +24,10 @@ def test_shared_configs_reexports_split_settings() -> None:
     assert legacy_configs.APP_BASE_DIR == runtime_paths.APP_BASE_DIR
     assert legacy_configs.RESOURCE_BASE_DIR == runtime_paths.RESOURCE_BASE_DIR
     assert legacy_configs.PDF_ALLOWED_MODES == backend_settings.PDF_ALLOWED_MODES
+    assert legacy_configs.PDF_LOSSY_DPI_DEFAULT == backend_settings.PDF_LOSSY_DPI_DEFAULT
+    assert legacy_configs.PDF_LOSSY_JPEG_QUALITY_DEFAULT == backend_settings.PDF_LOSSY_JPEG_QUALITY_DEFAULT
+    assert legacy_configs.PDF_LOSSY_PNG_QUALITY_DEFAULT == backend_settings.PDF_LOSSY_PNG_QUALITY_DEFAULT
+    assert legacy_configs.PDF_LOSSLESS_OPTIONS_DEFAULT == backend_settings.PDF_LOSSLESS_OPTIONS_DEFAULT
+    assert legacy_configs.GS_DEFAULT_PRESET == backend_settings.GS_DEFAULT_PRESET
     assert legacy_configs.PDF_COMPRESS_MODES == frontend_settings.PDF_COMPRESS_MODES
     assert legacy_configs.INPUT_DIR_CLEANUP_EXTENSIONS == frontend_settings.INPUT_DIR_CLEANUP_EXTENSIONS

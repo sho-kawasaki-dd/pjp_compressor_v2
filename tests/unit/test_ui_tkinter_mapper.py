@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""UI 値の clamp と request 変換規約を確認する unit test。"""
+
 import pytest
 
 from frontend.ui_tkinter_mapper import (
@@ -14,6 +16,8 @@ pytestmark = pytest.mark.unit
 
 
 class DummyVar:
+    """mapper が読む `get` / `set` インターフェースだけを再現する。"""
+
     def __init__(self, value):
         self._value = value
 
@@ -25,6 +29,8 @@ class DummyVar:
 
 
 class DummyApp:
+    """mapper の入力面を最小限で満たすダミー App。"""
+
     def __init__(self) -> None:
         self.input_dir = DummyVar('input')
         self.output_dir = DummyVar('output')

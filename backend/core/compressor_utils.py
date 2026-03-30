@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-compressor_utils.py (compatibility shim)
+"""compressor_utils.py (compatibility shim)
 
 旧来の import パス互換を維持するための再エクスポートモジュール。
 実処理は責務別モジュールへ分割済みで、本モジュールは移行期間中の
 外部呼び出しを壊さないための窓口として残している。
+
+新規コードがここへ責務を追加することは想定しておらず、存在理由はあくまで
+後方互換である。実処理の判断は orchestrator や core に集約する。
 """
 
 from __future__ import annotations
@@ -31,7 +33,8 @@ from backend.core.pdf_utils import (
 )
 from backend.core.worker_ops import process_single_file
 
-# 互換維持対象の公開APIシンボル一覧
+# 互換維持対象の公開 API シンボル一覧。
+# `import *` を使う既存コードでも、移行後に見える名前を急に変えないために固定する。
 __all__ = (
     'compress_folder',
     'cleanup_folder',
@@ -41,9 +44,13 @@ __all__ = (
 )
 
 def get_public_api_symbols() -> tuple[str, ...]:
-    """互換維持対象の公開APIシンボル一覧を返す。"""
+    """互換維持対象の公開 API シンボル一覧を返す。
+
+    テストや互換確認コードが `__all__` を直接参照しなくてもよいように、小さな
+    参照窓口を用意している。
+    """
     return __all__
-    
+
 def compress_folder(
     input_dir,
     output_dir,
@@ -71,7 +78,8 @@ def compress_folder(
     """フォルダ全体を並列処理で圧縮する互換 API。
 
     既存コードはこの関数名に依存しているため、内部実装が orchestrator へ移っても
-    シグネチャを極力保ったまま転送する。
+    シグネチャを極力保ったまま転送する。新旧 API の橋渡し役に徹し、ここで独自の
+    圧縮ロジックを持たないことで実装の二重化を防ぐ。
     """
     from backend.orchestrator.job_runner import run_compression_job
 

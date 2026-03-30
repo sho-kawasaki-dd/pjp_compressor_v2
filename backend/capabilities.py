@@ -4,6 +4,9 @@ from __future__ import annotations
 
 UI 側は詳細な import 例外や PATH 探索を知らなくてよいように、ここで各依存の
 検出結果を `CapabilityReport` にまとめる。
+
+このモジュールの役割は「導入済みかどうか」を調べることだけで、未導入時の代替動作
+そのものは持たない。後段はこの結果を見て UI 無効化やフォールバック経路を選ぶ。
 """
 
 import importlib
@@ -36,7 +39,12 @@ def _detect_pngquant_path() -> str | None:
 
 
 def detect_capabilities() -> CapabilityReport:
-    """UI 初期化で使う能力レポートを構築する。"""
+    """UI 初期化で使う能力レポートを構築する。
+
+    起動時に一度まとめて検出しておくことで、個々の UI イベントや圧縮処理が毎回
+    import や PATH 探索を繰り返さずに済む。依存が無いこと自体は異常ではないため、
+    例外ではなく単なる状態として返す。
+    """
     return CapabilityReport(
         fitz_available=_has_module('fitz'),
         pikepdf_available=_has_module('pikepdf'),

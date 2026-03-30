@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""Tkinter UI のイベント処理とバックグラウンド実行制御を担当する。"""
+"""Tkinter UI のイベント処理とバックグラウンド実行制御を担当する。
+
+この mixin は widget の生成そのものではなく、ユーザー操作を安全な backend request に
+変換し、非同期実行結果を UI 状態へ戻す責務を持つ。特に Tk のメインスレッド制約と、
+入力値の危険な組み合わせを事前に止めるガードをここへ集約している。
+"""
 
 import threading
 import tkinter as tk
@@ -24,11 +29,17 @@ class TkUiControllerMixin:
         return cast(TkUiControllerHostProtocol, self)
 
     def _schedule_on_ui_thread(self, callback: Callable[[], None]) -> None:
-        """Tk のメインスレッドへ安全に処理を戻す。"""
+        """Tk のメインスレッドへ安全に処理を戻す。
+
+        backend 側のイベントやクリーンアップ処理は別スレッドから来るため、widget 更新は
+        必ず `after()` 経由でメインスレッドへ戻す。controller の各更新メソッドがこの
+        入口を共有することで、スレッド安全性の前提を揃える。
+        """
         self._controller_host().after(0, callback)
 
     @staticmethod
     def _set_widget_state(widget: tk.Misc, state: str) -> None:
+        """widget の state 切替を TclError 無しで吸収する小さな安全ラッパー。"""
         try:
             cast(Any, widget).config(state=state)
         except tk.TclError:
@@ -63,7 +74,16 @@ class TkUiControllerMixin:
         )
 
     def _update_pdf_controls(self) -> None:
-        """選択中の PDF エンジンとモードに合わせて関連 UI を有効/無効化する。"""
+        """選択中の PDF エンジンとモードに合わせて関連 UI を有効/無効化する。
+
+        WHY:
+        - 同じ画面に native/GS の全オプションを常時見せると、現在の実行経路で意味を
+          持たない設定まで触れてしまう
+        - pngquant のように実行環境依存で有効/無効が変わる項目は、backend の暗黙の
+          フォールバックへ丸投げせず UI 側で理由を見せる
+        - pack/forget と state 切替を一箇所へ集めることで、engine/mode の組み合わせが
+          増えても表示整合性を保ちやすくする
+        """
         host = self._controller_host()
         engine = host.pdf_engine.get()
         self._update_png_engine_labels()
@@ -120,7 +140,11 @@ class TkUiControllerMixin:
             self._set_widget_state(widget, 'normal' if gs_lossless else 'disabled')
 
     def _refresh_pdf_engine_status(self) -> None:
-        """依存ライブラリ検出結果を表示し、使えないエンジンを無効化する。"""
+        """依存ライブラリ検出結果を表示し、使えないエンジンを無効化する。
+
+        利用不能な engine を選ばせたまま実行時エラーに落とすより、起動直後に現在の能力を
+        表示して UI 自体を制約した方が、設定画面の学習コストが低い。
+        """
         host = self._controller_host()
         report = host.capabilities
         parts = [
@@ -140,7 +164,11 @@ class TkUiControllerMixin:
         host.pdf_engine_status_var.set(f"（{', '.join(parts)}）")
 
     def _update_resize_controls(self) -> None:
-        """リサイズ設定の入力欄を現在のモードに合わせて切り替える。"""
+        """リサイズ設定の入力欄を現在のモードに合わせて切り替える。
+
+        `manual` と `long_edge` は同時に成立しないため、無関係な入力欄をグレーアウトして
+        「どの値が今効いているか」を明示する。
+        """
         host = self._controller_host()
         enabled = host.resize_enabled.get()
         mode = host.resize_mode.get()
@@ -155,6 +183,7 @@ class TkUiControllerMixin:
         self._set_widget_state(host.long_edge_combo, 'normal' if is_long_edge else 'disabled')
 
     def choose_input(self) -> None:
+        """入力フォルダ選択ダイアログを開き、選択後に衝突チェックまで行う。"""
         host = self._controller_host()
         folder = filedialog.askdirectory(initialdir=host.input_dir.get() or None)
         if folder:
@@ -162,6 +191,7 @@ class TkUiControllerMixin:
             self._validate_and_fix_dirs()
 
     def choose_output(self) -> None:
+        """出力フォルダ選択ダイアログを開き、選択後に衝突チェックまで行う。"""
         host = self._controller_host()
         folder = filedialog.askdirectory(initialdir=host.output_dir.get() or None)
         if folder:
@@ -169,7 +199,11 @@ class TkUiControllerMixin:
             self._validate_and_fix_dirs()
 
     def _on_drop_input(self, event: DropEventProtocol) -> None:
-        """ドラッグ&ドロップされたパスから入力フォルダを解決する。"""
+        """ドラッグ&ドロップされたパスから入力フォルダを解決する。
+
+        D&D ではフォルダ自体が落ちる場合とファイルが落ちる場合があるため、ユーザーが
+        毎回フォルダ単位で操作しなくても親フォルダへ自然に正規化する。
+        """
         host = self._controller_host()
         try:
             paths = host.tk.splitlist(event.data)
@@ -177,6 +211,7 @@ class TkUiControllerMixin:
             paths = [event.data]
 
         for path in paths:
+            # tkinterdnd2 は空白を含むパスを `{...}` で包むことがあるため剥がして扱う。
             normalized = path.strip('{}')
             dropped = Path(normalized)
             if dropped.is_dir():
@@ -190,7 +225,11 @@ class TkUiControllerMixin:
                 break
 
     def _validate_and_fix_dirs(self) -> None:
-        """入出力の重なりを検知し、危険な組み合わせを既定値へ戻す。"""
+        """入出力の重なりを検知し、危険な組み合わせを既定値へ戻す。
+
+        UI からの設定変更経路が複数あるため、ダイアログ選択や D&D のたびに同じ安全確認を
+        走らせ、backend 実行前の状態を常に保守的なものに寄せる。
+        """
         host = self._controller_host()
         new_input, new_output, conflict = self._check_overlap_and_fix(host.input_dir.get(), host.output_dir.get())
         if conflict:
@@ -209,6 +248,7 @@ class TkUiControllerMixin:
             return False
 
     def _check_overlap_and_fix(self, input_dir: str, output_dir: str) -> tuple[str, str, bool]:
+        """危険な入出力の組み合わせを検知し、安全な既定値へフォールバックする。"""
         host = self._controller_host()
         if input_dir and output_dir and self._paths_overlap(input_dir, output_dir):
             return host.default_input_dir, host.default_output_dir, True
@@ -234,7 +274,12 @@ class TkUiControllerMixin:
         self._schedule_on_ui_thread(lambda: host.status_var.set(text))
 
     def _append_log(self, msg: str) -> None:
-        """ログウィジェットへ 1 行追加し、必要に応じて状態表示も更新する。"""
+        """ログウィジェットへ 1 行追加し、必要に応じて状態表示も更新する。
+
+        ログは単なる履歴ではなく、終了/失敗のような高水準状態もここから派生させる。
+        そのため、backend 側は詳細メッセージだけを流し、最終的な UI 文言は controller が
+        組み立てる。
+        """
         host = self._controller_host()
         host.log_text.insert('end', msg + '\n')
         host.log_text.see('end')
@@ -261,7 +306,7 @@ class TkUiControllerMixin:
         host.update_idletasks()
 
     def update_progress(self, current: int, total: int) -> None:
-        """進捗更新を UI スレッドへ中継する。"""
+        """進捗更新をメインスレッドへ中継する。"""
         if threading.current_thread() is threading.main_thread():
             self._update_progress_ui(current, total)
             return
@@ -278,14 +323,19 @@ class TkUiControllerMixin:
         host.status_var.set(f'完了（削減率 {saved_pct:.1f}%）')
 
     def update_stats(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
-        """統計更新を UI スレッドへ中継する。"""
+        """統計更新をメインスレッドへ中継する。"""
         if threading.current_thread() is threading.main_thread():
             self._update_stats_ui(orig_total, out_total, saved, saved_pct)
             return
         self._schedule_on_ui_thread(lambda: self._update_stats_ui(orig_total, out_total, saved, saved_pct))
 
     def _on_progress_event(self, event: ProgressEvent) -> None:
-        """backend から届いたイベント種別を UI 更新へ振り分ける。"""
+        """backend から届いたイベント種別を UI 更新へ振り分ける。
+
+        backend は UI widget を知らず、`ProgressEvent` という抽象イベントだけを返す。
+        controller はそのイベントをログ・進捗・統計・状態文言へ分配し、UI 層と backend 層の
+        依存方向を逆転させない接着点になる。
+        """
         if event.kind == 'log' and event.message is not None:
             self.log(event.message)
             return
@@ -303,7 +353,15 @@ class TkUiControllerMixin:
             self._set_status('失敗（詳細はログ）')
 
     def start_compress(self) -> None:
-        """入力検証後、圧縮ジョブをバックグラウンドスレッドで開始する。"""
+        """入力検証後、圧縮ジョブをバックグラウンドスレッドで開始する。
+
+        WHY:
+        - 実行前に UI 側で検出できる問題は先に止め、backend へ不要な失敗ケースを渡さない
+        - 開始時ログへ主要設定を出しておくことで、ユーザーとテストの両方が「どの条件で
+          走ったか」を後から追える
+        - 圧縮本体は同期 API なので、Tk の応答性維持のため controller 側で明示的に
+          スレッドへ逃がす
+        """
         host = self._controller_host()
         input_dir = host.input_dir.get()
         output_dir = host.output_dir.get()
@@ -330,8 +388,10 @@ class TkUiControllerMixin:
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
         if host.auto_switch_log_tab.get():
+            # 実行直後にログへ移動すると、長時間処理でも「動いているか」が見えやすい。
             host.notebook.select(host.log_tab)
 
+        # 前回実行の表示を残すと新しいジョブ結果と混ざるため、開始時に UI 状態を初期化する。
         host.log_text.delete(1.0, 'end')
         host.progress['value'] = 0
         host.stats_var.set('統計: 処理中...')
@@ -353,12 +413,12 @@ class TkUiControllerMixin:
         else:
             if request.gs_preset == 'custom':
                 self.log(
-                    f'PDF: GhostScript カスタムDPI={request.gs_custom_dpi}, '
+                    f'PDF: Ghostscript カスタムDPI={request.gs_custom_dpi}, '
                     f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
             else:
                 self.log(
-                    f'PDF: GhostScript プリセット={request.gs_preset}, '
+                    f'PDF: Ghostscript プリセット={request.gs_preset}, '
                     f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
 
@@ -381,7 +441,11 @@ class TkUiControllerMixin:
         thread.start()
 
     def cleanup_input(self) -> None:
-        """入力フォルダの対象拡張子を確認ダイアログ付きで削除する。"""
+        """入力フォルダの対象拡張子を確認ダイアログ付きで削除する。
+
+        クリーンアップは取り消しできないため、削除対象数と拡張子を先に見せてから別
+        スレッドで実行する。圧縮と同じく、I/O で UI を固めないことを優先する。
+        """
         host = self._controller_host()
         input_dir = host.input_dir.get()
         if not input_dir or not Path(input_dir).exists():
@@ -410,7 +474,10 @@ class TkUiControllerMixin:
             thread.start()
 
     def cleanup_output(self) -> None:
-        """出力フォルダの成果物とログを確認ダイアログ付きで削除する。"""
+        """出力フォルダの成果物とログを確認ダイアログ付きで削除する。
+
+        出力側は生成物と CSV が混在するため、入力側とは別の対象拡張子集合で確認する。
+        """
         host = self._controller_host()
         output_dir = host.output_dir.get()
         if not output_dir or not Path(output_dir).exists():
@@ -438,7 +505,11 @@ class TkUiControllerMixin:
             thread.start()
 
     def on_exit(self) -> None:
-        """処理中スレッドの有無を確認してからアプリを終了する。"""
+        """処理中スレッドの有無を確認してからアプリを終了する。
+
+        daemon thread なので強制終了自体はできるが、ユーザーが長時間処理を誤って閉じない
+        よう確認を挟む。
+        """
         host = self._controller_host()
         if any(thread.is_alive() for thread in host.threads):
             if not messagebox.askyesno('終了確認', '処理中のスレッドがあります。終了しますか？'):

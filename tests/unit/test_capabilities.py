@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""任意依存の検出順序と劣化起動判定を確認する unit test。"""
+
 import pytest
 
 from backend import capabilities

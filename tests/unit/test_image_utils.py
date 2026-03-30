@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""画像圧縮 helper の resize・pngquant・フォールバック境界を確認する unit test。"""
+
 import subprocess
 from pathlib import Path
 

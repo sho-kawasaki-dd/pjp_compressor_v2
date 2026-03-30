@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""JPEG/PNG 圧縮と画像リサイズ処理を担当する。"""
+"""JPEG/PNG 圧縮と画像リサイズ処理を担当する。
+
+画像系は UI から受け取る設定が比較的柔らかく、品質値やリサイズ指定が複数形式で
+流入する。このモジュールではそれらを安全側へ正規化し、pngquant が無い環境でも
+処理全体を止めずに同等の出力責務を維持する。
+"""
 
 import shutil
 import subprocess
@@ -14,7 +19,11 @@ PNGQUANT_TIMEOUT_SECONDS = 300
 
 
 def _clamp_quality(value, default=MAX_IMAGE_QUALITY):
-    """品質値を pngquant/Pillow が扱える 0-100 に正規化する。"""
+    """品質値を pngquant/Pillow が扱える 0-100 に正規化する。
+
+    UI やテストは極端値を渡せるため、ここで一度丸めておくことで Pillow 保存時と
+    pngquant 呼び出し時の両方に同じ安全基準を適用する。
+    """
     try:
         parsed = int(value)
     except Exception:
@@ -23,7 +32,12 @@ def _clamp_quality(value, default=MAX_IMAGE_QUALITY):
 
 
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
-    """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。"""
+    """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。
+
+    ここは pngquant の有無に関係なく常に使える基準経路であり、リサイズ戦略も
+    `manual` と `long_edge` を同じ辞書形式で受け取って吸収する。フォールバック先と
+    しても利用されるため、例外を出しにくい保守的な振る舞いを優先する。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
     safe_quality = _clamp_quality(quality)
@@ -77,10 +91,16 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
 
 
 def compress_png_pngquant(input_path, output_path, quality_min, quality_max, speed=3, resize_cfg=None):
-    """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。"""
+    """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。
+
+    pngquant は PNG 専用の高圧縮経路だが、任意依存かつ CLI 実行のため失敗要因が多い。
+    そのため、この関数の価値は「pngquant を使うこと」よりも「失敗しても同じ API で
+    Pillow 経路へ戻せること」にある。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
     safe_quality_max = _clamp_quality(quality_max)
+    # quality range は上限中心で UI から渡されるため、下限は上限を超えないように揃える。
     safe_quality_min = min(_clamp_quality(quality_min, default=safe_quality_max), safe_quality_max)
     safe_speed = max(1, min(11, int(speed)))
 
@@ -162,6 +182,7 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
             if resized_wh and resize_cfg and resize_cfg.get('enabled'):
                 msg += f", resize={resized_wh[0]}x{resized_wh[1]}"
             return True, msg
+        # CLI が失敗した場合でも呼び出し側の制御を増やさないため、そのまま Pillow へ退避する。
         return compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
     except Exception:
         return compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)

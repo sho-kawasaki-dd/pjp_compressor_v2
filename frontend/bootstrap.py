@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Tkinter frontend の起動順序を束ねる。
+
+エントリポイントから見ると GUI 起動は 1 関数で十分だが、実際にはスプラッシュ、前面化、
+起動音、mainloop 開始の順序が重要なので、このモジュールで順番を固定する。
+"""
+
 from tkinter import Label, PhotoImage, TclError, Toplevel
 
 from frontend.settings import IMAGES_DIR, SOUNDS_DIR
@@ -9,7 +15,11 @@ _SPLASH_MIN_VISIBLE_MS = 700
 
 
 def _build_startup_splash(app) -> Toplevel | None:
-    """起動時スプラッシュを作成して返す。生成失敗時は None を返す。"""
+    """起動時スプラッシュを作成して返す。生成失敗時は None を返す。
+
+    スプラッシュ表示は装飾だが、画像読込や Tk 制約で失敗しうるため、本体起動を止めずに
+    任意機能として扱う。
+    """
     splash_path = IMAGES_DIR / "pjp_compressor_splash.png"
     if not splash_path.exists():
         return None
@@ -48,6 +58,9 @@ def run_tkinter_app() -> int:
 
     スプラッシュ表示、本体ウィンドウの前面化、起動音再生をここでまとめることで、
     エントリポイント側は例外処理だけに集中できる。
+
+    起動音やスプラッシュは見た目の改善要素だが、順序を誤ると「画面が出ない」「音だけ鳴る」
+    といった誤解を招くため、ここで最小限の起動体験を保証する。
     """
     from frontend.sound_utils import play_sound
     from frontend.ui_tkinter import App

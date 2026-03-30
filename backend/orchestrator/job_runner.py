@@ -4,6 +4,10 @@ from __future__ import annotations
 
 この層は個別圧縮アルゴリズムを持たず、入力走査、ZIP 展開、タスク生成、
 並列実行、CSV 出力、進捗通知をまとめて担当する。
+
+設計上の要点は、入力フォルダを直接変更しないことと、UI が理解しやすい形で
+ジョブ全体の状態をイベントへ落とし直すことである。圧縮そのものよりも、
+安全な一時作業領域と一貫したログ/CSV/進捗の整合性を守る責務が大きい。
 """
 
 import csv
@@ -67,6 +71,13 @@ def run_compression_job(
     - 通常ファイルと ZIP 展開後ファイルを単一のタスク列へ統合する
     - ワーカースレッドへ個別処理を投げ、進捗と統計を逐次通知する
     - CSV ログやフォールバックコピーを含むジョブ全体の付帯処理を管理する
+
+        WHY:
+        - UI や CLI 入口から見える振る舞いを 1 箇所へ集め、圧縮アルゴリズム層へ
+            ZIP やミラー圧縮の事情を漏らさない
+        - 入力フォルダを不変に保つことで、失敗時も元データを調査できるようにする
+        - ログ、CSV、進捗が同じ単位で増えるようにし、利用者とテストの両方が
+            処理結果を追跡しやすくする
     """
 
     from backend.core.format_utils import human_readable
@@ -79,10 +90,12 @@ def run_compression_job(
         path for path in input_base.rglob('*.zip') if path.is_file()
     ]
 
+    # ミラー圧縮では ZIP 自体も 1 つの出力成果物として扱うため、圧縮タスクとは
+    # 別に先行コピー対象を保持する。
     zip_output_copies: list[tuple[Path, Path, str, str]] = []
     temp_extract_root: Path | None = None
     if copy_non_target_files:
-        # mirror モードでは ZIP 自体も出力へ残し、展開結果と元 ZIP の両方を保持する。
+        # ミラー圧縮では ZIP 自体も出力へ残し、展開結果と元 ZIP の両方を保持する。
         for zip_path in zip_files:
             rel_zip = zip_path.relative_to(input_base)
             out_zip = output_base / rel_zip
@@ -93,6 +106,8 @@ def run_compression_job(
                 str(rel_zip),
             ))
 
+    # worker 側は 1 ファイル処理だけに集中させたいので、ログ/CSV に必要な入力文脈も
+    # ここでタプルへ畳み込んで渡す。
     # worker task tuple:
     # (
     #   inpath, outpath, ext,
@@ -104,10 +119,15 @@ def run_compression_job(
     tasks: list[tuple[Any, ...]] = []
 
     def append_task(inpath: Path, outpath: Path, csv_input_path: str, csv_output_path: str) -> None:
-        """ワーカーへ渡すタスク 1 件を構築する。"""
+        """ワーカーへ渡すタスク 1 件を構築する。
+
+        orchestrator が CSV 用パス規約と UI 起点の設定値をここで吸収することで、
+        worker は「何をどう圧縮するか」だけを判断すればよい状態にする。
+        """
         ext = inpath.suffix.lower().lstrip('.')
 
         if pdf_lossless_options is None:
+            # 可変 dict を共有すると task ごとの編集が他へ波及するため既定値は複製する。
             ll_opts = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
         else:
             ll_opts = pdf_lossless_options
@@ -118,6 +138,7 @@ def run_compression_job(
             rcfg = resize_enabled
         else:
             if resize_enabled and (resize_width > 0 or resize_height > 0):
+                # 旧 API 互換の bool + width/height 指定も、worker には新形式 dict として渡す。
                 rcfg = {
                     'enabled': True,
                     'mode': 'manual',
@@ -147,7 +168,7 @@ def run_compression_job(
             csv_output_path,
         ))
 
-    # Normal files in input directory (non-ZIP): always keep existing behavior.
+    # ZIP は展開有無で扱いが変わるため、通常走査からは除外して別フェーズへ回す。
     for file_path in input_base.rglob('*'):
         if not file_path.is_file() or file_path.suffix.lower() == '.zip':
             continue
@@ -166,7 +187,7 @@ def run_compression_job(
 
             for zip_path in zip_files:
                 rel_zip = zip_path.relative_to(input_base)
-                # 入力フォルダを直接書き換えないため、ZIP ごとに一時 staging 領域へ複製する。
+                # 入力フォルダを直接書き換えないため、ZIP ごとに一時作業領域へ複製する。
                 staged_root = temp_root / rel_zip.parent / zip_path.stem
                 staged_root.mkdir(parents=True, exist_ok=True)
                 staged_zip = staged_root / zip_path.name
@@ -176,6 +197,8 @@ def run_compression_job(
                 extracted_cnt_total += extracted_cnt
                 failed_cnt_total += failed_cnt
 
+                # 展開由来ファイルは `.../zip_stem/...` 配下へ揃えることで、出力だけ見ても
+                # どの ZIP 由来かを復元できる。
                 output_zip_root = output_base / rel_zip.parent / zip_path.stem
                 for extracted_file in staged_root.rglob('*'):
                     if not extracted_file.is_file() or extracted_file.suffix.lower() == '.zip':
@@ -196,6 +219,7 @@ def run_compression_job(
         else:
             log_func("ZIPファイルは検出されませんでした。")
 
+    # 進捗は「圧縮対象」と「mirror 用 ZIP コピー」の両方を 1 件として数える。
     total_len = len(tasks) + len(zip_output_copies)
     if total_len == 0:
         log_func("入力フォルダにファイルが見つかりませんでした。")
@@ -240,7 +264,7 @@ def run_compression_job(
     processed_files = 0
     compressible_extensions = {'pdf', 'jpg', 'jpeg', 'png'}
 
-    # Mirror mode for ZIP files: copy original ZIPs to output.
+    # ミラー圧縮では、元の ZIP も出力へコピーして入力構成を保つ。
     for in_zip, out_zip, csv_input, csv_output in zip_output_copies:
         try:
             out_zip.parent.mkdir(parents=True, exist_ok=True)
@@ -268,6 +292,7 @@ def run_compression_job(
 
     if tasks:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # future だけでは CSV 用文脈を引けないため、元 task を対応付けて保持する。
             futures = {executor.submit(process_single_file, task): task for task in tasks}
             for future in as_completed(futures):
                 try:
@@ -284,7 +309,7 @@ def run_compression_job(
                         out_total += out_size
                         processed_files += 1
                     elif copy_non_target_files:
-                        # 非圧縮対象や圧縮失敗ファイルも mirror モードでは出力に揃えておく。
+                        # 非圧縮対象や圧縮失敗ファイルもミラー圧縮では出力に揃えておく。
                         is_non_target = ext_task not in compressible_extensions
                         try:
                             outpath_task.parent.mkdir(parents=True, exist_ok=True)
@@ -323,6 +348,8 @@ def run_compression_job(
 
                     progress_func(cnt, total_len)
                 except Exception as exc:
+                    # 1 件の失敗で全体を止めるとバッチ処理として使いづらいため、ログへ落として
+                    # 残りファイルの処理を継続する。
                     log_func(f"処理中にエラー発生: {exc}")
                     cnt += 1
                     progress_func(cnt, total_len)
@@ -351,7 +378,12 @@ def run_compression_request(
     request: CompressionRequest,
     event_callback: Callable[[ProgressEvent], None],
 ) -> None:
-    """`CompressionRequest` ベースの新 API をイベント駆動で実行する。"""
+    """`CompressionRequest` ベースの新 API をイベント駆動で実行する。
+
+    UI 側は関数コールバック 3 本よりも単一のイベントストリームの方が扱いやすい。
+    この薄い変換層を置くことで、内部では旧来の `run_compression_job` シグネチャを
+    維持しつつ、外側には request/event 契約を公開できる。
+    """
 
     def on_log(message: str) -> None:
         event_callback(ProgressEvent(kind='log', message=message))

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""ファイル数集計とクリーンアップ処理を担当する。"""
+"""ファイル数集計とクリーンアップ処理を担当する。
+
+このモジュールは削除ポリシーそのものを決めず、呼び出し側が指定した拡張子集合に
+従って安全側で処理する。UI 側の確認ダイアログと backend 側の削除実装を分離し、
+誤削除時の責務境界を明確にするための層でもある。
+"""
 
 from pathlib import Path
 
@@ -24,7 +29,12 @@ def count_target_files(target_dir, target_extensions):
 
 
 def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_extensions=None):
-    """指定フォルダ配下の対象拡張子ファイルを削除し、空フォルダも除去する。"""
+    """指定フォルダ配下の対象拡張子ファイルを削除し、空フォルダも除去する。
+
+    対象外ファイルを残す設計にしているのは、ユーザーが同じフォルダに置いた成果物や
+    補助ファイルまで一括削除しないためである。クリーンアップは便宜機能であり、
+    積極的な掃除より安全側を優先する。
+    """
     if not target_dir:
         log_func(f"{folder_type}が未指定、または存在しません")
         return

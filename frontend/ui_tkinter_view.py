@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""Tkinter 画面のレイアウト構築を担当する mixin。"""
+"""Tkinter 画面のレイアウト構築を担当する mixin。
+
+この mixin は widget の生成順序とレイアウト構造だけを持ち、イベント判断や backend
+ 連携は controller へ委ねる。表示ロジックをここへ閉じ込めることで、controller が
+ 「どの widget をどう並べるか」まで知る必要をなくしている。
+"""
 
 import shutil
 import tkinter as tk
@@ -132,10 +137,16 @@ class TkUiViewMixin:
         self._bind_root_mousewheel()
 
     def _as_tk_master(self) -> tk.Misc:
+        """複数継承された `self` を Tk の親 widget として扱うための型補助。"""
         return cast(tk.Misc, self)
 
     def _build_root_scroll_container(self):
-        """縦長レイアウトでも扱いやすいスクロール可能コンテナを作る。"""
+        """縦長レイアウトでも扱いやすいスクロール可能コンテナを作る。
+
+        Notebook と複数の設定セクションを 1 画面へ収めるため、root 直下を Canvas + Frame
+        構成にして全体スクロールを実現する。個々の子 widget へ個別スクロールを持たせる
+        より、状態管理が単純になる。
+        """
         root_frame = ttk.Frame(self._as_tk_master())
         root_frame.pack(fill='both', expand=True)
 
@@ -153,15 +164,23 @@ class TkUiViewMixin:
         self.main_canvas.bind('<Configure>', self._on_main_canvas_configure)
 
     def _on_main_container_configure(self, _event):
+        """内部フレームの実サイズ変化に追随して scrollregion を更新する。"""
         self.main_canvas.configure(scrollregion=self.main_canvas.bbox('all'))
 
     def _on_main_canvas_configure(self, event):
+        """Canvas 幅に合わせて内部コンテナ幅を同期し、横方向の崩れを防ぐ。"""
         self.main_canvas.itemconfigure(self.main_container_window, width=event.width)
 
     def _bind_root_mousewheel(self):
+        """どの子 widget 上にいても画面全体をスクロールできるようにする。"""
         self._as_tk_master().bind_all('<MouseWheel>', self._on_root_mousewheel, add='+')
 
     def _on_root_mousewheel(self, event):
+        """ルート全体のマウスホイールをスクロールコンテナへ中継する。
+
+        ログ Text は独自スクロールを持つため、そこだけは root 側のホイール処理から除外し、
+        画面全体スクロールと干渉しないようにする。
+        """
         # Keep Text widget wheel behavior unchanged (log area scrolls itself).
         target = self._as_tk_master().winfo_containing(event.x_root, event.y_root)
         if target is not None and self._is_inside_widget(target, self.log_text):
@@ -176,6 +195,7 @@ class TkUiViewMixin:
         self.main_canvas.yview_scroll(steps, 'units')
 
     def _is_inside_widget(self, child, parent) -> bool:
+        """widget 親子関係をたどって、対象 widget 配下かどうかを判定する。"""
         widget = child
         while widget is not None:
             if widget == parent:
@@ -282,7 +302,7 @@ class TkUiViewMixin:
         """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
         pdf_outer = tk.LabelFrame(
             self.settings_tab,
-            text=' PDF圧縮設定（Pythonライブラリ / GhostScript） ',
+            text=' PDF圧縮設定（Pythonライブラリ / Ghostscript） ',
             bg='#fff1f1',
             fg='black',
             bd=1,
@@ -309,7 +329,11 @@ class TkUiViewMixin:
         self._build_output_section(self.settings_tab)
 
     def _build_pdf_section(self, parent):
-        """PDF エンジン選択とエンジン別詳細設定を構築する。"""
+        """PDF エンジン選択とエンジン別詳細設定を構築する。
+
+        native/GS の詳細フレームはここで両方生成しておき、実際に見せる側を controller が
+        pack/forget で切り替える。毎回再生成しないことで、選択状態を保持しやすくする。
+        """
         engine_frame = ttk.Frame(parent)
         engine_frame.pack(fill='x', padx=8, pady=(6, 4))
 
@@ -324,7 +348,7 @@ class TkUiViewMixin:
         self.native_rb.pack(side='left', padx=(10, 5))
         self.gs_rb = ttk.Radiobutton(
             engine_frame,
-            text='GhostScript',
+            text='Ghostscript',
             variable=self.pdf_engine,
             value='gs',
             command=self._update_pdf_controls,
@@ -341,7 +365,11 @@ class TkUiViewMixin:
         self._build_gs_controls(self.gs_frame)
 
     def _build_native_controls(self, parent):
-        """PyMuPDF + pikepdf を使うネイティブ圧縮設定を構築する。"""
+        """PyMuPDF + pikepdf を使うネイティブ圧縮設定を構築する。
+
+        controller が一括で enable/disable しやすいよう、非可逆系 widget と PNG 品質用
+        widget をリストへ収集しながら生成する。
+        """
         mode_frame = ttk.Frame(parent)
         mode_frame.pack(fill='x', padx=5, pady=2)
         ttk.Label(mode_frame, text='モード:').pack(side='left')
@@ -448,7 +476,11 @@ class TkUiViewMixin:
         self._native_ll_frame.pack(fill='x')
 
     def _build_gs_controls(self, parent):
-        """Ghostscript 圧縮と追加の pikepdf 最適化設定を構築する。"""
+        """Ghostscript 圧縮と追加の pikepdf 最適化設定を構築する。
+
+        GS 本体の設定と、後段で任意に足す pikepdf 可逆最適化を同じ画面に置くが、意味が
+        異なるため controller 側で個別に有効/無効を切り替えられる構造にしている。
+        """
         preset_lf = ttk.LabelFrame(parent, text='プリセット')
         preset_lf.pack(fill='x', padx=8, pady=4)
         self._gs_preset_widgets = []
@@ -505,7 +537,11 @@ class TkUiViewMixin:
         self._gs_ll_frame.pack(fill='x')
 
     def _build_image_section(self, parent):
-        """JPEG/PNG の品質と pngquant 利用設定を構築する。"""
+        """JPEG/PNG の品質と pngquant 利用設定を構築する。
+
+        画像圧縮の設定は PDF 設定と独立しているため、別セクションに分けて「通常画像」と
+        「PDF 内画像」の品質ノブを混同しないようにする。
+        """
         img_lf = ttk.LabelFrame(parent, text=' 画像圧縮 ')
         img_lf.pack(fill='x', padx=8, pady=5)
 
@@ -562,7 +598,11 @@ class TkUiViewMixin:
             ttk.Label(pq_row, text='（pngquant 未検出のため無効）', foreground='gray').pack(side='left', padx=10)
 
     def _build_resize_section(self, parent):
-        """画像リサイズ設定を手動指定と長辺指定の両方で提供する。"""
+        """画像リサイズ設定を手動指定と長辺指定の両方で提供する。
+
+        同じリサイズ機能でも利用者の考え方が異なるため、ピクセル指定と長辺指定の両方を
+        並べ、controller 側で今有効な入力だけを残す。
+        """
         resize_lf = ttk.LabelFrame(parent, text=' リサイズ ')
         resize_lf.pack(fill='x', padx=8, pady=5)
 
@@ -609,7 +649,11 @@ class TkUiViewMixin:
         self.long_edge_combo.pack(side='left')
 
     def _build_output_section(self, parent):
-        """CSV、ZIP 展開、ミラーコピーなどの出力補助設定を構築する。"""
+        """CSV、ZIP 展開、ミラー圧縮などの出力補助設定を構築する。
+
+        これらは圧縮アルゴリズムではなくジョブ全体のふるまいを変える設定なので、
+        出力設定として別枠にまとめている。
+        """
         out_lf = ttk.LabelFrame(parent, text=' 出力設定 ')
         out_lf.pack(fill='x', padx=8, pady=5)
 
@@ -641,7 +685,11 @@ class TkUiViewMixin:
         ttk.Checkbutton(log_row, text='圧縮開始時にログタブへ自動切替', variable=self.auto_switch_log_tab).pack(side='left')
 
     def _build_log_tab(self):
-        """進捗バー、統計、ログテキストを備えたログ表示タブを構築する。"""
+        """進捗バー、統計、ログテキストを備えたログ表示タブを構築する。
+
+        実行中の安心感を出すため、状態、進捗率、詳細ログを 1 タブへ集約する。controller は
+        ここに対して文字列や数値を流すだけでよい。
+        """
         stats_frame = ttk.Frame(self.log_tab)
         stats_frame.pack(fill='x', padx=14, pady=(12, 8))
         self.stats_var = tk.StringVar(value='統計: 処理前')
@@ -676,7 +724,11 @@ class TkUiViewMixin:
         tk.Button(inner, text='終了', command=self.on_exit, width=12, bg='#e6e6e6').pack(side='left', padx=14)
 
     def _create_lossless_controls(self, parent):
-        """pikepdf 可逆最適化オプションのチェックボックス群を共通生成する。"""
+        """pikepdf 可逆最適化オプションのチェックボックス群を共通生成する。
+
+        native/GS の両経路で同じ pikepdf オプションを使うため、UI の生成だけ共通化して
+        説明ラベルや初期値のズレを防ぐ。
+        """
         frame = ttk.Frame(parent)
         widgets: list[ttk.Checkbutton] = []
 

@@ -1,11 +1,19 @@
-"""フォルダ内の MP3 を一括で WAV へ変換する小さな補助スクリプト。"""
+"""フォルダ内の MP3 を一括で WAV へ変換する小さな補助スクリプト。
+
+本体アプリの圧縮パイプラインには入っておらず、配布用サウンド素材の前処理を
+手早く行うための開発補助ツールとして置いている。
+"""
 
 import pydub
 import sys
 from pathlib import Path
 
 def convert_mp3_to_wav(input_folder, output_folder):
-    """入力フォルダ直下の MP3 を走査し、同名 WAV を出力フォルダへ生成する。"""
+    """入力フォルダ直下の MP3 を走査し、同名 WAV を出力フォルダへ生成する。
+
+    サウンド素材の数が少ない前提なので、再帰探索や並列化よりも、失敗箇所が追いやすい
+    単純な逐次変換を優先する。
+    """
     input_dir = Path(input_folder)
     output_dir = Path(output_folder)
     output_dir.mkdir(parents=True, exist_ok=True)

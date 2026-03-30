@@ -57,7 +57,11 @@ class DropEventProtocol(Protocol):
 
 
 class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
-    """controller mixin が依存する `App` 側の属性群。"""
+    """controller mixin が依存する `App` 側の属性群。
+
+    mixin 間の依存を「`App` 全体」ではなく必要属性集合として表現することで、責務境界と
+    型補完を両立する。
+    """
 
     capabilities: CapabilityReport
     threads: list[threading.Thread]

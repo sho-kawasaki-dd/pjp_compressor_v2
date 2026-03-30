@@ -4,6 +4,10 @@ from __future__ import annotations
 
 ネイティブ系は PyMuPDF と pikepdf を組み合わせ、Ghostscript 系は再蒸留後に
 必要なら pikepdf で可逆最適化を重ねる。
+
+このモジュールの主眼は「どのエンジンを使うか」だけではなく、入力 PDF を壊さず
+圧縮率と画質の折り合いを付けることである。特に画像の透過保持、外部 CLI の
+任意依存、段階的フォールバックをコードから読み取りやすく保つ。
 """
 
 import io
@@ -141,10 +145,16 @@ def _normalize_pdf_soft_mask(mask_img: Image.Image, size: tuple[int, int]) -> Im
 
 
 def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
-    """PDF 画像本体と任意の soft mask を 1 枚の Pillow 画像へ再構成する。"""
+    """PDF 画像本体と任意の soft mask を 1 枚の Pillow 画像へ再構成する。
+
+    PDF では透過が base image ではなく soft mask 側に分離されていることがある。
+    そのまま JPEG 経路へ流すと黒背景化や透過欠落が起きやすいため、ここで Pillow
+    の RGBA 画像へ寄せておくことで後段の PNG/JPEG 分岐を単純化する。
+    """
     pil_img = _open_pdf_raster_image(cast(bytes, base_image['image']))
     smask_xref = base_image.get('smask', 0)
     if not isinstance(smask_xref, int) or smask_xref <= 0:
+        # soft mask が無いケースも通常系なので、透過判定だけ返して呼び出し側へ渡す。
         return pil_img, {
             'smask_xref': 0,
             'soft_mask_applied': False,
@@ -154,6 +164,8 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
 
     soft_mask = doc.extract_image(smask_xref)
     if not soft_mask:
+        # xref は指していても抽出できない PDF があるため、ここでは失敗を握りつぶさず
+        # メタ情報として残し、画像本体だけで続行する。
         return pil_img, {
             'smask_xref': smask_xref,
             'soft_mask_applied': False,
@@ -165,6 +177,7 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
         mask_img = _open_pdf_raster_image(cast(bytes, soft_mask['image']))
         alpha_mask = _normalize_pdf_soft_mask(mask_img, pil_img.size)
         transparency_present = alpha_mask.getextrema()[0] < 255
+        # Pillow 側で alpha を保持できる形に寄せてから soft mask を合成する。
         if pil_img.mode != 'RGBA':
             pil_img = pil_img.convert('RGBA')
         pil_img.putalpha(alpha_mask)
@@ -175,6 +188,8 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
             'has_transparency': transparency_present,
         }
     except Exception as exc:
+        # soft mask だけ壊れていても PDF 全体を諦めず、後段が安全側の経路を選べるよう
+        # 失敗理由と現在の透過有無だけ返す。
         return pil_img, {
             'smask_xref': smask_xref,
             'soft_mask_applied': False,
@@ -264,7 +279,12 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
 
 
 def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int) -> tuple[bytes, dict[str, Any]]:
-    """PDF 内 PNG 系画像を pngquant 優先、Pillow 256 色固定フォールバックで再圧縮する。"""
+    """PDF 内 PNG 系画像を pngquant 優先、Pillow 256 色固定フォールバックで再圧縮する。
+
+    ここでは「品質ノブが効く理想経路」と「依存未導入でも落とさない安全経路」を
+    1 箇所へ閉じ込める。呼び出し側は量子化手段の違いを気にせず、返却メタ情報だけ
+    見れば UI/ログ/デバッグ出力へ理由を流せる。
+    """
     quantized_bytes, pngquant_meta = _compress_pdf_png_with_pngquant(pil_img, png_quality)
     if quantized_bytes is not None:
         return quantized_bytes, {
@@ -288,7 +308,12 @@ def compress_pdf_lossy(
     png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     debug=False,
 ):
-    """PyMuPDF で PDF 内の実描画画像を走査し、リサンプル＆再圧縮する（非可逆）。"""
+    """PyMuPDF で PDF 内の実描画画像を走査し、リサンプル＆再圧縮する（非可逆）。
+
+    画像 xref ごとに 1 回だけ置換判定を行い、描画位置ごとの重複処理を避ける。
+    その上で、透過を持つ画像は PNG 経路を維持し、透過を持たないラスターだけを
+    JPEG 経路へ流すことで、圧縮率と見た目の破綻回避を両立する。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
 
@@ -387,6 +412,8 @@ def compress_pdf_lossy(
                 rect_w_pts = rect.width
                 rect_h_pts = rect.height
 
+                # xref から実体を抽出できない場合は、その画像オブジェクト全体を安全側で
+                # スキップする。配置単位ではなくオブジェクト単位で扱うのが重要。
                 base_image = doc.extract_image(xref)
                 if not base_image:
                     processed_xrefs[xref] = 'no_extract'
@@ -447,6 +474,9 @@ def compress_pdf_lossy(
                         debug_stats['soft_mask_failed'] += 1
 
                 orig_w, orig_h = pil_img.size
+                # PDF 上の配置サイズと元ピクセル数から実効 DPI を推定し、見た目に対して
+                # 過剰な解像度だけを落とす。これにより small image の再圧縮だけでなく、
+                # oversized image のリサンプルも同じ基準で扱える。
                 effective_dpi_x = orig_w / (rect_w_pts / 72.0)
                 effective_dpi_y = orig_h / (rect_h_pts / 72.0)
                 effective_dpi = max(effective_dpi_x, effective_dpi_y)
@@ -515,6 +545,7 @@ def compress_pdf_lossy(
                     'png_fallback_reason': png_metadata.get('fallback_reason') if png_metadata else None,
                 }
 
+                # 元より大きくなる置換は PDF 全体の肥大化につながるため採用しない。
                 if new_size < orig_size:
                     page.replace_image(xref, stream=new_bytes)
                     processed_xrefs[xref] = 'replaced'
@@ -531,6 +562,7 @@ def compress_pdf_lossy(
                     debug_rows.append(row)
 
         if debug:
+            # 1 PDF に同一 xref の再利用が多いので、詳細出力は unique xref ベースに絞る。
             print('=== compress_pdf_lossy debug summary ===')
             for key, value in debug_stats.items():
                 print(f'{key}: {value}')
@@ -630,7 +662,12 @@ def get_ghostscript_path():
 
 
 def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None):
-    """Ghostscriptを利用してPDFを再蒸留・圧縮する。"""
+    """Ghostscriptを利用してPDFを再蒸留・圧縮する。
+
+    Ghostscript は PDF 全体を描き直す系の圧縮なので、個別画像差し替えより強く効く
+    一方で、内容によってはサイズが増えることもある。そこで成功判定と圧縮効果判定を
+    分け、悪化時は元ファイルを維持する。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
 
@@ -711,7 +748,12 @@ def compress_pdf_native(
     lossless_options=None,
     debug=False,
 ):
-    """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。"""
+    """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。
+
+    `lossy` と `lossless` を単独でも使えるようにしつつ、`both` では「見た目に効く
+    画像圧縮を先に実施し、その結果を構造最適化で仕上げる」という段階構成を取る。
+    後段だけ失敗した場合に前段成果物を捨てないのは、長時間処理を無駄にしないため。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
 
@@ -747,7 +789,12 @@ def compress_pdf_native(
 
 
 def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dpi=None, lossless_options=None):
-    """GhostScript による PDF 再蒸留 + オプションで pikepdf 構造最適化。"""
+    """Ghostscript による PDF 再蒸留 + オプションで pikepdf 構造最適化。
+
+    Ghostscript 系でも lossless 段を分離しておくことで、再蒸留が成功した後に
+    構造最適化だけ失敗した場合に GS 結果を救済できる。ここでも最終目的は
+    「全部成功」ではなく「安全により良い出力を残すこと」とする。
+    """
     input_file = Path(input_path)
     output_file = Path(output_path)
 

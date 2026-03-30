@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""ZIP 展開 helper の安全側動作を固定する unit test。"""
+
 import zipfile
 from pathlib import Path
 

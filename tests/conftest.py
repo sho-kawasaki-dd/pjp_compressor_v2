@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""テスト全体で共有する fixture を集約する。
+
+重いセットアップや入出力のひな形をここへ寄せ、各 test module 側では「何を守る
+テストか」に集中できるようにする。特に ZIP・画像・Tk 回帰で同じ前提を使い回す
+ことで、テストごとの差分が意図か偶然かを見分けやすくしている。
+"""
+
 import io
 import zipfile
 from dataclasses import dataclass
@@ -14,6 +21,8 @@ from backend.contracts import CapabilityReport
 
 @dataclass
 class SamplePaths:
+    """一時 input/output/CSV パスを束ねる軽量コンテナ。"""
+
     input_dir: Path
     output_dir: Path
     csv_path: Path
@@ -21,6 +30,8 @@ class SamplePaths:
 
 @pytest.fixture
 def sample_paths(tmp_path: Path) -> SamplePaths:
+    """圧縮ジョブ系テストで共通利用する基本ディレクトリ構成を返す。"""
+
     input_dir = tmp_path / 'input'
     output_dir = tmp_path / 'output'
     input_dir.mkdir()
@@ -34,6 +45,11 @@ def sample_paths(tmp_path: Path) -> SamplePaths:
 
 @pytest.fixture
 def image_factory() -> Callable[..., Path]:
+    """必要な画像だけをその場で生成する factory を返す。
+
+    画像サイズや形式を test ごとに変えられるようにしつつ、保存処理の重複を避ける。
+    """
+
     def _create_image(
         path: Path,
         *,
@@ -55,6 +71,8 @@ def image_factory() -> Callable[..., Path]:
 
 @pytest.fixture
 def zip_factory() -> Callable[[Path, dict[str, bytes]], Path]:
+    """ZIP member 構成だけを指定してアーカイブを作れる factory を返す。"""
+
     def _create_zip(path: Path, members: dict[str, bytes]) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         with zipfile.ZipFile(path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
@@ -67,6 +85,8 @@ def zip_factory() -> Callable[[Path, dict[str, bytes]], Path]:
 
 @pytest.fixture
 def jpeg_bytes() -> bytes:
+    """ZIP 内 payload や PDF 画像差し替え用に十分な JPEG バイト列を返す。"""
+
     buffer = io.BytesIO()
     Image.new('RGB', (240, 180), color=(12, 34, 56)).save(buffer, 'JPEG', quality=95)
     return buffer.getvalue()
@@ -74,6 +94,8 @@ def jpeg_bytes() -> bytes:
 
 @pytest.fixture
 def png_bytes() -> bytes:
+    """PNG 系経路のテストで再利用する生バイト列を返す。"""
+
     buffer = io.BytesIO()
     Image.new('RGB', (240, 180), color=(56, 120, 220)).save(buffer, 'PNG')
     return buffer.getvalue()
@@ -81,6 +103,8 @@ def png_bytes() -> bytes:
 
 @pytest.fixture
 def capability_report() -> CapabilityReport:
+    """外部依存が揃っている前提の capability report を返す。"""
+
     return CapabilityReport(
         fitz_available=True,
         pikepdf_available=True,
@@ -91,6 +115,12 @@ def capability_report() -> CapabilityReport:
 
 @pytest.fixture
 def tk_regression_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """Tk 回帰で使う App 実体を最小副作用で起動する。
+
+    D&D 依存が無い環境は skip し、音やダイアログは monkeypatch で潰して UI 導線だけを
+    検証できる状態を作る。
+    """
+
     pytest.importorskip('tkinterdnd2')
 
     import tkinter as tk

@@ -10,7 +10,6 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
 - 画面と処理の全体像（HTML）: [フロー図、シーケンス図およびクラス図](./flow_sequence_and_class_diagrams.html)
 - 画面と処理の全体像（Markdown）: [flow_sequence_and_class_diagrams.md](./flow_sequence_and_class_diagrams.md)
 
-
 ## 主な機能
 
 - PDF 圧縮（Ghostscript / ネイティブエンジンを選択可能）
@@ -359,7 +358,7 @@ python -m pytest
 - frontend 全体の Pylance 診断で警告 0 を確認。
 - `tests/regression/test_tkinter_regression.py` へ GUI 回帰を移植し、pytest から選択実行できるよう整理。
 - `frontend/ui_tkinter_controller.py` の保守性改善を目的に、controller mixin が依存する Tk 変数・Widget・ランタイム属性・Tk メソッドを `frontend/ui_contracts.py` の Protocol として明文化。
-- controller 側は Protocol ベースの `cast` に統一し、`after()` を使った UI スレッド更新を helper 経由へ整理。Pylance 上の unknown attribute 警告を、実行時挙動を変えずに解消。
+- controller 側は Protocol ベースの `cast` に統一し、`after()` を使ったメインスレッド更新を helper 経由へ整理。Pylance 上の unknown attribute 警告を、実行時挙動を変えずに解消。
 - D&D イベントの `event.data` は局所 Protocol で扱い、TkinterDnD 依存の動的オブジェクトを controller 内へ閉じ込める構成へ調整。
 - `frontend/sound_utils.py` を型整理し、module docstring の位置修正、公開関数の引数・戻り値型付与、`Path | str` の明示、pygame 任意依存の型狭義化を実施。
 - `frontend/ui_tkinter_controller.py`、`frontend/ui_contracts.py`、`frontend/sound_utils.py` の Pylance 診断でエラー 0 を確認。
@@ -503,7 +502,7 @@ python -m pytest
   - 主な変更点:
     - pytest の実行プロファイルを `unit` / `integration` / `regression` に整理し、`pyproject.toml` に marker と discovery 設定を追加
     - `tests/conftest.py` と `tests/unit/` を追加し、契約、依存検出、ZIP 展開、画像圧縮、UI DTO マッピングの自動テストを整備
-    - `tests/integration/` を追加し、`job_runner` の CSV 出力・ZIP staging・フォールバックコピー、および `ui_tkinter_controller` の主要導線を検証可能にした
+    - `tests/integration/` を追加し、`job_runner` の CSV 出力・ZIP 一時作業領域・フォールバックコピー、および `ui_tkinter_controller` の主要導線を検証可能にした
     - 旧 `scripts/tkinter_regression_check.py` を `tests/regression/test_tkinter_regression.py` へ完全移植し、GUI 回帰を pytest から選択実行できるよう統合
     - `backend/orchestrator/job_runner.py` の CSV 入出力パス連携不具合を修正し、テストで再発防止を追加
     - PyMuPDF の画像再圧縮で、デバッグモードON時に標準出力へ画像 xref ごとの統計を出すようにして、効果が確認できるようにした

@@ -1,6 +1,10 @@
 from __future__ import annotations
 
-"""Tkinter の状態変数を初期化する mixin。"""
+"""Tkinter の状態変数を初期化する mixin。
+
+Tk 変数の宣言を 1 箇所へ集めることで、view と controller の両方が同じ状態名を前提に
+動けるようにする。初期値の責務をここへ寄せ、widget 生成側で既定値を重複定義しない。
+"""
 
 import tkinter as tk
 
@@ -24,7 +28,11 @@ class TkUiStateMixin:
     app_settings: dict[str, bool]
 
     def initialize_ui_state(self) -> None:
-        """画面全体で共有する Tk 変数を用途別に初期化する。"""
+        """画面全体で共有する Tk 変数を用途別に初期化する。
+
+        アプリ設定 JSON の永続値を取り込みつつ、backend 既定値と frontend 既定値を 1 回で
+        結合する初期化ポイントでもある。
+        """
         app_settings = dict(APP_SETTINGS_DEFAULTS)
         app_settings.update(getattr(self, 'app_settings', {}))
 

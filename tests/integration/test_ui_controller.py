@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""controller mixin の UI 制御契約を固定する integration test 群。
+
+Tk 本体を起動せずに、Dummy host と widget を使って state machine、ログ反映、
+スレッド橋渡し、設定永続化のつなぎ込みを検証する。
+"""
+
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +21,8 @@ pytestmark = pytest.mark.integration
 
 
 class DummyVar:
+    """controller/mapping が期待する最小限の variable 互換。"""
+
     def __init__(self, value):
         self._value = value
 
@@ -26,6 +34,8 @@ class DummyVar:
 
 
 class DummyWidget:
+    """`config` と pack 系だけを持つ簡易 widget。"""
+
     def __init__(self):
         self.state = None
         self.packed = False
@@ -45,6 +55,8 @@ class DummyWidget:
 
 
 class DummyText:
+    """ログタブの Text widget を置き換える記録用ダミー。"""
+
     def __init__(self):
         self.lines: list[str] = []
         self.deleted = False
@@ -61,6 +73,8 @@ class DummyText:
 
 
 class DummyNotebook:
+    """選択タブだけ追跡する notebook ダミー。"""
+
     def __init__(self):
         self.selected = None
 
@@ -69,10 +83,14 @@ class DummyNotebook:
 
 
 class DummyProgressbar(dict):
+    """辞書アクセスされる Progressbar の代替。"""
+
     pass
 
 
 class DummyThread:
+    """バックグラウンド起動の意図だけを観測する thread ダミー。"""
+
     def __init__(self, *, target, kwargs, daemon):
         self.target = target
         self.kwargs = kwargs
@@ -88,6 +106,8 @@ class DummyThread:
 
 @dataclass
 class DummyRequest:
+    """controller から runner へ渡る request の最小表現。"""
+
     input_dir: str
     output_dir: str
     pdf_engine: str = 'native'
@@ -104,7 +124,10 @@ class DummyRequest:
 
 
 class ControllerHost(TkUiControllerMixin):
+    """TkUiControllerMixin が依存する属性をまとめた host ダミー。"""
+
     def __init__(self, tmp_path: Path):
+        # pngquant 未検出を既定にして、PDF PNG フォールバック UI の既定分岐を直接検証する。
         self.capabilities = CapabilityReport(True, True, 'C:/gs.exe', None)
         self.default_input_dir = str(tmp_path / 'default_input')
         self.default_output_dir = str(tmp_path / 'default_output')
@@ -217,6 +240,7 @@ def test_start_compress_spawns_background_runner(
     )
     monkeypatch.setattr(controller_module.threading, 'Thread', DummyThread)
 
+    # UI を即時ブロックしないこと自体が controller の重要責務なので、Thread 起動を確認する。
     host.start_compress()
 
     assert host.notebook.selected is host.log_tab

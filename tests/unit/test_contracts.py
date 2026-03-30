@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""contract dataclass が橋渡し層として壊れていないか確認する unit test。"""
+
 import pytest
 
 from backend.contracts import CapabilityReport, CompressionRequest, ProgressEvent

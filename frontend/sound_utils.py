@@ -1,16 +1,9 @@
 from __future__ import annotations
 
-"""
-sound_utils.py
+"""pygame を使った簡易な効果音再生ユーティリティ。
 
-pygame を使った簡易な効果音再生ユーティリティ。
-目的:
-- UI から非同期で効果音を再生できるようにする。
-- pygame が無い環境でも致命的にならない設計（任意依存）。
-
-注意:
-- 本モジュールは pygame の初期化に失敗しても例外を外へ投げず、
-    戻り値で状態を返し、警告表示などのUI責務は呼び出し側に委譲する。
+サウンドは UI の補助演出であり、必須機能ではない。そのため pygame の有無や初期化失敗を
+ここで吸収し、呼び出し側には「鳴らせるかどうか」だけを返す設計にしている。
 """
 
 import sys
@@ -50,20 +43,10 @@ def init_mixer() -> tuple[bool, str | None]:
 
 
 def play_sound(sound_file: PathLike) -> None:
-    """
-    指定されたサウンドファイルを非同期で再生。
-    pygame を使用。ファイルが無い場合は無視。
-    
-        引数:
-        - sound_file: 再生するファイルパス。存在しない場合は何もしない。
-    
-        実装詳細:
-        - 別スレッドで `pygame.mixer.music` を使用して再生し、
-            UI の応答性を保つ。
-        
-        - pygame が利用不可の場合や初期化に失敗している場合は何もしない。
+    """指定されたサウンドファイルを非同期で再生する。
 
-        - アプリケーションが実行ファイル化されている場合にも対応。
+    通知音は UI 操作の補助なので、存在しない・鳴らせない・pygame が無いといった事情は
+    すべて無害化し、画面操作を止めないことを優先する。
     """
     pygame_module = pygame
     if not PYGAME_AVAILABLE or pygame_module is None:
@@ -87,7 +70,10 @@ def play_sound(sound_file: PathLike) -> None:
 
 # ------------- PyInstaller リソースパスヘルパー -------------
 def resource_path(relative_path: PathLike) -> Path:
-    """PyInstaller がパッケージ化した時でも外部リソースにアクセス可能にする。"""
+    """PyInstaller がパッケージ化した時でも外部リソースにアクセス可能にする。
+
+    開発環境と配布環境でリソース基準ディレクトリが変わるため、その差をここで吸収する。
+    """
     path = Path(relative_path)
     if path.is_absolute():
         return path

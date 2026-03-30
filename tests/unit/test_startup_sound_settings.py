@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+"""起動音/通知音の設定が GUI 起動導線へ反映されるか確認する unit test。"""
+
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +15,8 @@ pytestmark = pytest.mark.unit
 
 
 class DummyVar:
+    """設定トグル読み出しだけに使う最小 variable ダミー。"""
+
     def __init__(self, value):
         self._value = value
 
@@ -21,6 +25,8 @@ class DummyVar:
 
 
 class DummyApp:
+    """bootstrap が参照する最小限の App 代替。"""
+
     def __init__(self, play_startup_sound: bool):
         self.play_startup_sound = DummyVar(play_startup_sound)
         self.after_calls: list[int] = []

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""UI 状態を backend 向け `CompressionRequest` へ正規化する。"""
+"""UI 状態を backend 向け `CompressionRequest` へ正規化する。
+
+controller は widget 操作、backend は request 契約に集中したいので、その間の値変換を
+このモジュールへ分離している。文字列入力の補正や engine ごとの採用ルールもここで
+吸収し、controller に細かな if 文を増やさない。
+"""
 
 from dataclasses import dataclass
 
@@ -23,7 +28,10 @@ class RequestBuildResult:
 
 
 def to_non_negative_int(value: str, max_value: int | None = None) -> int:
-    """入力欄文字列を非負整数へ丸める。"""
+    """入力欄文字列を非負整数へ丸める。
+
+    UI 入力欄は空文字や小数を含みうるため、例外を出さず backend が扱える整数へ揃える。
+    """
     try:
         parsed = int(float(value.strip()))
         normalized = parsed if parsed >= 0 else 0
@@ -35,7 +43,11 @@ def to_non_negative_int(value: str, max_value: int | None = None) -> int:
 
 
 def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, int | bool | str] | bool, int, int]:
-    """UI のリサイズ入力を backend が理解しやすい辞書へ変換する。"""
+    """UI のリサイズ入力を backend が理解しやすい辞書へ変換する。
+
+    `manual` と `long_edge` の UI は入力形態が異なるが、backend には 1 つの設定オブジェクト
+    として渡したいので、ここで mode ごとの差を吸収する。
+    """
     mode = app.resize_mode.get()
     resize_width = to_non_negative_int(app.resize_width.get(), max_value=MAX_RESIZE_DIMENSION)
     resize_height = to_non_negative_int(app.resize_height.get(), max_value=MAX_RESIZE_DIMENSION)
@@ -69,7 +81,11 @@ def build_resize_config(app: CompressionRequestAppProtocol) -> tuple[dict[str, i
 
 
 def build_lossless_options(app: CompressionRequestAppProtocol) -> dict[str, bool]:
-    """可逆圧縮オプション群を UI から抽出する。"""
+    """可逆圧縮オプション群を UI から抽出する。
+
+    UI のチェックボックス集合を 1 箇所で辞書化しておくと、native/GS の採用判定を後段で
+    共有しやすい。
+    """
     return {
         'linearize': app.pdf_ll_linearize.get(),
         'object_streams': app.pdf_ll_object_streams.get(),
@@ -83,7 +99,11 @@ def resolve_pdf_lossless_options(
     app: CompressionRequestAppProtocol,
     base_options: dict[str, bool],
 ) -> dict[str, bool] | None:
-    """PDF エンジンとモードに応じて可逆オプションの採用可否を決める。"""
+    """PDF エンジンとモードに応じて可逆オプションの採用可否を決める。
+
+    UI 上では常に可逆オプション群が見えていても、実際に意味を持つのは engine/mode に
+    よって異なる。その差分を request 化の段階で明示的に `None` へ落とし込む。
+    """
     engine = app.pdf_engine.get()
     if engine == 'gs':
         # Ghostscript 系では追加の pikepdf 最適化を明示的に有効化した時だけ適用する。
@@ -94,13 +114,19 @@ def resolve_pdf_lossless_options(
 
 
 def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuildResult:
-    """現在の UI 状態から `CompressionRequest` を構築する。"""
+    """現在の UI 状態から `CompressionRequest` を構築する。
+
+    controller が backend 用の詳細知識を持たなくてよいように、UI 状態から request 契約へ
+    正規化する最後の関門として振る舞う。
+    """
     resize_config, resize_width, resize_height = build_resize_config(app)
     lossless_options = build_lossless_options(app)
     pdf_lossless_options = resolve_pdf_lossless_options(app, lossless_options)
 
     gs_custom_dpi = None
     if app.gs_preset.get() == 'custom':
+        # Ghostscript custom DPI は UI と backend の両方で clamp し、極端値でも request を
+        # 安全側へ寄せる。
         gs_custom_dpi = max(PDF_LOSSY_DPI_RANGE[0], min(PDF_LOSSY_DPI_RANGE[1], int(app.gs_custom_dpi.get())))
     # カスタム以外のプリセットでは DPI を使わないため、不要な値は None に揃える。
 

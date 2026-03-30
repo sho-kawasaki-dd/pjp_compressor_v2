@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""job_runner の結合面を説明可能に保つ integration test 群。
+
+worker 実処理の詳細よりも、request 受け渡し、ZIP 展開、CSV、入力不変、失敗時の
+フォールバックコピーといった orchestration 上の約束を守れているかを確認する。
+"""
+
 import csv
 import zipfile
 from pathlib import Path
@@ -16,6 +22,8 @@ pytestmark = pytest.mark.integration
 
 
 class DummyVar:
+    """Tk Variable の `get` / `set` だけを模した最小ダミー。"""
+
     def __init__(self, value):
         self._value = value
 
@@ -27,6 +35,8 @@ class DummyVar:
 
 
 class DummyMapperApp:
+    """mapper が参照する UI 状態を固定値で再現するテスト用 App。"""
+
     def __init__(self) -> None:
         self.input_dir = DummyVar('input')
         self.output_dir = DummyVar('output')
@@ -60,6 +70,8 @@ class DummyMapperApp:
 
 
 def snapshot_tree(root: Path) -> dict[str, int]:
+    """入力ツリーが変化していないことを比較しやすい形で記録する。"""
+
     snapshot: dict[str, int] = {}
     for file_path in root.rglob('*'):
         if file_path.is_file():
@@ -221,6 +233,7 @@ def test_run_compression_job_extracts_zip_without_mutating_input(sample_paths, j
     with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr('img/photo.jpg', jpeg_bytes)
         archive.writestr('docs/readme.txt', 'zip-text')
+    # ZIP 展開が input を直接書き換えないことを、ファイルツリーの前後比較で固定する。
     before = snapshot_tree(sample_paths.input_dir)
 
     job_runner.run_compression_job(
@@ -252,6 +265,7 @@ def test_run_compression_job_copies_failed_compressible_file_in_mirror_mode(
 
     monkeypatch.setattr(
         worker_ops,
+        # processed=False を返して、圧縮対象でも mirror 時は原本コピーへ退避する分岐を踏ませる。
         'process_single_file',
         lambda task: ('画像失敗: broken.jpg (boom)', source.stat().st_size, source.stat().st_size, False),
     )

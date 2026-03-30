@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-"""orchestrator から渡された 1 ファイル分の圧縮処理を実行する。"""
+"""orchestrator から渡された 1 ファイル分の圧縮処理を実行する。
+
+worker は 1 ファイル単位の純粋な処理に寄せ、ZIP 展開や CSV 規約のようなジョブ全体
+の事情は orchestrator 側へ残す。この分離により、並列実行時も worker の責務を
+「拡張子ごとの適切な圧縮器選択」に限定できる。
+"""
 
 from pathlib import Path
 
@@ -10,7 +15,12 @@ from backend.core.pdf_utils import compress_pdf_gs, compress_pdf_native
 
 
 def process_single_file(args):
-    """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択。"""
+    """1 ファイル処理のユーティリティ。拡張子で処理系を自動選択する。
+
+    orchestrator からは CSV 用メタデータ込みの長いタプルが渡されるが、worker が
+    実際に必要とするのは先頭 16 要素だけである。ここで切り詰めておくことで、
+    worker はログ表示用の後続フィールドに依存せずに済む。
+    """
     # Orchestrator may append metadata fields after resize_cfg for logging purposes.
     args = tuple(args[:16])
     (

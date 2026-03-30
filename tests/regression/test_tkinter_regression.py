@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+"""Tk 実体を使った回帰シナリオをまとめる regression test 群。
+
+unit/integration では表現しづらい GUI 導線、ZIP 組み合わせ行列、cleanup と overlap
+guard の連携を、実 App に近い形で崩れていないか確認する。
+"""
+
 import shutil
 import time
 import zipfile
@@ -20,6 +26,8 @@ pytestmark = [pytest.mark.regression, pytest.mark.requires_tk]
 
 
 def wait_threads(app, timeout: float = 15.0) -> None:
+    """非同期 worker が自然終了するまで UI イベントループを回す。"""
+
     start = time.time()
     while time.time() - start < timeout:
         app.update()
@@ -32,6 +40,8 @@ def wait_threads(app, timeout: float = 15.0) -> None:
 
 
 def snapshot_input_tree(root: Path) -> dict[str, int]:
+    """ZIP 展開前後で入力ツリーが不変かを見るためのスナップショット。"""
+
     snapshot: dict[str, int] = {}
     for file_path in root.rglob('*'):
         if file_path.is_file():
@@ -41,12 +51,16 @@ def snapshot_input_tree(root: Path) -> dict[str, int]:
 
 
 def clear_output_dir(output_dir: Path) -> None:
+    """ZIP 行列ケースごとの差分を消すため出力を毎回初期化する。"""
+
     if output_dir.exists():
         shutil.rmtree(output_dir, ignore_errors=True)
     output_dir.mkdir(parents=True, exist_ok=True)
 
 
 def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
+    """通常ファイル + ZIP 内 target/non-target を含む行列用 fixture を作る。"""
+
     normal_jpg = input_dir / 'normal.jpg'
     normal_txt = input_dir / 'normal.txt'
     zip_dir = input_dir / 'subpack'
@@ -73,6 +87,8 @@ def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
 
 
 def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
+    """ZIP 展開 ON/OFF とミラー圧縮 ON/OFF の 4 象限をまとめて検証する。"""
+
     zip_path, _, _ = create_zip_fixture(input_dir)
     input_before = snapshot_input_tree(input_dir)
     base_request = build_compression_request(app).request
@@ -85,23 +101,27 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
         assert any(getattr(event, 'kind', '') == 'stats' for event in captured), 'stats event missing in zip case'
 
     clear_output_dir(output_dir)
+    # 展開のみ: ZIP 内 target だけが処理され、元 ZIP は残さない。
     execute_case(extract_zip=True, mirror_mode=False)
     assert (output_dir / 'subpack' / 'myzip' / 'img' / 'photo.jpg').exists()
     assert not (output_dir / 'subpack' / 'myzip' / 'docs' / 'readme.txt').exists()
     assert not (output_dir / 'subpack' / 'myzip.zip').exists()
 
     clear_output_dir(output_dir)
+    # どちらも OFF: ZIP は無視され、展開結果もコピーも生まれない。
     execute_case(extract_zip=False, mirror_mode=False)
     assert not (output_dir / 'subpack' / 'myzip.zip').exists()
     assert not (output_dir / 'subpack' / 'myzip').exists()
 
     clear_output_dir(output_dir)
+    # 両方 ON: 元 ZIP と展開結果を両方残し、non-target も mirror する。
     execute_case(extract_zip=True, mirror_mode=True)
     assert (output_dir / 'subpack' / 'myzip.zip').exists()
     assert (output_dir / 'subpack' / 'myzip' / 'img' / 'photo.jpg').exists()
     assert (output_dir / 'subpack' / 'myzip' / 'docs' / 'readme.txt').exists()
 
     clear_output_dir(output_dir)
+    # mirror のみ: 元 ZIP は残すが、中身の展開はしない。
     execute_case(extract_zip=False, mirror_mode=True)
     assert (output_dir / 'subpack' / 'myzip.zip').exists()
     assert not (output_dir / 'subpack' / 'myzip').exists()
@@ -112,6 +132,8 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
 
 
 def seed_sample_images(input_dir: Path) -> tuple[Path, Path]:
+    """GUI 導線テストで十分な JPG/PNG 入力を用意する。"""
+
     jpg_path = input_dir / 'sample.jpg'
     png_path = input_dir / 'sample.png'
     Image.new('RGB', (320, 240), color=(255, 0, 0)).save(jpg_path, 'JPEG', quality=95)
