@@ -67,6 +67,89 @@ def _normalize_pdf_png_source_image(pil_img: Image.Image) -> Image.Image:
     return pil_img.convert('RGBA' if has_alpha else 'RGB')
 
 
+def _pdf_image_has_transparency(pil_img: Image.Image) -> bool:
+    """Pillow 画像に実効的な透過画素が含まれるかを返す。"""
+    if 'A' in pil_img.getbands():
+        try:
+            alpha_min, _alpha_max = pil_img.getchannel('A').getextrema()
+            return alpha_min < 255
+        except Exception:
+            return True
+
+    transparency = pil_img.info.get('transparency')
+    if transparency is None:
+        return False
+    if isinstance(transparency, bytes):
+        return any(value < 255 for value in transparency)
+    return True
+
+
+def _get_pdf_resize_resample_filter():
+    """PDF 画像の縮小で使う Pillow リサンプラを返す。"""
+    if hasattr(Image, 'Resampling'):
+        return Image.Resampling.LANCZOS
+    return getattr(cast(Any, Image), 'LANCZOS')
+
+
+def _open_pdf_raster_image(img_bytes: bytes) -> Image.Image:
+    """PDF から抽出したラスター画像 bytes を Pillow 画像へ読む。"""
+    pil_img = Image.open(io.BytesIO(img_bytes))
+    pil_img.load()
+    return pil_img
+
+
+def _normalize_pdf_soft_mask(mask_img: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """PDF soft mask を base image と同じサイズの L 画像へ整える。"""
+    if mask_img.size != size:
+        mask_img = mask_img.resize(size, _get_pdf_resize_resample_filter())
+    if mask_img.mode != 'L':
+        mask_img = mask_img.convert('L')
+    return mask_img
+
+
+def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tuple[Image.Image, dict[str, Any]]:
+    """PDF 画像本体と任意の soft mask を 1 枚の Pillow 画像へ再構成する。"""
+    pil_img = _open_pdf_raster_image(cast(bytes, base_image['image']))
+    smask_xref = base_image.get('smask', 0)
+    if not isinstance(smask_xref, int) or smask_xref <= 0:
+        return pil_img, {
+            'smask_xref': 0,
+            'soft_mask_applied': False,
+            'soft_mask_error': None,
+            'has_transparency': _pdf_image_has_transparency(pil_img),
+        }
+
+    soft_mask = doc.extract_image(smask_xref)
+    if not soft_mask:
+        return pil_img, {
+            'smask_xref': smask_xref,
+            'soft_mask_applied': False,
+            'soft_mask_error': 'smask_extract_failed',
+            'has_transparency': _pdf_image_has_transparency(pil_img),
+        }
+
+    try:
+        mask_img = _open_pdf_raster_image(cast(bytes, soft_mask['image']))
+        alpha_mask = _normalize_pdf_soft_mask(mask_img, pil_img.size)
+        transparency_present = alpha_mask.getextrema()[0] < 255
+        if pil_img.mode != 'RGBA':
+            pil_img = pil_img.convert('RGBA')
+        pil_img.putalpha(alpha_mask)
+        return pil_img, {
+            'smask_xref': smask_xref,
+            'soft_mask_applied': True,
+            'soft_mask_error': None,
+            'has_transparency': transparency_present,
+        }
+    except Exception as exc:
+        return pil_img, {
+            'smask_xref': smask_xref,
+            'soft_mask_applied': False,
+            'soft_mask_error': f'smask_open_failed:{exc}',
+            'has_transparency': _pdf_image_has_transparency(pil_img),
+        }
+
+
 def _get_pillow_quantize_method(pil_img: Image.Image) -> int:
     """256 色固定フォールバックで使う量子化アルゴリズムを返す。"""
     quantize_enum = getattr(Image, 'Quantize', None)
@@ -193,6 +276,9 @@ def compress_pdf_lossy(
             'skip_unsupported_ext': 0,
             'skip_pil_open_failed': 0,
             'skip_not_smaller': 0,
+            'soft_mask_seen': 0,
+            'soft_mask_applied': 0,
+            'soft_mask_failed': 0,
             'pngquant_used': 0,
             'pillow_png_fallback_used': 0,
             'replaced': 0,
@@ -292,8 +378,7 @@ def compress_pdf_lossy(
                     continue
 
                 try:
-                    pil_img = Image.open(io.BytesIO(img_bytes))
-                    pil_img.load()
+                    pil_img, transparency_meta = _load_pdf_raster_image_with_soft_mask(doc, base_image)
                 except Exception as exc:
                     processed_xrefs[xref] = 'pil_open_failed'
                     skipped_count += 1
@@ -309,6 +394,17 @@ def compress_pdf_lossy(
                         })
                     continue
 
+                soft_mask_xref = cast(int, transparency_meta['smask_xref'])
+                soft_mask_error = cast(str | None, transparency_meta['soft_mask_error'])
+                soft_mask_applied = cast(bool, transparency_meta['soft_mask_applied'])
+                has_transparency = cast(bool, transparency_meta['has_transparency'])
+                if soft_mask_xref > 0:
+                    debug_stats['soft_mask_seen'] += 1
+                    if soft_mask_applied:
+                        debug_stats['soft_mask_applied'] += 1
+                    else:
+                        debug_stats['soft_mask_failed'] += 1
+
                 orig_w, orig_h = pil_img.size
                 effective_dpi_x = orig_w / (rect_w_pts / 72.0)
                 effective_dpi_y = orig_h / (rect_h_pts / 72.0)
@@ -320,20 +416,18 @@ def compress_pdf_lossy(
                     scale = target_dpi / effective_dpi
                     new_w = max(1, int(orig_w * scale))
                     new_h = max(1, int(orig_h * scale))
-                    if hasattr(Image, 'Resampling'):
-                        resample_filter = Image.Resampling.LANCZOS
-                    else:
-                        resample_filter = getattr(cast(Any, Image), 'LANCZOS')
+                    resample_filter = _get_pdf_resize_resample_filter()
                     pil_img = pil_img.resize((new_w, new_h), resample_filter)
                     resized = True
                     resized_to = (new_w, new_h)
 
                 is_png_like = img_ext in PDF_PNG_LIKE_EXTENSIONS
+                preserve_as_png = is_png_like or has_transparency
                 png_metadata: dict[str, Any] | None = None
 
-                if is_png_like:
+                if preserve_as_png:
                     # PNG 系画像は JPEG へ逃がさず、常に量子化済み PNG として再保存する。
-                    # これにより、今回廃止対象の PNG→JPEG 変換を根本から排除できる。
+                    # soft mask で表現された透過もここで保ったまま再保存する。
                     new_bytes, png_metadata = _compress_pdf_png_image(pil_img, png_quality)
                     output_format = 'PNG'
                     png_quantizers_used.add(str(png_metadata['quantizer']))
@@ -368,6 +462,10 @@ def compress_pdf_lossy(
                     'effective_dpi': round(effective_dpi, 2),
                     'resized': resized,
                     'resized_to': resized_to,
+                    'has_transparency': has_transparency,
+                    'soft_mask_xref': soft_mask_xref,
+                    'soft_mask_applied': soft_mask_applied,
+                    'soft_mask_error': soft_mask_error,
                     'orig_size': orig_size,
                     'new_size': new_size,
                     'output_format': output_format,

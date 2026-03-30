@@ -25,6 +25,22 @@ def _make_png_bytes(*, size: tuple[int, int]) -> bytes:
     return buffer.getvalue()
 
 
+def _make_mask_png_bytes(*, size: tuple[int, int]) -> bytes:
+    buffer = io.BytesIO()
+    mask = Image.linear_gradient('L').resize(size)
+    mask.save(buffer, 'PNG', optimize=True)
+    return buffer.getvalue()
+
+
+def _assert_image_has_nontrivial_alpha(image_bytes: bytes) -> None:
+    image = Image.open(io.BytesIO(image_bytes))
+    assert image.format == 'PNG'
+    rgba = image.convert('RGBA')
+    alpha_min, alpha_max = rgba.getchannel('A').getextrema()
+    assert alpha_min < 255
+    assert alpha_max > alpha_min
+
+
 class _FakeRect:
     def __init__(self, bbox: tuple[float, float, float, float]):
         self.width = float(bbox[2] - bbox[0])
@@ -197,3 +213,77 @@ def test_compress_pdf_png_image_falls_back_to_fixed_palette_without_pngquant(
     colors = quantized.getcolors(maxcolors=257)
     assert colors is not None
     assert len(colors) <= 256
+
+
+def test_compress_pdf_lossy_reconstructs_soft_mask_and_preserves_transparency(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_jpeg_bytes(size=(1600, 1600), quality=100)
+    mask_bytes = _make_mask_png_bytes(size=(1600, 1600))
+    page = _FakePage([{'xref': 20, 'bbox': (0.0, 0.0, 144.0, 144.0)}])
+    fake_doc = _FakeDoc(
+        [page],
+        extracted_images={
+            20: {'image': original_bytes, 'ext': 'jpeg', 'smask': 21},
+            21: {'image': mask_bytes, 'ext': 'png'},
+        },
+    )
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda _name: None)
+
+    ok, _message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        target_dpi=72,
+        jpeg_quality=40,
+        debug=False,
+    )
+
+    assert ok is True
+    assert fake_doc.extract_calls == [20, 21]
+    assert len(page.replace_calls) == 1
+    replaced_xref, replaced_bytes = page.replace_calls[0]
+    assert replaced_xref == 20
+    _assert_image_has_nontrivial_alpha(replaced_bytes)
+
+
+def test_compress_pdf_lossy_soft_mask_extract_failure_falls_back_without_crashing(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_jpeg_bytes(size=(1600, 1600), quality=100)
+    page = _FakePage([{'xref': 30, 'bbox': (0.0, 0.0, 144.0, 144.0)}])
+    fake_doc = _FakeDoc(
+        [page],
+        extracted_images={30: {'image': original_bytes, 'ext': 'jpeg', 'smask': 31}},
+    )
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda _name: None)
+
+    ok, _message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        target_dpi=72,
+        jpeg_quality=40,
+        debug=True,
+    )
+
+    assert ok is True
+    assert fake_doc.extract_calls == [30, 31]
+    assert len(page.replace_calls) == 1
+    replaced_xref, replaced_bytes = page.replace_calls[0]
+    assert replaced_xref == 30
+    assert Image.open(io.BytesIO(replaced_bytes)).format == 'JPEG'
+    captured = capsys.readouterr().out
+    assert 'soft_mask_seen: 1' in captured
+    assert 'soft_mask_failed: 1' in captured
