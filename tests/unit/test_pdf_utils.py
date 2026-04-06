@@ -23,6 +23,14 @@ def _make_jpeg_bytes(*, size: tuple[int, int], quality: int) -> bytes:
     return buffer.getvalue()
 
 
+def _make_cmyk_jpeg_bytes(*, size: tuple[int, int], quality: int = 95) -> bytes:
+    """CMYK JPEG を生成し、RGB 変換回帰テストに使う。"""
+
+    buffer = io.BytesIO()
+    Image.new('CMYK', size, color=(255, 0, 0, 0)).save(buffer, 'JPEG', quality=quality)
+    return buffer.getvalue()
+
+
 def _make_png_bytes(*, size: tuple[int, int]) -> bytes:
     """PNG 量子化経路用の入力画像を作る。"""
 
@@ -337,3 +345,74 @@ def test_compress_pdf_lossy_soft_mask_extract_failure_falls_back_without_crashin
     captured = capsys.readouterr().out
     assert 'soft_mask_seen: 1' in captured
     assert 'soft_mask_failed: 1' in captured
+
+
+def test_compress_pdf_lossy_converts_cmyk_jpeg_before_jpeg_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_cmyk_jpeg_bytes(size=(2400, 1200))
+    page = _FakePage([{'xref': 40, 'bbox': (0.0, 0.0, 144.0, 72.0)}])
+    fake_doc = _FakeDoc([page], extracted_images={40: {'image': original_bytes, 'ext': 'jpeg'}})
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+
+    ok, _message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        target_dpi=72,
+        jpeg_quality=40,
+        debug=True,
+    )
+
+    assert ok is True
+    assert len(page.replace_calls) == 1
+    replaced_image = Image.open(io.BytesIO(page.replace_calls[0][1]))
+    assert replaced_image.format == 'JPEG'
+    assert replaced_image.mode == 'RGB'
+    captured = capsys.readouterr().out
+    assert 'cmyk_converted: 1' in captured
+
+
+def test_compress_pdf_lossy_converts_cmyk_jpeg_before_png_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    input_path.write_bytes(b'%PDF-1.4 test')
+
+    original_bytes = _make_cmyk_jpeg_bytes(size=(1600, 1600))
+    mask_bytes = _make_mask_png_bytes(size=(1600, 1600))
+    page = _FakePage([{'xref': 41, 'bbox': (0.0, 0.0, 144.0, 144.0)}])
+    fake_doc = _FakeDoc(
+        [page],
+        extracted_images={
+            41: {'image': original_bytes, 'ext': 'jpeg', 'smask': 42},
+            42: {'image': mask_bytes, 'ext': 'png'},
+        },
+    )
+    monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
+    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda _name: None)
+
+    ok, _message = pdf_utils.compress_pdf_lossy(
+        input_path,
+        output_path,
+        target_dpi=72,
+        jpeg_quality=40,
+        debug=True,
+    )
+
+    assert ok is True
+    assert len(page.replace_calls) == 1
+    replaced_image = Image.open(io.BytesIO(page.replace_calls[0][1])).convert('RGBA')
+    assert replaced_image.getchannel('A').getextrema()[0] < 255
+    red, green, blue, _alpha = replaced_image.getpixel((32, 32))
+    assert max(red, green, blue) > 0
+    captured = capsys.readouterr().out
+    assert 'cmyk_converted: 1' in captured

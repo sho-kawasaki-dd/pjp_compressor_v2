@@ -1,1183 +1,2231 @@
-<!DOCTYPE html>
+<!doctype html>
 <html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <meta charset="utf-8" />
-  <meta name="generator" content="pandoc" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
-  <title>README</title>
-  <style>
-    /* Default styles provided by pandoc.
+  <head>
+    <meta charset="utf-8" />
+    <meta name="generator" content="pandoc" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=yes"
+    />
+    <title>README</title>
+    <style>
+      /* Default styles provided by pandoc.
     ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
     */
-    span.smallcaps{font-variant: small-caps;}
-    div.columns{display: flex; gap: min(4vw, 1.5em);}
-    div.column{flex: auto; overflow-x: auto;}
-    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-    /* The extra [class] is a hack that increases specificity enough to
+      span.smallcaps {
+        font-variant: small-caps;
+      }
+      div.columns {
+        display: flex;
+        gap: min(4vw, 1.5em);
+      }
+      div.column {
+        flex: auto;
+        overflow-x: auto;
+      }
+      div.hanging-indent {
+        margin-left: 1.5em;
+        text-indent: -1.5em;
+      }
+      /* The extra [class] is a hack that increases specificity enough to
        override a similar rule in reveal.js */
-    ul.task-list[class]{list-style: none;}
-    ul.task-list li input[type="checkbox"] {
-      font-size: inherit;
-      width: 0.8em;
-      margin: 0 0.8em 0.2em -1.6em;
-      vertical-align: middle;
-    }
-    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
-    /* CSS for syntax highlighting */
-    html { -webkit-text-size-adjust: 100%; }
-    pre > code.sourceCode { white-space: pre; position: relative; }
-    pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
-    pre > code.sourceCode > span:empty { height: 1.2em; }
-    .sourceCode { overflow: visible; }
-    code.sourceCode > span { color: inherit; text-decoration: inherit; }
-    div.sourceCode { margin: 1em 0; }
-    pre.sourceCode { margin: 0; }
-    @media screen {
-    div.sourceCode { overflow: auto; }
-    }
-    @media print {
-    pre > code.sourceCode { white-space: pre-wrap; }
-    pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
-    }
-    pre.numberSource code
-      { counter-reset: source-line 0; }
-    pre.numberSource code > span
-      { position: relative; left: -4em; counter-increment: source-line; }
-    pre.numberSource code > span > a:first-child::before
-      { content: counter(source-line);
-        position: relative; left: -1em; text-align: right; vertical-align: baseline;
-        border: none; display: inline-block;
-        -webkit-touch-callout: none; -webkit-user-select: none;
-        -khtml-user-select: none; -moz-user-select: none;
-        -ms-user-select: none; user-select: none;
-        padding: 0 4px; width: 4em;
+      ul.task-list[class] {
+        list-style: none;
+      }
+      ul.task-list li input[type='checkbox'] {
+        font-size: inherit;
+        width: 0.8em;
+        margin: 0 0.8em 0.2em -1.6em;
+        vertical-align: middle;
+      }
+      .display.math {
+        display: block;
+        text-align: center;
+        margin: 0.5rem auto;
+      }
+      /* CSS for syntax highlighting */
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      pre > code.sourceCode {
+        white-space: pre;
+        position: relative;
+      }
+      pre > code.sourceCode > span {
+        display: inline-block;
+        line-height: 1.25;
+      }
+      pre > code.sourceCode > span:empty {
+        height: 1.2em;
+      }
+      .sourceCode {
+        overflow: visible;
+      }
+      code.sourceCode > span {
+        color: inherit;
+        text-decoration: inherit;
+      }
+      div.sourceCode {
+        margin: 1em 0;
+      }
+      pre.sourceCode {
+        margin: 0;
+      }
+      @media screen {
+        div.sourceCode {
+          overflow: auto;
+        }
+      }
+      @media print {
+        pre > code.sourceCode {
+          white-space: pre-wrap;
+        }
+        pre > code.sourceCode > span {
+          text-indent: -5em;
+          padding-left: 5em;
+        }
+      }
+      pre.numberSource code {
+        counter-reset: source-line 0;
+      }
+      pre.numberSource code > span {
+        position: relative;
+        left: -4em;
+        counter-increment: source-line;
+      }
+      pre.numberSource code > span > a:first-child::before {
+        content: counter(source-line);
+        position: relative;
+        left: -1em;
+        text-align: right;
+        vertical-align: baseline;
+        border: none;
+        display: inline-block;
+        -webkit-touch-callout: none;
+        -webkit-user-select: none;
+        -khtml-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
+        padding: 0 4px;
+        width: 4em;
         color: #aaaaaa;
       }
-    pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
-    div.sourceCode
-      {   }
-    @media screen {
-    pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
-    }
-    code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-    code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-    code span.at { color: #7d9029; } /* Attribute */
-    code span.bn { color: #40a070; } /* BaseN */
-    code span.bu { color: #008000; } /* BuiltIn */
-    code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-    code span.ch { color: #4070a0; } /* Char */
-    code span.cn { color: #880000; } /* Constant */
-    code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-    code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-    code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-    code span.dt { color: #902000; } /* DataType */
-    code span.dv { color: #40a070; } /* DecVal */
-    code span.er { color: #ff0000; font-weight: bold; } /* Error */
-    code span.ex { } /* Extension */
-    code span.fl { color: #40a070; } /* Float */
-    code span.fu { color: #06287e; } /* Function */
-    code span.im { color: #008000; font-weight: bold; } /* Import */
-    code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-    code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-    code span.op { color: #666666; } /* Operator */
-    code span.ot { color: #007020; } /* Other */
-    code span.pp { color: #bc7a00; } /* Preprocessor */
-    code span.sc { color: #4070a0; } /* SpecialChar */
-    code span.ss { color: #bb6688; } /* SpecialString */
-    code span.st { color: #4070a0; } /* String */
-    code span.va { color: #19177c; } /* Variable */
-    code span.vs { color: #4070a0; } /* VerbatimString */
-    code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-  </style>
-  <link rel="stylesheet" href="./styles/github-markdown.css" />
-  <!-- header.html -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes">
-  <!-- end header.html -->
-</head>
-<body>
-<nav id="TOC" role="doc-toc">
-<ul>
-<li><a href="#フォルダ一括圧縮アプリpdf画像対応版"
-id="toc-フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</a>
-<ul>
-<li><a href="#関連ドキュメント"
-id="toc-関連ドキュメント">関連ドキュメント</a></li>
-<li><a href="#主な機能" id="toc-主な機能">主な機能</a></li>
-<li><a href="#動作環境と依存"
-id="toc-動作環境と依存">動作環境と依存</a></li>
-<li><a href="#実行ファイル化pyinstaller-one-folder"
-id="toc-実行ファイル化pyinstaller-one-folder">実行ファイル化（PyInstaller
-/ one-folder）</a></li>
-<li><a href="#使い方手順" id="toc-使い方手順">使い方（手順）</a></li>
-<li><a href="#モジュール構成" id="toc-モジュール構成">モジュール構成</a>
-<ul>
-<li><a href="#起動とフロントエンド"
-id="toc-起動とフロントエンド">起動とフロントエンド</a></li>
-<li><a href="#契約とオーケストレーション"
-id="toc-契約とオーケストレーション">契約とオーケストレーション</a></li>
-<li><a href="#設定レイヤ" id="toc-設定レイヤ">設定レイヤ</a></li>
-<li><a href="#サービス層とコア処理"
-id="toc-サービス層とコア処理">サービス層とコア処理</a></li>
-<li><a href="#実行パイプライン要約"
-id="toc-実行パイプライン要約">実行パイプライン（要約）</a></li>
-</ul></li>
-<li><a href="#よくある質問" id="toc-よくある質問">よくある質問</a></li>
-<li><a href="#自動テスト" id="toc-自動テスト">自動テスト</a></li>
-<li><a href="#手動回帰チェック5分版"
-id="toc-手動回帰チェック5分版">手動回帰チェック（5分版）</a></li>
-<li><a href="#注意事項" id="toc-注意事項">注意事項</a></li>
-<li><a href="#開発者向けメモ" id="toc-開発者向けメモ">開発者向けメモ</a>
-<ul>
-<li><a href="#年3月11日追記"
-id="toc-年3月11日追記">2026年3月11日追記</a></li>
-<li><a href="#年3月15日追記-設定レイヤ再編"
-id="toc-年3月15日追記-設定レイヤ再編">2026年3月15日追記
-設定レイヤ再編</a></li>
-<li><a href="#年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化"
-id="toc-年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化">2026年3月15日追記
-PyMuPDF 画像再圧縮の実描画 xref 走査化</a></li>
-<li><a href="#年3月16日追記"
-id="toc-年3月16日追記">2026年3月16日追記</a></li>
-<li><a href="#年3月30日追記"
-id="toc-年3月30日追記">2026年3月30日追記</a></li>
-<li><a href="#年3月30日追記アプリ設定-効果音"
-id="toc-年3月30日追記アプリ設定-効果音">2026年3月30日追記（アプリ設定 /
-効果音）</a></li>
-<li><a href="#年3月31日追記セキュリティと-zip-運用上限"
-id="toc-年3月31日追記セキュリティと-zip-運用上限">2026年3月31日追記（セキュリティと
-ZIP 運用上限）</a></li>
-<li><a href="#フローチャートなど"
-id="toc-フローチャートなど">フローチャートなど</a></li>
-</ul></li>
-<li><a href="#ライセンス" id="toc-ライセンス">ライセンス</a></li>
-<li><a href="#バージョン情報"
-id="toc-バージョン情報">バージョン情報</a></li>
-</ul></li>
-</ul>
-</nav>
-<h1
-id="フォルダ一括圧縮アプリpdf画像対応版">フォルダ一括圧縮アプリ（PDF・画像対応版）</h1>
-<p>PDF、JPG、PNGファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。
-PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuPDF +
-pikepdf）を利用し、画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能です。さらに画像の一括リサイズ（手動指定
-/
-長辺指定、アスペクト比保持）にも対応し、並列処理で大量ファイルにも対応します。ネイティブ
-PDF 非可逆圧縮では、PDF 内 PNG 系画像を PNG
-のまま減色圧縮でき、WeasyPrint 由来の soft mask
-付き透過画像も透過を保ったまま再圧縮できるようになりました。</p>
-<p>本アプリはフロントエンド/バックエンド分離構成で、起動は
-<code>compressor_launcher_tkinter.py</code> →
-<code>frontend/bootstrap.py</code> → <code>frontend/ui_tkinter.py</code>
-の順で行います。圧縮処理は <code>backend</code>
-配下の契約・オーケストレータ経由で実行されます。</p>
-<h2 id="関連ドキュメント">関連ドキュメント</h2>
-<ul>
-<li>画面と処理の全体像（HTML）: <a
-href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></li>
-<li>画面と処理の全体像（Markdown）: <a
-href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md</a></li>
-</ul>
-<h2 id="主な機能">主な機能</h2>
-<ul>
-<li>PDF 圧縮（Ghostscript / ネイティブエンジンを選択可能）
-<ul>
-<li>Ghostscript: PDF再蒸留（プリセット選択可）</li>
-<li>ネイティブ: PyMuPDF（画像再圧縮）+ pikepdf（可逆最適化）</li>
-<li>外部ツール依存（Ghostscript/pngquant）欠落時は機能単位で劣化起動（アプリは起動継続）</li>
-<li>エンジン可用性の再検出はアプリ再起動にて行う仕様</li>
-<li>Ghostscript設定: プリセット選択（/screen /ebook /printer /prepress
-/default）またはカスタムDPI指定</li>
-<li>Ghostscript設定: pikepdf構造最適化（可逆）を併用可能</li>
-<li>ネイティブ設定: モード選択（非可逆 / 可逆 /
-両方）、DPI、JPEG品質、PNG品質、可逆オプション</li>
-<li>ネイティブ PDF の PNG 系画像は PNG のまま量子化し、pngquant
-がある環境では PNG 品質スライダーを使って quality 範囲を自動設定</li>
-<li>ネイティブ PDF の soft mask 付き画像は alpha
-を再構成してから再圧縮し、透過がある画像は PNG
-経路を優先して黒背景化を避ける</li>
-<li>pngquant が無い環境では、PDF 内 PNG 系画像は Pillow の 256
-色固定減色へ自動フォールバックし、PDF 用 PNG 品質スライダーは無効化</li>
-<li>ネイティブ設定の調査補助:
-出力設定の「デバッグモードで出力」をONにすると、PyMuPDF
-非可逆圧縮時だけ埋め込み画像ごとの診断 stats を標準出力へ出力</li>
-<li>debug stats では
-<code>soft_mask_seen</code>、<code>soft_mask_applied</code>、<code>soft_mask_failed</code>
-も確認可能</li>
-</ul></li>
-<li>画像圧縮
-<ul>
-<li>JPG/PNGをPillowで圧縮（品質0-100）</li>
-<li>PNGをpngquantで不可逆圧縮（quality範囲自動設定）</li>
-<li>画像リサイズ（任意）：
-<ul>
-<li>モード選択（手動: 幅/高さ指定、または 長辺指定）</li>
-<li>長辺指定はプリセットドロップダウン（640/800/1024/1280/1600/1920/2048/2560/3840）から選択可能（任意入力も可）</li>
-<li>アスペクト比保持の選択</li>
-<li>パフォーマンス最適化：幅/高さの入力は処理開始時に一度だけ数値化し、空欄・非数値は0に自動補正（入力時の逐次検証は行わずUIを軽量化）</li>
-</ul></li>
-</ul></li>
-<li>高速・安定
-<ul>
-<li>ZIP展開オプションON時、ZIPアーカイブは入力フォルダを変更せず一時作業領域で再帰展開（最大25サイクルで打ち切り、循環ループを防止）</li>
-<li>ZIP展開時は path
-traversal・絶対パス・Windowsドライブ指定・symlink相当 entry
-を拒否し、危険な member は展開しない</li>
-<li>ZIP展開時は 1 ZIP あたり
-<code>member数 &lt;= 10000</code>、<code>展開後合計サイズ &lt;= 1,000,000,000 bytes</code>
-を上限として扱う</li>
-<li>ZIP展開オプションON時、展開由来ファイルは
-<code>出力フォルダ/ZIPの元相対パス/ZIPのstem/</code>
-配下へ内部構造を維持して出力</li>
-<li>ThreadPoolExecutorによる並列処理</li>
-<li>出力設定の新オプション（既定OFF）:
-<ul>
-<li>「圧縮対象外のファイルを出力フォルダへコピー」をONにすると、未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
-以外）を入力フォルダの相対構造を保ったまま出力へコピー</li>
-<li>ON時は、圧縮対象拡張子でも圧縮失敗したファイルをフォールバックとして元ファイルコピー</li>
-</ul></li>
-<li>ZIP処理の組み合わせ仕様（<code>ZIP展開してから圧縮</code> ×
-<code>ミラー圧縮</code>）:
-<ul>
-<li>ミラーOFF + ZIP展開ON:
-ZIP由来の圧縮対象のみ出力（非対象は出力しない）、入力ZIPは保持</li>
-<li>ミラーOFF + ZIP展開OFF: ZIP処理はスキップ（従来ログは維持）</li>
-<li>ミラーON + ZIP展開ON:
-入力ZIPを出力へコピーし、ZIP由来の圧縮対象を圧縮、非対象もコピー</li>
-<li>ミラーON + ZIP展開OFF: 入力ZIPを出力へコピー（ZIPに対する処理）</li>
-</ul></li>
-<li>Before/Afterのファイルサイズをログに表示</li>
-<li>処理後に合計削減量と削減率を統計表示（PDF/JPG/PNGなど実際に圧縮を実施したファイルのみを集計）</li>
-<li>CSVログ出力（任意）：各ファイルの処理結果を
-<code>compression_log_YYYYMMDD_HHMMSS.csv</code>
-に保存（入力/出力パス、拡張子、処理方法、サイズ、削減量/率）</li>
-<li>デバッグモード出力（任意）：出力設定のトグルをONにした場合、ネイティブ
-PDF の非可逆段のみ標準出力へ詳細診断を出力。GUI のログタブと CSV
-出力には混在させない</li>
-<li>大量ファイルでもUIが固まらないように処理は別スレッドで実行</li>
-</ul></li>
-<li>使いやすいUI
-<ul>
-<li>入力フォルダのドラッグ＆ドロップ</li>
-<li>ノートブックに <code>アプリ設定</code> タブを追加</li>
-<li>起動時効果音の ON/OFF を切り替え可能
-<ul>
-<li>対象は起動直後の <code>open_window.wav</code>
-と、デスクトップ既定フォルダ作成確認前の <code>notice.wav</code></li>
-</ul></li>
-<li>クリーンアップ確認時の効果音 ON/OFF を切り替え可能
-<ul>
-<li>対象は入力/出力フォルダのクリーンアップ確認前の
-<code>warning.wav</code></li>
-</ul></li>
-<li>効果音トグル状態を JSON に永続化し、再起動後も復元</li>
-<li>入出力フォルダのクリーンアップ（入力:
-.pdf/.jpg/.jpeg/.png/.zip、出力:
-.pdf/.jpg/.jpeg/.png/.csv。サブフォルダ含む）</li>
-<li>進捗バーと詳細ログ</li>
-<li>入力/出力フォルダの重なりを検知して自動リセット（警告とログを出力）</li>
-<li>PDFエンジンの状態表示（Ghostscript / PyMuPDF /
-pikepdf）をラベルで表示（再検出はアプリケーション再起動によって行う）</li>
-<li>Ghostscript未検出時のUI自動制御
-<ul>
-<li>Ghostscriptが無い場合、Ghostscriptエンジン選択は自動的に無効化されます</li>
-</ul></li>
-<li>ネイティブ PDF 用 PNG 品質スライダーの動的無効化
-<ul>
-<li>システムに <code>pngquant</code> が無い場合、PDF 用 PNG
-品質スライダーは無効化され「Pillow の 256
-色固定減色へフォールバックするため無効」と注記されます</li>
-</ul></li>
-<li>リサイズ UI の動的無効化（視覚的にグレー化）
-<ul>
-<li>アプリ起動時は「画像を一括リサイズする」がOFFのため、幅/高さの入力、アスペクト比保持、手動/長辺指定ラジオ、長辺指定ドロップダウンはグレーアウト</li>
-<li>画像リサイズがOFFの場合、手動/長辺指定ラジオと長辺指定ドロップダウンを無効化</li>
-<li>長辺指定モードでは、幅/高さ/アスペクト比保持の手動入力を無効化</li>
-<li>手動モードでは、長辺指定ドロップダウンを無効化</li>
-</ul></li>
-<li>pngquantトグルの自動無効化
-<ul>
-<li>システムに <code>pngquant</code>
-が無い場合、トグルは無効化され「未検出のため無効」と表示</li>
-</ul></li>
-<li>入力値の安全側正規化
-<ul>
-<li>Ghostscript の custom DPI は UI と backend
-の両方で許容レンジへ丸める</li>
-<li>JPG/PNG 品質値は backend 側で 0-100
-に正規化し、極端値でも処理全体が落ちないようにする</li>
-</ul></li>
-</ul></li>
-</ul>
-<h2 id="動作環境と依存">動作環境と依存</h2>
-<ul>
-<li>Python 3.13+</li>
-<li>必須: Pillow</li>
-<li>必須: PyMuPDF・pikepdf（ネイティブPDF処理）</li>
-<li>必須: tkinterdnd2（ドラッグ＆ドロップ）</li>
-<li>任意: Ghostscript（PDF再蒸留）, pngquant（PNG不可逆圧縮）,
-pygame（サウンド再生）</li>
-</ul>
-<p>依存検出の実装仕様:</p>
-<ul>
-<li><code>backend/capabilities.py</code> が起動時に可用性を検出します。
-<ul>
-<li>Pythonモジュール: <code>fitz</code> / <code>pikepdf</code></li>
-<li>実行ファイル: <code>ghostscript</code> (<code>gswin64c</code> /
-<code>gswin32c</code> / <code>gs</code>) / <code>pngquant</code></li>
-</ul></li>
-<li>検出結果は
-<code>CapabilityReport</code>（<code>backend/contracts.py</code>）としてUIへ反映されます。</li>
-<li>外部ツール未導入でもアプリは起動継続し、該当機能のみ無効化されます。</li>
-<li><code>pngquant</code> が未導入でも PDF
-ネイティブ非可逆圧縮は継続し、PDF 内 PNG 系画像だけが Pillow の 256
-色固定減色へフォールバックします。</li>
-<li>Ghostscript / pngquant の呼び出しは
-<code>subprocess.run([...])</code> の引数配列で実行し、shell
-を経由しません。</li>
-<li>Ghostscript / pngquant の呼び出しには timeout
-を設定し、引数は安全側に正規化します。</li>
-</ul>
-<p>仮想環境の作成を推奨します（PowerShell の例）:</p>
-<p>カレントディレクトリを <code>pjp_compressor_v2</code>
-フォルダに設定してから次のコマンドを入力してください。</p>
-<div class="sourceCode" id="cb1"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
+      pre.numberSource {
+        margin-left: 3em;
+        border-left: 1px solid #aaaaaa;
+        padding-left: 4px;
+      }
+      div.sourceCode {
+      }
+      @media screen {
+        pre > code.sourceCode > span > a:first-child::before {
+          text-decoration: underline;
+        }
+      }
+      code span.al {
+        color: #ff0000;
+        font-weight: bold;
+      } /* Alert */
+      code span.an {
+        color: #60a0b0;
+        font-weight: bold;
+        font-style: italic;
+      } /* Annotation */
+      code span.at {
+        color: #7d9029;
+      } /* Attribute */
+      code span.bn {
+        color: #40a070;
+      } /* BaseN */
+      code span.bu {
+        color: #008000;
+      } /* BuiltIn */
+      code span.cf {
+        color: #007020;
+        font-weight: bold;
+      } /* ControlFlow */
+      code span.ch {
+        color: #4070a0;
+      } /* Char */
+      code span.cn {
+        color: #880000;
+      } /* Constant */
+      code span.co {
+        color: #60a0b0;
+        font-style: italic;
+      } /* Comment */
+      code span.cv {
+        color: #60a0b0;
+        font-weight: bold;
+        font-style: italic;
+      } /* CommentVar */
+      code span.do {
+        color: #ba2121;
+        font-style: italic;
+      } /* Documentation */
+      code span.dt {
+        color: #902000;
+      } /* DataType */
+      code span.dv {
+        color: #40a070;
+      } /* DecVal */
+      code span.er {
+        color: #ff0000;
+        font-weight: bold;
+      } /* Error */
+      code span.ex {
+      } /* Extension */
+      code span.fl {
+        color: #40a070;
+      } /* Float */
+      code span.fu {
+        color: #06287e;
+      } /* Function */
+      code span.im {
+        color: #008000;
+        font-weight: bold;
+      } /* Import */
+      code span.in {
+        color: #60a0b0;
+        font-weight: bold;
+        font-style: italic;
+      } /* Information */
+      code span.kw {
+        color: #007020;
+        font-weight: bold;
+      } /* Keyword */
+      code span.op {
+        color: #666666;
+      } /* Operator */
+      code span.ot {
+        color: #007020;
+      } /* Other */
+      code span.pp {
+        color: #bc7a00;
+      } /* Preprocessor */
+      code span.sc {
+        color: #4070a0;
+      } /* SpecialChar */
+      code span.ss {
+        color: #bb6688;
+      } /* SpecialString */
+      code span.st {
+        color: #4070a0;
+      } /* String */
+      code span.va {
+        color: #19177c;
+      } /* Variable */
+      code span.vs {
+        color: #4070a0;
+      } /* VerbatimString */
+      code span.wa {
+        color: #60a0b0;
+        font-weight: bold;
+        font-style: italic;
+      } /* Warning */
+    </style>
+    <link rel="stylesheet" href="./styles/github-markdown.css" />
+    <!-- header.html -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, minimum-scale=1, user-scalable=yes"
+    />
+    <!-- end header.html -->
+  </head>
+  <body>
+    <nav id="TOC" role="doc-toc">
+      <ul>
+        <li>
+          <a
+            href="#フォルダ一括圧縮アプリpdf画像対応版"
+            id="toc-フォルダ一括圧縮アプリpdf画像対応版"
+            >フォルダ一括圧縮アプリ（PDF・画像対応版）</a
+          >
+          <ul>
+            <li>
+              <a href="#関連ドキュメント" id="toc-関連ドキュメント"
+                >関連ドキュメント</a
+              >
+            </li>
+            <li><a href="#主な機能" id="toc-主な機能">主な機能</a></li>
+            <li>
+              <a href="#動作環境と依存" id="toc-動作環境と依存"
+                >動作環境と依存</a
+              >
+            </li>
+            <li>
+              <a
+                href="#実行ファイル化pyinstaller-one-folder"
+                id="toc-実行ファイル化pyinstaller-one-folder"
+                >実行ファイル化（PyInstaller / one-folder）</a
+              >
+            </li>
+            <li>
+              <a href="#使い方手順" id="toc-使い方手順">使い方（手順）</a>
+            </li>
+            <li>
+              <a href="#モジュール構成" id="toc-モジュール構成"
+                >モジュール構成</a
+              >
+              <ul>
+                <li>
+                  <a href="#起動とフロントエンド" id="toc-起動とフロントエンド"
+                    >起動とフロントエンド</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#契約とオーケストレーション"
+                    id="toc-契約とオーケストレーション"
+                    >契約とオーケストレーション</a
+                  >
+                </li>
+                <li>
+                  <a href="#設定レイヤ" id="toc-設定レイヤ">設定レイヤ</a>
+                </li>
+                <li>
+                  <a href="#サービス層とコア処理" id="toc-サービス層とコア処理"
+                    >サービス層とコア処理</a
+                  >
+                </li>
+                <li>
+                  <a href="#実行パイプライン要約" id="toc-実行パイプライン要約"
+                    >実行パイプライン（要約）</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li>
+              <a href="#よくある質問" id="toc-よくある質問">よくある質問</a>
+            </li>
+            <li><a href="#自動テスト" id="toc-自動テスト">自動テスト</a></li>
+            <li>
+              <a href="#手動回帰チェック5分版" id="toc-手動回帰チェック5分版"
+                >手動回帰チェック（5分版）</a
+              >
+            </li>
+            <li><a href="#注意事項" id="toc-注意事項">注意事項</a></li>
+            <li>
+              <a href="#開発者向けメモ" id="toc-開発者向けメモ"
+                >開発者向けメモ</a
+              >
+              <ul>
+                <li>
+                  <a href="#年3月11日追記" id="toc-年3月11日追記"
+                    >2026年3月11日追記</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#年3月15日追記-設定レイヤ再編"
+                    id="toc-年3月15日追記-設定レイヤ再編"
+                    >2026年3月15日追記 設定レイヤ再編</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化"
+                    id="toc-年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化"
+                    >2026年3月15日追記 PyMuPDF 画像再圧縮の実描画 xref 走査化</a
+                  >
+                </li>
+                <li>
+                  <a href="#年3月16日追記" id="toc-年3月16日追記"
+                    >2026年3月16日追記</a
+                  >
+                </li>
+                <li>
+                  <a href="#年3月30日追記" id="toc-年3月30日追記"
+                    >2026年3月30日追記</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#年3月30日追記アプリ設定-効果音"
+                    id="toc-年3月30日追記アプリ設定-効果音"
+                    >2026年3月30日追記（アプリ設定 / 効果音）</a
+                  >
+                </li>
+                <li>
+                  <a
+                    href="#年3月31日追記セキュリティと-zip-運用上限"
+                    id="toc-年3月31日追記セキュリティと-zip-運用上限"
+                    >2026年3月31日追記（セキュリティと ZIP 運用上限）</a
+                  >
+                </li>
+                <li>
+                  <a href="#フローチャートなど" id="toc-フローチャートなど"
+                    >フローチャートなど</a
+                  >
+                </li>
+              </ul>
+            </li>
+            <li><a href="#ライセンス" id="toc-ライセンス">ライセンス</a></li>
+            <li>
+              <a href="#バージョン情報" id="toc-バージョン情報"
+                >バージョン情報</a
+              >
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </nav>
+    <h1 id="フォルダ一括圧縮アプリpdf画像対応版">
+      フォルダ一括圧縮アプリ（PDF・画像対応版）
+    </h1>
+    <p>
+      PDF、JPG、PNGファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。
+      PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuPDF +
+      pikepdf）を利用し、画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能です。さらに画像の一括リサイズ（手動指定
+      /
+      長辺指定、アスペクト比保持）にも対応し、並列処理で大量ファイルにも対応します。ネイティブ
+      PDF 非可逆圧縮では、PDF 内 PNG 系画像を PNG のまま減色圧縮でき、WeasyPrint
+      由来の soft mask 付き透過画像も透過を保ったまま再圧縮できます。加えて、PDF
+      埋め込み画像と単体画像ファイルの両方で CMYK 画像を ICC プロファイル優先で
+      RGB へ正規化するため、黒潰れや保存時のモード不整合を起こしにくくしました。
+    </p>
+    <p>
+      本アプリはフロントエンド/バックエンド分離構成で、起動は
+      <code>compressor_launcher_tkinter.py</code> →
+      <code>frontend/bootstrap.py</code> →
+      <code>frontend/ui_tkinter.py</code> の順で行います。圧縮処理は
+      <code>backend</code> 配下の契約・オーケストレータ経由で実行されます。
+    </p>
+    <h2 id="関連ドキュメント">関連ドキュメント</h2>
+    <ul>
+      <li>
+        画面と処理の全体像（HTML）:
+        <a href="./flow_sequence_and_class_diagrams.html"
+          >フロー図、シーケンス図およびクラス図</a
+        >
+      </li>
+      <li>
+        画面と処理の全体像（Markdown）:
+        <a href="./flow_sequence_and_class_diagrams.md"
+          >flow_sequence_and_class_diagrams.md</a
+        >
+      </li>
+    </ul>
+    <h2 id="主な機能">主な機能</h2>
+    <ul>
+      <li>
+        PDF 圧縮（Ghostscript / ネイティブエンジンを選択可能）
+        <ul>
+          <li>Ghostscript: PDF再蒸留（プリセット選択可）</li>
+          <li>ネイティブ: PyMuPDF（画像再圧縮）+ pikepdf（可逆最適化）</li>
+          <li>
+            外部ツール依存（Ghostscript/pngquant）欠落時は機能単位で劣化起動（アプリは起動継続）
+          </li>
+          <li>エンジン可用性の再検出はアプリ再起動にて行う仕様</li>
+          <li>
+            Ghostscript設定: プリセット選択（/screen /ebook /printer /prepress
+            /default）またはカスタムDPI指定
+          </li>
+          <li>Ghostscript設定: pikepdf構造最適化（可逆）を併用可能</li>
+          <li>
+            ネイティブ設定: モード選択（非可逆 / 可逆 /
+            両方）、DPI、JPEG品質、PNG品質、可逆オプション
+          </li>
+          <li>
+            ネイティブ PDF の PNG 系画像は PNG のまま量子化し、pngquant
+            がある環境では PNG 品質スライダーを使って quality 範囲を自動設定
+          </li>
+          <li>
+            ネイティブ PDF の soft mask 付き画像は alpha
+            を再構成してから再圧縮し、透過がある画像は PNG
+            経路を優先して黒背景化を避ける
+          </li>
+          <li>
+            ネイティブ PDF の埋め込み CMYK ラスター画像は、再圧縮前に ICC
+            プロファイル優先で RGB へ変換し、JPEG/PNG
+            のどちらへ送っても後段の色処理を安定させる
+          </li>
+          <li>
+            pngquant が無い環境では、PDF 内 PNG 系画像は Pillow の 256
+            色固定減色へ自動フォールバックし、PDF 用 PNG 品質スライダーは無効化
+          </li>
+          <li>
+            ネイティブ設定の調査補助:
+            出力設定の「デバッグモードで出力」をONにすると、PyMuPDF
+            非可逆圧縮時だけ埋め込み画像ごとの診断 stats を標準出力へ出力
+          </li>
+          <li>
+            debug stats では
+            <code>soft_mask_seen</code
+            >、<code>soft_mask_applied</code>、<code>soft_mask_failed</code>、<code
+              >cmyk_converted</code
+            >
+            も確認可能
+          </li>
+        </ul>
+      </li>
+      <li>
+        画像圧縮
+        <ul>
+          <li>JPG/PNGをPillowで圧縮（品質0-100）</li>
+          <li>PNGをpngquantで不可逆圧縮（quality範囲自動設定）</li>
+          <li>
+            CMYK 入力画像は保存や pngquant 前処理の前に RGB
+            へ正規化し、単体画像圧縮でも色空間差による失敗を避ける
+          </li>
+          <li>
+            画像リサイズ（任意）：
+            <ul>
+              <li>モード選択（手動: 幅/高さ指定、または 長辺指定）</li>
+              <li>
+                長辺指定はプリセットドロップダウン（640/800/1024/1280/1600/1920/2048/2560/3840）から選択可能（任意入力も可）
+              </li>
+              <li>アスペクト比保持の選択</li>
+              <li>
+                パフォーマンス最適化：幅/高さの入力は処理開始時に一度だけ数値化し、空欄・非数値は0に自動補正（入力時の逐次検証は行わずUIを軽量化）
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        高速・安定
+        <ul>
+          <li>
+            ZIP展開オプションON時、ZIPアーカイブは入力フォルダを変更せず一時作業領域で再帰展開（最大25サイクルで打ち切り、循環ループを防止）
+          </li>
+          <li>
+            ZIP展開時は path
+            traversal・絶対パス・Windowsドライブ指定・symlink相当 entry
+            を拒否し、危険な member は展開しない
+          </li>
+          <li>
+            ZIP展開時は 1 ZIP あたり <code>member数 &lt;= 10000</code>、<code
+              >展開後合計サイズ &lt;= 1,000,000,000 bytes</code
+            >
+            を上限として扱う
+          </li>
+          <li>
+            ZIP展開オプションON時、展開由来ファイルは
+            <code>出力フォルダ/ZIPの元相対パス/ZIPのstem/</code>
+            配下へ内部構造を維持して出力
+          </li>
+          <li>ThreadPoolExecutorによる並列処理</li>
+          <li>
+            出力設定の新オプション（既定OFF）:
+            <ul>
+              <li>
+                「圧縮対象外のファイルを出力フォルダへコピー」をONにすると、未対応拡張子（<code
+                  >.pdf/.jpg/.jpeg/.png</code
+                >
+                以外）を入力フォルダの相対構造を保ったまま出力へコピー
+              </li>
+              <li>
+                ON時は、圧縮対象拡張子でも圧縮失敗したファイルをフォールバックとして元ファイルコピー
+              </li>
+            </ul>
+          </li>
+          <li>
+            ZIP処理の組み合わせ仕様（<code>ZIP展開してから圧縮</code> ×
+            <code>ミラー圧縮</code>）:
+            <ul>
+              <li>
+                ミラーOFF + ZIP展開ON:
+                ZIP由来の圧縮対象のみ出力（非対象は出力しない）、入力ZIPは保持
+              </li>
+              <li>
+                ミラーOFF + ZIP展開OFF: ZIP処理はスキップ（従来ログは維持）
+              </li>
+              <li>
+                ミラーON + ZIP展開ON:
+                入力ZIPを出力へコピーし、ZIP由来の圧縮対象を圧縮、非対象もコピー
+              </li>
+              <li>
+                ミラーON + ZIP展開OFF: 入力ZIPを出力へコピー（ZIPに対する処理）
+              </li>
+            </ul>
+          </li>
+          <li>Before/Afterのファイルサイズをログに表示</li>
+          <li>
+            処理後に合計削減量と削減率を統計表示（PDF/JPG/PNGなど実際に圧縮を実施したファイルのみを集計）
+          </li>
+          <li>
+            CSVログ出力（任意）：各ファイルの処理結果を
+            <code>compression_log_YYYYMMDD_HHMMSS.csv</code>
+            に保存（入力/出力パス、拡張子、処理方法、サイズ、削減量/率）
+          </li>
+          <li>
+            デバッグモード出力（任意）：出力設定のトグルをONにした場合、ネイティブ
+            PDF の非可逆段のみ標準出力へ詳細診断を出力。GUI のログタブと CSV
+            出力には混在させない
+          </li>
+          <li>大量ファイルでもUIが固まらないように処理は別スレッドで実行</li>
+        </ul>
+      </li>
+      <li>
+        使いやすいUI
+        <ul>
+          <li>入力フォルダのドラッグ＆ドロップ</li>
+          <li>ノートブックに <code>アプリ設定</code> タブを追加</li>
+          <li>
+            起動時効果音の ON/OFF を切り替え可能
+            <ul>
+              <li>
+                対象は起動直後の
+                <code>open_window.wav</code>
+                と、デスクトップ既定フォルダ作成確認前の <code>notice.wav</code>
+              </li>
+            </ul>
+          </li>
+          <li>
+            クリーンアップ確認時の効果音 ON/OFF を切り替え可能
+            <ul>
+              <li>
+                対象は入力/出力フォルダのクリーンアップ確認前の
+                <code>warning.wav</code>
+              </li>
+            </ul>
+          </li>
+          <li>効果音トグル状態を JSON に永続化し、再起動後も復元</li>
+          <li>
+            入出力フォルダのクリーンアップ（入力:
+            .pdf/.jpg/.jpeg/.png/.zip、出力:
+            .pdf/.jpg/.jpeg/.png/.csv。サブフォルダ含む）
+          </li>
+          <li>進捗バーと詳細ログ</li>
+          <li>
+            入力/出力フォルダの重なりを検知して自動リセット（警告とログを出力）
+          </li>
+          <li>
+            PDFエンジンの状態表示（Ghostscript / PyMuPDF /
+            pikepdf）をラベルで表示（再検出はアプリケーション再起動によって行う）
+          </li>
+          <li>
+            Ghostscript未検出時のUI自動制御
+            <ul>
+              <li>
+                Ghostscriptが無い場合、Ghostscriptエンジン選択は自動的に無効化されます
+              </li>
+            </ul>
+          </li>
+          <li>
+            ネイティブ PDF 用 PNG 品質スライダーの動的無効化
+            <ul>
+              <li>
+                システムに <code>pngquant</code> が無い場合、PDF 用 PNG
+                品質スライダーは無効化され「Pillow の 256
+                色固定減色へフォールバックするため無効」と注記されます
+              </li>
+            </ul>
+          </li>
+          <li>
+            リサイズ UI の動的無効化（視覚的にグレー化）
+            <ul>
+              <li>
+                アプリ起動時は「画像を一括リサイズする」がOFFのため、幅/高さの入力、アスペクト比保持、手動/長辺指定ラジオ、長辺指定ドロップダウンはグレーアウト
+              </li>
+              <li>
+                画像リサイズがOFFの場合、手動/長辺指定ラジオと長辺指定ドロップダウンを無効化
+              </li>
+              <li>
+                長辺指定モードでは、幅/高さ/アスペクト比保持の手動入力を無効化
+              </li>
+              <li>手動モードでは、長辺指定ドロップダウンを無効化</li>
+            </ul>
+          </li>
+          <li>
+            pngquantトグルの自動無効化
+            <ul>
+              <li>
+                システムに
+                <code>pngquant</code>
+                が無い場合、トグルは無効化され「未検出のため無効」と表示
+              </li>
+            </ul>
+          </li>
+          <li>
+            入力値の安全側正規化
+            <ul>
+              <li>
+                Ghostscript の custom DPI は UI と backend
+                の両方で許容レンジへ丸める
+              </li>
+              <li>
+                JPG/PNG 品質値は backend 側で 0-100
+                に正規化し、極端値でも処理全体が落ちないようにする
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <h2 id="動作環境と依存">動作環境と依存</h2>
+    <ul>
+      <li>Python 3.13+</li>
+      <li>必須: Pillow</li>
+      <li>必須: PyMuPDF・pikepdf（ネイティブPDF処理）</li>
+      <li>必須: tkinterdnd2（ドラッグ＆ドロップ）</li>
+      <li>
+        任意: Ghostscript（PDF再蒸留）, pngquant（PNG不可逆圧縮）,
+        pygame（サウンド再生）
+      </li>
+    </ul>
+    <p>依存検出の実装仕様:</p>
+    <ul>
+      <li>
+        <code>backend/capabilities.py</code> が起動時に可用性を検出します。
+        <ul>
+          <li>Pythonモジュール: <code>fitz</code> / <code>pikepdf</code></li>
+          <li>
+            実行ファイル: <code>ghostscript</code> (<code>gswin64c</code> /
+            <code>gswin32c</code> / <code>gs</code>) / <code>pngquant</code>
+          </li>
+        </ul>
+      </li>
+      <li>
+        検出結果は
+        <code>CapabilityReport</code
+        >（<code>backend/contracts.py</code>）としてUIへ反映されます。
+      </li>
+      <li>
+        外部ツール未導入でもアプリは起動継続し、該当機能のみ無効化されます。
+      </li>
+      <li>
+        <code>pngquant</code> が未導入でも PDF ネイティブ非可逆圧縮は継続し、PDF
+        内 PNG 系画像だけが Pillow の 256 色固定減色へフォールバックします。
+      </li>
+      <li>
+        Ghostscript / pngquant の呼び出しは
+        <code>subprocess.run([...])</code> の引数配列で実行し、shell
+        を経由しません。
+      </li>
+      <li>
+        Ghostscript / pngquant の呼び出しには timeout
+        を設定し、引数は安全側に正規化します。
+      </li>
+    </ul>
+    <p>仮想環境の作成を推奨します（PowerShell の例）:</p>
+    <p>
+      カレントディレクトリを
+      <code>pjp_compressor_v2</code>
+      フォルダに設定してから次のコマンドを入力してください。
+    </p>
+    <div class="sourceCode" id="cb1">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
 <span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install Pillow pymupdf pikepdf tkinterdnd2 pygame</span></code></pre></div>
-<p>requirements.txt を利用する場合:</p>
-<div class="sourceCode" id="cb2"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install Pillow pymupdf pikepdf tkinterdnd2 pygame</span></code></pre>
+    </div>
+    <p>requirements.txt を利用する場合:</p>
+    <div class="sourceCode" id="cb2">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m venv <span class="op">.</span><span class="fu">venv</span></span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="op">.</span>\<span class="op">.</span><span class="fu">venv</span>\Scripts\Activate<span class="op">.</span><span class="fu">ps1</span></span>
 <span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">--</span>upgrade pip</span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">-</span>r requirements<span class="op">.</span><span class="fu">txt</span></span></code></pre></div>
-<h2
-id="実行ファイル化pyinstaller-one-folder">実行ファイル化（PyInstaller /
-one-folder）</h2>
-<p>本プロジェクトは <code>compressor_launcher_tkinter.spec</code>
-を使った one-folder 配布を前提としています。</p>
-<p>事前に <code>pyinstaller</code>
-をインストールしてください（<code>requirements.txt</code>
-を使う場合は同時に導入されます）。</p>
-<div class="sourceCode" id="cb3"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install pyinstaller</span></code></pre></div>
-<div class="sourceCode" id="cb4"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m PyInstaller <span class="op">--</span>clean <span class="op">.</span>\compressor_launcher_tkinter<span class="op">.</span><span class="fu">spec</span></span></code></pre></div>
-<p>生成先は <code>dist/PDF_JPG_PNG_Compressor_v2.5.1/</code>
-です。配布時はこのフォルダ全体を渡してください。</p>
-<p>補足:</p>
-<ul>
-<li>one-folder 配布では <code>sounds/</code>、<code>images/</code>
-に加えて <code>frontend/config_data/ui_catalogs.json</code>
-も同梱されます。</li>
-<li>UI の表示用カタログと <code>app_settings</code> は JSON
-から読み込むため、spec を介さず独自ビルドする場合も
-<code>frontend/config_data/</code> を配布物へ含めてください。</li>
-</ul>
-<p>PowerShell スクリプト経由で実行する場合:</p>
-<ul>
-<li>アプリ起動: <code>./compressor_launcher.ps1 -Mode Run</code></li>
-<li>ビルド実行: <code>./compressor_launcher.ps1 -Mode Build</code></li>
-</ul>
-<p>システムツールのインストール:</p>
-<p>PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを使うのがおすすめです。</p>
-<ul>
-<li>pngquant: Windows: <code>choco install pngquant</code> / macOS:
-<code>brew install pngquant</code> / Ubuntu/Debian:
-<code>sudo apt install pngquant</code></li>
-<li>Ghostscript: Windows: <code>choco install ghostscript</code> /
-macOS: <code>brew install ghostscript</code> / Ubuntu/Debian:
-<code>sudo apt install ghostscript</code></li>
-</ul>
-<h2 id="使い方手順">使い方（手順）</h2>
-<ol type="1">
-<li>アプリを起動します（仮想環境に入って
-<code>python compressor_launcher_tkinter.py</code>）。</li>
-<li>入力フォルダを指定します（参照ボタンまたはドラッグ＆ドロップ）。</li>
-<li>出力フォルダを指定します（Windowsは初回起動時にデスクトップ作成提案あり）。</li>
-<li>必要なら <code>アプリ設定</code>
-タブで、起動時効果音とクリーンアップ確認時効果音の ON/OFF
-を切り替えます。</li>
-<li>圧縮設定を行います（PDFエンジン選択、必要に応じてネイティブ/GS各設定、画像品質、リサイズ）。</li>
-<li>圧縮を開始します（ZIP自動展開、進捗表示、CSVログ出力）。必要に応じて「圧縮対象外のファイルを出力フォルダへコピー」をONにします（既定はOFF）。
-<ul>
-<li>WeasyPrint 由来 PDF などで PyMuPDF
-の画像再圧縮が効いているか確認したい場合は、「デバッグモードで出力」をONにすると標準出力へ画像
-xref ごとの統計が出ます。</li>
-</ul></li>
-<li>統計を確認します（合計サイズ、削減量、削減率）。</li>
-<li>必要に応じてクリーンアップを実行します（入力/出力フォルダの対象拡張子を削除）。</li>
-</ol>
-<h2 id="モジュール構成">モジュール構成</h2>
-<h3 id="起動とフロントエンド">起動とフロントエンド</h3>
-<ul>
-<li><code>compressor_launcher_tkinter.py</code>:
-起動エントリポイント（例外処理・クラッシュログ）</li>
-<li><code>frontend/bootstrap.py</code>:
-起動順序の集約（UI生成・起動時サウンド、起動音トグル適用）</li>
-<li><code>frontend/ui_tkinter.py</code>: Tkinter
-GUIのファサード（起動時副作用・App初期化・モジュール接続・既定フォルダ確認音の制御）</li>
-<li><code>frontend/ui_tkinter_state.py</code>: Tkinter
-<code>Variable</code> 群の状態初期化責務</li>
-<li><code>frontend/ui_tkinter_view.py</code>:
-ウィジェット構築・レイアウト責務</li>
-<li><code>frontend/ui_tkinter_controller.py</code>:
-イベント処理・入力検証・非同期実行・進捗反映責務、クリーンアップ音とアプリ設定保存の制御</li>
-<li><code>frontend/ui_tkinter_mapper.py</code>: UI状態から
-<code>CompressionRequest</code> への変換責務</li>
-<li><code>frontend/ui_contracts.py</code>:
-フロントエンド内の型契約（Protocol）責務</li>
-</ul>
-<h3 id="契約とオーケストレーション">契約とオーケストレーション</h3>
-<ul>
-<li><code>backend/contracts.py</code>: FE/BE境界契約（Request / Event /
-Capability / Result）</li>
-<li><code>backend/capabilities.py</code>: 依存可用性検出（fitz / pikepdf
-/ ghostscript / pngquant）</li>
-<li><code>backend/orchestrator/job_runner.py</code>:
-圧縮ジョブの実行オーケストレーション</li>
-</ul>
-<p>契約駆動の主要データ:</p>
-<ul>
-<li><code>CompressionRequest</code>: UI設定をバックエンドへ渡すDTO</li>
-<li><code>CompressionRequest.debug_mode</code>:
-デバッグトグルの状態。現時点では PyMuPDF
-非可逆圧縮の標準出力診断にのみ使用</li>
-<li><code>ProgressEvent</code> (<code>kind</code>: <code>log</code> /
-<code>progress</code> / <code>stats</code> / <code>status</code> /
-<code>error</code>): UI更新イベント</li>
-<li><code>CapabilityReport</code>: 起動時の依存可用性レポート</li>
-</ul>
-<h3 id="設定レイヤ">設定レイヤ</h3>
-<ul>
-<li><code>shared/runtime_paths.py</code>: 通常実行と PyInstaller
-実行で共通に使う実行時パス解決責務</li>
-<li><code>backend/settings.py</code>: backend が所有する処理既定値（PDF
-圧縮既定値、Ghostscript 既定プリセット、許可モード）</li>
-<li><code>frontend/settings.py</code>: frontend が所有する UI
-既定値、cleanup 対象、リソースパス、UI カタログ / app_settings の JSON
-読込保存責務</li>
-<li><code>frontend/config_data/ui_catalogs.json</code>: UI
-表示用カタログと <code>app_settings</code> を保持する JSON（PDF
-モード表示名、Ghostscript
-プリセット表示名、長辺プリセット、効果音トグル既定値）</li>
-<li><code>shared/configs.py</code>: 旧 import
-パス互換のための再エクスポート層。新規コードでは直接依存しない前提</li>
-</ul>
-<h3 id="サービス層とコア処理">サービス層とコア処理</h3>
-<ul>
-<li><code>backend/services/*.py</code>:
-PDF・画像・ZIP・クリーンアップ責務の分割入口</li>
-<li><code>backend/core/pdf_utils.py</code>: PDF圧縮（PyMuPDF / pikepdf /
-Ghostscript）責務</li>
-<li><code>backend/core/image_utils.py</code>: 画像圧縮（Pillow /
-pngquant）責務</li>
-<li><code>backend/core/archive_utils.py</code>: ZIP再帰展開責務</li>
-<li><code>backend/core/file_ops.py</code>:
-クリーンアップ／対象件数カウント責務</li>
-<li><code>backend/core/worker_ops.py</code>:
-単一ファイル単位の処理ディスパッチ責務</li>
-<li><code>backend/core/format_utils.py</code>:
-表示用フォーマット（human_readable）責務</li>
-<li><code>backend/core/compressor_utils.py</code>:
-互換shim（公開API再エクスポート + compress_folder委譲）</li>
-<li><code>frontend/sound_utils.py</code>:
-pygameを使った効果音再生（UI依存を持たない純粋ユーティリティ）</li>
-</ul>
-<h3 id="実行パイプライン要約">実行パイプライン（要約）</h3>
-<ol type="1">
-<li>UI設定を <code>frontend/ui_tkinter_mapper.py</code> が
-<code>CompressionRequest</code> に変換</li>
-<li><code>backend/orchestrator/job_runner.py</code> がジョブを実行</li>
-<li>ZIP展開ON時はZIPを一時作業領域で展開（入力不変）し、通常入力ファイルとZIP由来ファイルをタスク化</li>
-<li><code>ThreadPoolExecutor(max(4, cpu_count()))</code> で並列実行</li>
-<li><code>backend/core/worker_ops.py</code>
-が拡張子別にサービス/コアへディスパッチ</li>
-<li><code>ProgressEvent</code> でログ・進捗・統計をUIへ反映</li>
-<li>CSV有効時は <code>compression_log_YYYYMMDD_HHMMSS.csv</code>
-を出力</li>
-</ol>
-<h2 id="よくある質問">よくある質問</h2>
-<ul>
-<li>Q: Ghostscriptとネイティブエンジン（PyMuPDF +
-pikepdf）のどちらが良いですか？
-<ul>
-<li>A:
-Ghostscriptは再蒸留ベースで高い圧縮効果が期待できます。ネイティブエンジンはPython環境のみで動作しやすく、可逆最適化も併用できます。目的（画質優先/導入容易性）で選択してください。</li>
-</ul></li>
-<li>Q: PDF圧縮の設定はどのように使い分ければよいですか？
-<ul>
-<li>A:
-ネイティブを選ぶと、モード（非可逆/可逆/両方）・DPI・JPEG品質・PNG品質・可逆オプションを設定できます。JPEG
-品質は PDF 内の JPEG 系画像に、PNG 品質は PDF 内の PNG 系画像の pngquant
-量子化に使われます。Ghostscriptを選ぶと、プリセットまたはカスタムDPIを使った再蒸留に加え、必要ならpikepdf構造最適化を併用できます。</li>
-</ul></li>
-<li>Q: ネイティブ PDF の PNG 品質スライダーはいつ効きますか？
-<ul>
-<li>A: <code>pngquant</code> が検出されている環境で、ネイティブ PDF
-圧縮のモードが「非可逆」または「両方」のときに有効です。このとき quality
-範囲は通常 PNG 圧縮と同じく
-<code>max=スライダー値</code>、<code>min=max-20</code>
-で自動計算されます。</li>
-</ul></li>
-<li>Q: <code>pngquant</code> が無い環境では PDF 内 PNG
-はどう圧縮されますか？
-<ul>
-<li>A: ネイティブ PDF 非可逆圧縮は継続し、PDF 内 PNG 系画像だけが Pillow
-の 256 色固定減色 PNG へフォールバックします。この場合、PDF 用 PNG
-品質スライダーは UI 上で無効化され、値は backend では使われません。</li>
-</ul></li>
-<li>Q: WeasyPrint 由来 PDF の透過 PNG はどのように扱われますか？
-<ul>
-<li>A: WeasyPrint などが生成する PDF では、透過が画像本体ではなく
-<code>SMask</code>
-として分離されていることがあります。現在のネイティブ非可逆圧縮では、この
-soft mask を再構成してから再圧縮し、透過がある画像は PNG
-経路へ送るため、黒背景化を起こしにくくしています。</li>
-</ul></li>
-<li>Q: soft mask の復元が失敗したかどうかは確認できますか？
-<ul>
-<li>A: できます。出力設定の「デバッグモードで出力」をONにすると、PyMuPDF
-非可逆段の標準出力に
-<code>soft_mask_seen</code>、<code>soft_mask_applied</code>、<code>soft_mask_failed</code>
-が出るため、対象 PDF に soft mask
-が含まれていたか、復元に失敗したかを追えます。</li>
-</ul></li>
-<li>Q: PNG を大幅に圧縮したいです。どのように設定すればよいですか？
-<ul>
-<li>A:
-pngquantでの圧縮をONにしてください。品質範囲（min-max）はスライダーの値をもとに設定されます（max=スライダー値、min=max-20）。</li>
-</ul></li>
-<li>Q: 画像のリサイズ設定はどのように動きますか？
-<ul>
-<li>A:
-手動モードでは幅/高さを指定可能、アスペクト比を保持するかどうかを選べます。アスペクト比を保持する場合は、片方の数値の入力で十分です。（もう一方は0でOK。）両方入力した場合は、小さいほうのピクセル数に合わせます。長辺モードでは長辺がドロップダウンの指定ピクセルになるように等比縮小します。
-<ul>
-<li>幅/高さが空欄や非数値の場合は自動で0に補正されます（処理開始時に一度だけ判定）。また、設定値の小数点以下は処理開始時に切り捨てられます。</li>
-<li>手動モードで幅/高さの両方を0にした場合はリサイズされません。長辺モードで長辺を0にした場合もリサイズされません。</li>
-</ul></li>
-</ul></li>
-<li>Q: CSVログには何が記録されますか？
-<ul>
-<li>A: 各ファイルの入力/出力パス、拡張子、処理方法（Ghostscript/Native
-PDF/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、削減率が記録されます。</li>
-</ul></li>
-<li>Q: CSVログの無効化や保存先の変更はできますか？
-<ul>
-<li>A:
-できます。設定画面の「CSVログを出力する」のチェックを外すと無効化。保存先を変更する場合はその右の入力欄にパスを直接入力するか「参照」ボタンから選択してください。未指定の場合は出力フォルダにタイムスタンプ付きファイルが作成されます。</li>
-</ul></li>
-<li>Q: 効果音は無効化できますか？
-<ul>
-<li>A: できます。<code>アプリ設定</code>
-タブで「起動時に効果音を鳴らす」「クリーンアップ確認時に効果音を鳴らす」を個別に切り替えてください。起動時トグルは
-<code>open_window.wav</code> と <code>notice.wav</code>
-を、クリーンアップ時トグルは <code>warning.wav</code>
-を対象にします。設定は
-<code>frontend/config_data/ui_catalogs.json</code> の
-<code>app_settings</code> に保存され、次回起動時にも復元されます。</li>
-</ul></li>
-<li>Q: 「デバッグモードで出力」をONにすると何が起きますか？
-<ul>
-<li>A: 現時点では、ネイティブ PDF 圧縮のうち PyMuPDF
-による非可逆画像再圧縮段だけが詳細診断を標準出力へ出します。GUI
-のログタブ、進捗表示、CSV ログの形式は変わりません。</li>
-</ul></li>
-<li>Q: クリーンアップで何が削除されますか？
-<ul>
-<li>A: 入力フォルダは .pdf/.jpg/.jpeg/.png/.zip、出力フォルダは
-.pdf/.jpg/.jpeg/.png/.csv
-が対象です。サブフォルダ内の該当ファイルも削除されます。取り消し不可のため慎重に実行してください。</li>
-</ul></li>
-<li>Q:
-「圧縮対象外のファイルを出力フォルダへコピー」をONにすると何が起きますか？
-<ul>
-<li>A: 未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
-以外）を入力と同じ相対フォルダ構造で出力先へコピーします。加えて、圧縮対象拡張子でも圧縮に失敗したファイルはフォールバックとして元ファイルを出力先へコピーします。</li>
-</ul></li>
-<li>Q:
-ZIP展開オプションをONにしたとき、入力フォルダ内のZIPはどうなりますか？
-<ul>
-<li>A:
-入力フォルダのZIPはそのまま残ります。展開は一時作業領域で行われるため、入力フォルダ内に展開ファイルは残りません。</li>
-</ul></li>
-<li>Q: ZIP展開時の出力先はどのようになりますか？
-<ul>
-<li>A: 各ZIPごとに <code>ZIPのstem</code>
-名フォルダを作成し、<code>出力フォルダ/ZIPの元相対パス/ZIPのstem/</code>
-配下へZIP内部構造を維持して出力します。</li>
-</ul></li>
-<li>Q: ZIP はどのくらいのサイズまで現実的に処理できますか？
-<ul>
-<li>A: コード上は「1 ZIP あたり展開後合計 1 GB 未満、member 数 10000
-以下」が上限です。ただし実運用では、ZIP
-を一時領域へ複製してから展開し、その後に出力ファイルも作るため、安定運用の目安は
-ZIP 実サイズ 300 MB から 500 MB 程度です。画像や PDF
-が中心のため圧縮率が低いことが多く、ZIP
-実サイズと展開後サイズは近くなりやすい前提で考えてください。</li>
-</ul></li>
-<li>Q: ZIP 展開時にどのくらい空き容量を見ておけばよいですか？
-<ul>
-<li>A: 最低でも「展開後サイズの 2.5 倍から 3
-倍」程度の空き容量を推奨します。一時領域への ZIP
-複製、展開済みファイル、圧縮後の出力ファイルが同時に存在する時間帯があるためです。特に同一ドライブで入力・一時・出力を扱う場合は余裕を大きめに見てください。</li>
-</ul></li>
-</ul>
-<h2 id="自動テスト">自動テスト</h2>
-<p>pytest による自動テストは <code>tests/</code>
-配下に集約しています。通常開発と CI では <code>unit + integration</code>
-を標準実行とし、GUI を含む重めの確認は <code>regression</code>
-として分離しています。</p>
-<ul>
-<li><code>tests/conftest.py</code>
-<ul>
-<li>共有 fixture 群です。サンプル画像、ZIP、CapabilityReport、Tk 回帰用
-App 初期化を提供します。</li>
-</ul></li>
-<li><code>tests/unit/</code>
-<ul>
-<li><code>backend/contracts.py</code>、<code>backend/capabilities.py</code>、<code>backend/core/archive_utils.py</code>、<code>backend/core/image_utils.py</code>、<code>frontend/ui_tkinter_mapper.py</code>、<code>frontend/settings.py</code>
-/ <code>shared/configs.py</code>
-互換レイヤ、<code>backend/core/pdf_utils.py</code> の xref 処理、soft
-mask 再構成、PNG/JPEG 分岐、Ghostscript/pngquant
-の入力正規化・timeout・ZIP 安全化などの純粋ロジックを検証します。</li>
-</ul></li>
-<li><code>tests/integration/</code>
-<ul>
-<li><code>backend/orchestrator/job_runner.py</code> と
-<code>frontend/ui_tkinter_controller.py</code> を中心に、CSV 出力、ZIP
-展開、フォールバックコピー、イベント通知、スレッド起動、UI
-から渡る極端値の clamp 伝播を検証します。</li>
-</ul></li>
-<li><code>tests/regression/</code>
-<ul>
-<li>旧 <code>scripts/tkinter_regression_check.py</code> を pytest 化した
-GUI 回帰です。フォルダ選択、D&amp;D、CSV
-パス選択、圧縮開始、クリーンアップ、入力/出力重なり防止、ZIP
-組み合わせをまとめて確認します。</li>
-</ul></li>
-</ul>
-<p>推奨実行コマンド:</p>
-<div class="sourceCode" id="cb5"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest <span class="op">-</span>m <span class="st">&quot;unit or integration&quot;</span></span></code></pre></div>
-<p>通常の開発確認と CI は上記を使用してください。</p>
-<div class="sourceCode" id="cb6"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest <span class="op">-</span>m regression</span></code></pre></div>
-<p>GUI を含む回帰確認は必要時のみ実行してください。</p>
-<div class="sourceCode" id="cb7"><pre
-class="sourceCode powershell"><code class="sourceCode powershell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest</span></code></pre></div>
-<p>すべてのテストをまとめて実行する場合は上記です。</p>
-<p>注意:</p>
-<ul>
-<li>Tk を使う回帰テストは <code>requires_tk</code>
-マーカー付きです。</li>
-<li>実行中の Python に Tcl/Tk
-ランタイムが正しく入っていない環境では、自動的に skip されます。</li>
-<li>Ghostscript や pngquant を使う将来の外部依存テストは
-<code>requires_external</code> で分離できる構成です。</li>
-<li>旧 <code>scripts/tkinter_regression_check.py</code> は
-<code>tests/regression/test_tkinter_regression.py</code>
-へ移植済みです。</li>
-</ul>
-<h2 id="手動回帰チェック5分版">手動回帰チェック（5分版）</h2>
-<ul class="task-list">
-<li><label><input
-type="checkbox" /><code>python compressor_launcher_tkinter.py</code>
-で起動し、画面が表示される。</label></li>
-<li><label><input type="checkbox" />PDFエンジン状態ラベル（PyMuPDF /
-pikepdf / GS）が表示される。</label></li>
-<li><label><input
-type="checkbox" />「入力フォルダ」「出力フォルダ」を選択し、値が反映される。</label></li>
-<li><label><input
-type="checkbox" />入力欄へファイルまたはフォルダをD&amp;Dしたとき、入力フォルダが更新される。</label></li>
-<li><label><input
-type="checkbox" />JPG/PNGを含む入力で「圧縮開始」を実行し、ログタブ切替（設定ON時）・進捗バー更新・統計更新が行われる。</label></li>
-<li><label><input
-type="checkbox" />出力先に圧縮ファイルが生成される。</label></li>
-<li><label><input
-type="checkbox" />CSV出力ON時にログファイルが生成される。</label></li>
-<li><label><input
-type="checkbox" />出力設定の「デバッグモードで出力」が既定OFFで表示される。</label></li>
-<li><label><input type="checkbox" />同オプションON時、ネイティブ PDF
-の非可逆圧縮でのみ標準出力へ debug summary/details が出る。</label></li>
-<li><label><input
-type="checkbox" />出力設定の「圧縮対象外のファイルを出力フォルダへコピー」が既定OFFである。</label></li>
-<li><label><input
-type="checkbox" />同オプションON時、未対応拡張子が相対構造を維持して出力先へコピーされる。</label></li>
-<li><label><input
-type="checkbox" />同オプションON時、圧縮失敗ファイルがフォールバックコピーされる。</label></li>
-<li><label><input
-type="checkbox" />リサイズON（手動または長辺指定）で出力画像サイズが設定に従う。</label></li>
-<li><label><input
-type="checkbox" />出力フォルダの「クリーンアップ」で対象拡張子ファイルが削除される。</label></li>
-<li><label><input
-type="checkbox" />処理中に終了した場合、確認ダイアログが出る。</label></li>
-</ul>
-<p>補助: 自動回帰相当の確認は
-<code>python -m pytest -m regression</code> で実行できます。</p>
-<h2 id="注意事項">注意事項</h2>
-<ul>
-<li>大量のファイルを扱う場合、並列処理で高速化しますが、ディスク I/O
-によるボトルネックは発生し得ます。</li>
-<li>PDF圧縮は Ghostscript とネイティブ（PyMuPDF +
-pikepdf）を選択可能です。エンジン可用性の再検出はアプリ再起動にて行う仕様です。</li>
-<li>Ghostscript使用時はプリセットまたはカスタムDPIを指定でき、必要に応じてpikepdfの可逆最適化も併用できます。</li>
-<li>Ghostscriptが未検出の環境では、Ghostscriptエンジン選択は自動的に無効化されます。</li>
-<li>pngquantが未検出の環境では、pngquantトグルは自動的に無効化されます。</li>
-<li>pngquantやGhostscript
-は<strong>外部ソフトウェアとしてシステムにインストールする必要があります</strong>（pythonのpipモジュールではインストールできません）。</li>
-<li>入力フォルダと出力フォルダが重なる場合は、ファイル破損を避けるため自動的に両方ともデフォルトフォルダにリセットされ、警告とログが出ます。</li>
-</ul>
-<h2 id="開発者向けメモ">開発者向けメモ</h2>
-<ul>
-<li>入力検証の最適化:
-リサイズの幅/高さは処理開始時に一度だけ文字列から数値化し、空欄・非数値は0に補正。入力時の逐次検証を省きUIイベント負荷を低減。</li>
-<li>並列処理: <code>compress_folder()</code> は
-<code>ThreadPoolExecutor</code>
-を用いてファイル単位で並列化（<code>max(4, cpu_count())</code>）。大量ファイルでスループット改善。</li>
-<li>I/O ボトルネックについて:
-画像/PNG/PDFの読み書き速度はストレージのディスク I/O
-能力に依存します。CPUスレッドの並列度を上げてもディスク性能がボトルネックになる場合があります。</li>
-<li>UI分離: <code>ui_tkinter.py</code>
-はファサードとして責務を束ね、状態/ビュー/コントローラ/DTOマッパーを分離。圧縮はバックグラウンドスレッドで実行し、Tkのメインスレッドはログと進捗更新のみを担当（UIのフリーズ防止）。</li>
-<li>実行時外部ツール検出と例外処理: Ghostscript/pngquantは実行時に
-<code>shutil.which</code>
-で検出し、未導入でも致命化せず機能単位で劣化します。</li>
-<li>外部ツール呼び出しの安全化: Ghostscript / pngquant は shell
-を経由せず引数配列で起動し、timeout・引数正規化・ファイル引数区切りを入れて、極端値や不正なファイル名で壊れにくい構成にしています。</li>
-<li>ZIP 展開の安全化: path traversal・絶対パス・Windows
-ドライブ指定・symlink 相当 entry を拒否し、1 ZIP あたりの member
-数と展開後合計サイズにも上限を設けています。</li>
-<li>ZIP 運用上限の目安: コード上限は展開後 1 GB
-ですが、入力・一時・出力を同時に持つため、日常運用では ZIP 実サイズ 300
-MB から 500 MB 程度を標準上限として扱うのが無難です。</li>
-<li>バックエンド境界: UIは <code>CompressionRequest</code>
-を発行し、<code>ProgressEvent</code>
-購読でログ/進捗/統計を反映します。</li>
-<li>CSVログ:
-1回のオープンで逐次追記し、行ごとにフラッシュを強制しない設計（過度な同期
-I/O を回避）。</li>
-<li>画像リサイズの計算:
-長辺指定時の比率計算は軽量で、Pillowのリサイズ/保存が主なコスト。不要な再計算を避けるため設定を一度だけ作成。</li>
-<li>設定の責務分離: runtime パス解決は
-<code>shared/runtime_paths.py</code>、backend 既定値は
-<code>backend/settings.py</code>、frontend の UI 設定と表示カタログは
-<code>frontend/settings.py</code> +
-<code>frontend/config_data/ui_catalogs.json</code> に分離。</li>
-<li>JSON 化の方針: Path、OS 分岐、PyInstaller 判定は Python
-に残し、純粋データだけを JSON へ外出しする。</li>
-<li>PyMuPDF 非可逆圧縮の xref 走査:
-<code>page.get_images(full=True)</code> は「resources
-に見えている画像」まで返すため、WeasyPrint 系 PDF では先頭ページの
-<code>no_rect</code> 判定を xref
-単位で失敗キャッシュすると、後続ページで実描画される画像まで再圧縮対象から外れてしまう。</li>
-<li>そのため <code>compress_pdf_lossy()</code> は
-<code>page.get_image_info(xrefs=True)</code>
-ベースへ切り替え、実描画画像だけを対象にしつつ、同じ xref は 1
-回だけ処理する構造へ変更した。</li>
-</ul>
-<h3 id="年3月11日追記">2026年3月11日追記</h3>
-<ul>
-<li><p>frontend 配下の Pylance
-警告を、実行時挙動を変えずに解消。</p></li>
-<li><p><code>frontend/ui_contracts.py</code>
-を追加し、<code>frontend/ui_tkinter_mapper.py</code> の
-<code>app: Any</code> を Protocol ベースの型契約へ置換。</p></li>
-<li><p><code>frontend/ui_tkinter_state.py</code> で Tkinter
-<code>StringVar</code> / <code>IntVar</code> / <code>BooleanVar</code>
-を明示的に型注釈化。</p></li>
-<li><p><code>frontend/ui_tkinter_view.py</code> で、widget
-属性・controller/state 依存・Tk 本体前提をクラス属性注釈と局所
-<code>cast</code> で明示化。</p></li>
-<li><p><code>tkinterdnd2</code> の <code>drop_target_register</code> /
-<code>dnd_bind</code> は局所 Protocol で扱い、広域 suppress
-を避ける構成へ調整。</p></li>
-<li><p>frontend 全体の Pylance 診断で警告 0 を確認。</p></li>
-<li><p><code>tests/regression/test_tkinter_regression.py</code> へ GUI
-回帰を移植し、pytest から選択実行できるよう整理。</p></li>
-<li><p><code>frontend/ui_tkinter_controller.py</code>
-の保守性改善を目的に、controller mixin が依存する Tk
-変数・Widget・ランタイム属性・Tk メソッドを
-<code>frontend/ui_contracts.py</code> の Protocol
-として明文化。</p></li>
-<li><p>controller 側は Protocol ベースの <code>cast</code>
-に統一し、<code>after()</code> を使った UI スレッド更新を helper
-経由へ整理。Pylance 上の unknown attribute
-警告を、実行時挙動を変えずに解消。</p></li>
-<li><p>D&amp;D イベントの <code>event.data</code> は局所 Protocol
-で扱い、TkinterDnD 依存の動的オブジェクトを controller
-内へ閉じ込める構成へ調整。</p></li>
-<li><p><code>frontend/sound_utils.py</code> を型整理し、module docstring
-の位置修正、公開関数の引数・戻り値型付与、<code>Path | str</code>
-の明示、pygame 任意依存の型狭義化を実施。</p></li>
-<li><p><code>frontend/ui_tkinter_controller.py</code>、<code>frontend/ui_contracts.py</code>、<code>frontend/sound_utils.py</code>
-の Pylance 診断でエラー 0 を確認。</p></li>
-<li><p>起動確認として、messagebox と効果音を抑止した状態で
-<code>frontend.ui_tkinter.App</code>
-の生成と初期描画更新を実行し、初期化が正常終了することを確認。
-備考:</p></li>
-<li><p>GUIと圧縮ロジックは分離され、<code>backend</code> 層は
-UI非依存で再利用可能です。</p></li>
-<li><p>設定は runtime / backend / frontend
-の責務ごとに分離され、<code>shared/configs.py</code>
-は互換レイヤとして残しています。</p></li>
-<li><p>効果音の操作関数は <code>frontend/sound_utils.py</code>
-に切り出し、pygameが無い環境でも動作継続可能（初期化失敗時は警告のみ）。</p></li>
-<li><p>アプリ起動時はリサイズ関連UIを無効化してグレーアウト。</p></li>
-</ul>
-<h3 id="年3月15日追記-設定レイヤ再編">2026年3月15日追記
-設定レイヤ再編</h3>
-<ul>
-<li><code>shared/configs.py</code> に混在していた runtime / backend /
-frontend 設定を責務単位で分離。</li>
-<li>実行時パス解決を <code>shared/runtime_paths.py</code>
-へ移し、通常実行と PyInstaller 実行の基準パスをここへ集約。</li>
-<li>backend が使う PDF 圧縮既定値と Ghostscript 既定値を
-<code>backend/settings.py</code> へ移動。</li>
-<li>frontend が使う UI 既定値、cleanup
-対象、リソースパス、表示カタログローダを
-<code>frontend/settings.py</code> へ移動。</li>
-<li>純粋データのみを <code>frontend/config_data/ui_catalogs.json</code>
-へ外出しし、PDF モード表示名、Ghostscript
-プリセット表示名、長辺プリセットを JSON 管理へ変更。</li>
-<li>backend の <code>pdf_utils.py</code> は UI 表示用
-<code>PDF_COMPRESS_MODES</code>
-依存をやめ、<code>PDF_ALLOWED_MODES</code> による許可値検証へ変更。</li>
-<li><code>shared/configs.py</code>
-は後方互換のための再エクスポート層へ縮小し、新規コードの依存先から外した。</li>
-<li><code>compressor_launcher_tkinter.spec</code> に
-<code>frontend/config_data/</code> を追加し、one-folder 配布でも JSON
-カタログが欠けないようにした。</li>
-<li><code>tests/unit/test_settings_split.py</code> を追加し、JSON
-ロード結果と <code>shared/configs.py</code>
-の互換再エクスポートを検証。</li>
-</ul>
-<p>この改修が必要だった理由:</p>
-<ul>
-<li><code>shared/configs.py</code> に runtime 判定、backend
-の処理既定値、frontend
-の表示用データが混在しており、責務境界が曖昧だったため。</li>
-<li>backend が UI
-表示ラベルへ依存すると、処理条件の検証と画面表示の都合が結びつき、保守性が落ちるため。</li>
-<li>PyInstaller 配布時に必要なデータと Python
-ロジックを分けておかないと、配布物に何を含めるべきかが不明瞭になるため。</li>
-<li>JSON 化できる純粋データだけを外出しし、Path 計算や OS 分岐のような
-runtime ロジックは Python
-側へ残すことで、構成の見通しと検証容易性を両立するため。</li>
-</ul>
-<h3
-id="年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化">2026年3月15日追記
-PyMuPDF 画像再圧縮の実描画 xref 走査化</h3>
-<ul>
-<li><code>backend/core/pdf_utils.py</code> の
-<code>compress_pdf_lossy()</code>
-を、<code>page.get_images(full=True)</code> ベースから
-<code>page.get_image_info(xrefs=True)</code> ベースへ変更。</li>
-<li>実際にページ上へ描画されている画像だけを対象にし、<code>bbox</code>
-から実表示サイズを取得して DPI を計算するように変更。</li>
-<li>同じ xref は <code>processed_xrefs</code> で 1
-回だけ処理し、<code>replace_image()</code> 後に別ページで再 replace
-しない構造へ整理。</li>
-<li><code>skip_no_rect</code> 系ノイズを避けるため、ページ resources
-上は見えていても当該ページでは未描画という xref
-を踏まないようにした。</li>
-<li><code>tests/unit/test_pdf_utils.py</code>
-を追加し、<code>get_image_info(xrefs=True)</code> を使うこと、同じ xref
-を 1 回だけ処理すること、xref 欠落や zero bbox
-を安全にスキップすることを unit テストで固定。</li>
-</ul>
-<p>この改修が必要だった理由:</p>
-<ul>
-<li><code>page.get_images(full=True)</code> は「そのページの resources
-に登録された画像」を返すため、「そのページで実際に描画されている画像」とは一致しないことがあるため。</li>
-<li>特に WeasyPrint 系 PDF では、先頭ページの resources
-に後続ページの画像 xref が見えていても、そのページでは
-<code>get_image_rects(xref)</code>
-が空になるケースがあり、旧実装ではこれを xref
-単位の失敗として扱っていたため。</li>
-<li>その結果、1
-ページ目で負の結果をキャッシュすると後続ページで実描画される画像も即
-skip され、<code>replaced_count=0</code>
-のまま圧縮効果を取り逃がしていたため。</li>
-<li>実描画画像ベースの走査へ寄せることで、原因分析に使う debug summary
-も
-<code>skip_already_processed</code>、<code>replaced</code>、<code>skip_not_smaller</code>
-のように意味が揃い、挙動を追いやすくするため。</li>
-</ul>
-<h3 id="年3月16日追記">2026年3月16日追記</h3>
-<ul>
-<li>ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG
-へ変換せず、PNG のまま量子化するように変更</li>
-<li>PDF ネイティブ設定の <code>PNG→JPEG変換</code>
-を廃止し、<code>PNG品質</code> スライダーを追加</li>
-<li><code>pngquant</code> が利用可能な環境では、PDF 用 PNG
-品質スライダー値を上限に <code>min=max-20</code> の quality
-範囲で量子化</li>
-<li><code>pngquant</code> が未導入の環境では、Pillow の 256 色固定減色
-PNG へ自動フォールバックし、PDF 用 PNG 品質スライダーは UI
-上で無効化</li>
-<li>request/worker 配線は <code>pdf_png_quality</code>
-ベースへ移行し、デバッグ出力やログでも PNG
-量子化経路が追えるように整理</li>
-</ul>
-<p>今回の版では、PDF 内の PNG 系画像を JPEG
-化して逃がす旧挙動を完全にやめ、PNG
-のまま圧縮経路を選べるように整理しました。これにより、透明情報や PNG
-系素材の扱いを崩しにくくしつつ、<code>pngquant</code>
-がある環境では圧縮率を稼ぎ、無い環境でもアプリ全体は止めずに減色処理を継続できます。</p>
-<h3 id="年3月30日追記">2026年3月30日追記</h3>
-<ul>
-<li>ネイティブ PDF 非可逆圧縮で、PDF 画像の <code>SMask</code>
-を読み取って透過を再構成する処理を追加</li>
-<li>WeasyPrint などが生成する soft mask 付き画像は、内部拡張子が JPEG
-系でも透過付き PNG 経路へ送るように変更</li>
-<li>soft mask
-の抽出または復元に失敗した場合は処理全体を止めず、従来経路へフォールバックしつつ
-debug stats で追跡可能に整理</li>
-<li><code>tests/unit/test_pdf_utils.py</code> に soft mask 保持と
-fallback の回帰テストを追加</li>
-</ul>
-<p>今回の追記では、PDF 内部表現が「透過 PNG らしく見えるが、実体は base
-image + soft
-mask」であるケースを正しく扱うようにしました。これにより、HTML から
-WeasyPrint で生成した PDF に貼り付けた透過 PNG
-が、非可逆圧縮後に黒背景化するリスクを下げています。</p>
-<h3 id="年3月30日追記アプリ設定-効果音">2026年3月30日追記（アプリ設定 /
-効果音）</h3>
-<ul>
-<li>ノートブックに <code>アプリ設定</code>
-タブを追加し、起動時とクリーンアップ確認時の効果音を個別トグルで切り替え可能に変更</li>
-<li>起動時効果音トグルは、起動直後の <code>open_window.wav</code>
-と、Windows 環境でデスクトップ配下の既定フォルダ作成を尋ねる前の
-<code>notice.wav</code> を共通で制御</li>
-<li>クリーンアップ効果音トグルは、入力/出力フォルダのクリーンアップ確認前に鳴る
-<code>warning.wav</code> を制御</li>
-<li>トグル状態は <code>frontend/config_data/ui_catalogs.json</code> の
-<code>app_settings</code>
-セクションへ永続化され、次回起動時にも復元</li>
-<li><code>frontend/settings.py</code> に JSON 読込保存責務を追加し、UI
-state は <code>play_startup_sound</code> /
-<code>play_cleanup_sound</code> として保持</li>
-</ul>
-<p>今回の追記では、圧縮機能とは独立したアプリ全体の動作設定を GUI
-から扱えるように整理しました。特に、毎回起動音やクリーンアップ警告音が不要な環境でも、コード編集なしで振る舞いを固定できるようになっています。</p>
-<h3
-id="年3月31日追記セキュリティと-zip-運用上限">2026年3月31日追記（セキュリティと
-ZIP 運用上限）</h3>
-<ul>
-<li><code>backend/core/pdf_utils.py</code> と
-<code>backend/core/image_utils.py</code> で、Ghostscript / pngquant
-の呼び出しを安全側へ整理</li>
-<li>外部コマンド呼び出しは shell を使わず引数配列のまま実行し、timeout
-を追加</li>
-<li>Ghostscript の custom DPI、JPG/PNG 品質、pngquant quality range
-は安全な範囲へ正規化</li>
-<li>Ghostscript には <code>-dSAFER</code> とファイル引数区切り、pngquant
-には <code>--</code> を追加し、オプション解釈のぶれを減らした</li>
-<li><code>backend/core/archive_utils.py</code> で ZIP member の path
-traversal、絶対パス、Windows ドライブ指定、symlink 相当 entry
-を拒否</li>
-<li>ZIP 展開には
-<code>member数 &lt;= 10000</code>、<code>展開後合計サイズ &lt;= 1,000,000,000 bytes</code>
-の上限を追加</li>
-<li><code>frontend/ui_tkinter_mapper.py</code> で resize 幅/高さ/長辺と
-Ghostscript DPI を clamp し、極端値が backend へ流れないように整理</li>
-<li><code>tests/unit/test_archive_utils.py</code>、<code>tests/unit/test_image_utils.py</code>、<code>tests/unit/test_pdf_utils.py</code>、<code>tests/unit/test_ui_tkinter_mapper.py</code>、<code>tests/integration/test_job_runner.py</code>
-に回帰テストを追加</li>
-</ul>
-<p>今回の追記では、主に「未信頼入力を ZIP 展開や外部 CLI
-に通す境界」を硬化しました。OS
-コマンドインジェクション自体は元々起きにくい構成でしたが、ZIP の危険
-member、極端な品質値や
-DPI、長時間ハングする外部ツール呼び出しに対して、失敗し方を制御できるようにしています。あわせて、ZIP
-の現実的な運用上限はコード上限の 1 GB ではなく、実サイズ 300 MB から 500
-MB 程度を標準目安とする方が安定、という判断を README
-に明記しました。</p>
-<h3 id="フローチャートなど">フローチャートなど</h3>
-<p>こちらのドキュメントを参照してください:</p>
-<ul>
-<li>HTML版: <a
-href="./flow_sequence_and_class_diagrams.html">フロー図、シーケンス図およびクラス図</a></li>
-<li>Markdown版: <a
-href="./flow_sequence_and_class_diagrams.md">flow_sequence_and_class_diagrams.md</a></li>
-</ul>
-<h2 id="ライセンス">ライセンス</h2>
-<p>このアプリケーションは自由に改変・利用可能です。ご利用環境に応じた依存関係のライセンス条項に従ってください。</p>
-<h2 id="バージョン情報">バージョン情報</h2>
-<ul>
-<li>バージョン: 1.0.0
-<ul>
-<li>リリース日: 2025年12月11日</li>
-</ul></li>
-<li>バージョン: 2.0.0
-<ul>
-<li>リリース日: 2026年3月5日</li>
-<li>主な変更点:
-<ul>
-<li>PDF圧縮エンジンの選択肢追加（PyMuPDF(非可逆・画像圧縮) +
-pikepdf(可逆・メタデータ最適化) / Ghostscript）</li>
-<li>GUIの改善 (タブ表示など)</li>
-<li>コードベースの大規模リファクタリング
-<ul>
-<li>フロントエンド/バックエンドの完全分離</li>
-<li>起動経路の整理（launcher → frontend.bootstrap →
-frontend/ui_tkinter）</li>
-<li>コードベースのクリーンアップとモジュール再配置</li>
-<li><code>backend/core/compressor_utils.py</code>
-を責務分割（pdf/image/archive/file_ops/worker/format）し、互換shim化</li>
-</ul></li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.0.1
-<ul>
-<li>リリース日: 2026年3月6日</li>
-<li>主な変更点:
-<ul>
-<li>出力設定に「圧縮対象外のファイルを出力フォルダへコピー」トグルを追加（既定OFF）</li>
-<li>未対応拡張子のコピー出力（入力フォルダの相対構造を維持）を追加</li>
-<li>圧縮失敗時のフォールバックコピーを追加（トグルON時）</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.1.0
-<ul>
-<li>リリース日: 2026年3月6日</li>
-<li>主な変更点:
-<ul>
-<li>ZIP展開時の処理を入力フォルダ直接展開から一時作業領域展開へ変更（入力フォルダ不変を保証）</li>
-<li>ZIP展開時の出力先を、ZIPファイルの拡張子(.zip)を除いた名前のフォルダ配下に統一し、ZIP内部構造を維持して出力</li>
-<li>ZIP処理を <code>ZIP展開してから圧縮</code> と
-<code>ミラー圧縮</code> の組み合わせで明確化</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.1.1
-<ul>
-<li>リリース日: 2026年3月11日</li>
-<li>主な変更点:
-<ul>
-<li>frontend 配下の Pylance 警告を解消するため、型契約ファイル
-<code>frontend/ui_contracts.py</code> を追加</li>
-<li><code>ui_tkinter_mapper.py</code> の <code>Any</code>
-を除去し、UI状態からDTO変換までの型安全性を改善</li>
-<li><code>ui_tkinter_state.py</code> / <code>ui_tkinter_view.py</code>
-に明示的な型注釈を追加</li>
-<li><code>tkinterdnd2</code>
-連携を局所型補助へ整理し、可読性と保守性を改善</li>
-<li><code>scripts/tkinter_regression_check.py</code>
-による回帰確認を実施し、主要GUIフローの動作継続を確認</li>
-<li><code>frontend/ui_tkinter_controller.py</code> の mixin 依存を
-<code>frontend/ui_contracts.py</code> の Protocol
-として明文化し、controller の Pylance 警告を解消</li>
-<li><code>frontend/sound_utils.py</code> に型注釈と optional pygame
-の型狭義化を追加し、保守性と可読性を改善</li>
-<li><code>after()</code> を使う UI 更新経路を helper 化し、controller
-のスレッド境界処理を整理</li>
-<li><code>Documentation/flow_sequence_and_class_diagrams.md</code> に
-<code>frontend/ui_contracts.py</code>
-の現行内容を追記し、型契約の実体を図面ドキュメント側から参照できるよう整理</li>
-<li>対象モジュールの Pylance 診断でエラー 0 を確認</li>
-<li><code>frontend.ui_tkinter.App</code>
-の生成による起動スモークテストを実施し、初期化が正常終了することを確認</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.2.1
-<ul>
-<li>リリース日: 2026年3月15日</li>
-<li>主な変更点:
-<ul>
-<li>pytest の実行プロファイルを <code>unit</code> /
-<code>integration</code> / <code>regression</code>
-に整理し、<code>pyproject.toml</code> に marker と discovery
-設定を追加</li>
-<li><code>tests/conftest.py</code> と <code>tests/unit/</code>
-を追加し、契約、依存検出、ZIP 展開、画像圧縮、UI DTO
-マッピングの自動テストを整備</li>
-<li><code>tests/integration/</code> を追加し、<code>job_runner</code> の
-CSV 出力・ZIP staging・フォールバックコピー、および
-<code>ui_tkinter_controller</code> の主要導線を検証可能にした</li>
-<li>旧 <code>scripts/tkinter_regression_check.py</code> を
-<code>tests/regression/test_tkinter_regression.py</code>
-へ完全移植し、GUI 回帰を pytest から選択実行できるよう統合</li>
-<li><code>backend/orchestrator/job_runner.py</code> の CSV
-入出力パス連携不具合を修正し、テストで再発防止を追加</li>
-<li>PyMuPDF の画像再圧縮で、デバッグモードON時に標準出力へ画像 xref
-ごとの統計を出すようにして、効果が確認できるようにした</li>
-<li>設定レイヤを <code>shared/runtime_paths.py</code> /
-<code>backend/settings.py</code> / <code>frontend/settings.py</code>
-に分離し、UI の純粋データを
-<code>frontend/config_data/ui_catalogs.json</code> へ移行</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.3.0
-<ul>
-<li>リリース日: 2026年3月15日</li>
-<li>主な変更点:
-<ul>
-<li><code>compress_pdf_lossy()</code> を
-<code>page.get_image_info(xrefs=True)</code>
-ベースへ変更し、実描画画像だけを対象にするよう修正</li>
-<li>WeasyPrint 系 PDF
-で先頭ページの負の判定が全ページへ伝播し、後続ページの画像再圧縮を取り逃がす不具合を解消</li>
-<li><code>tests/unit/test_pdf_utils.py</code> を追加し、xref 一回処理と
-missing xref / zero bbox の分岐を回帰テスト化</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.4.0
-<ul>
-<li>リリース日: 2026年3月16日</li>
-<li>主な変更点:
-<ul>
-<li>ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ変換せず PNG
-のまま量子化するよう変更</li>
-<li>PDF ネイティブ設定の <code>PNG→JPEG変換</code>
-を廃止し、<code>PNG品質</code> スライダーを追加</li>
-<li><code>pngquant</code> 利用時は PDF 用 PNG 品質スライダー値から
-quality 範囲を自動計算し、未導入時は Pillow の 256
-色固定減色へフォールバックするよう整理</li>
-<li><code>CompressionRequest</code> と worker 配線を
-<code>pdf_png_quality</code> ベースへ移行し、関連 unit/integration
-テストを更新</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.5.0
-<ul>
-<li>リリース日: 2026年3月30日</li>
-<li>主な変更点:
-<ul>
-<li>ネイティブ PDF 非可逆圧縮で、<code>SMask</code>
-を読み取って透過情報を再構成し、soft mask 付き画像を透過付き PNG
-経路へ送るよう改善</li>
-<li>soft mask
-の抽出または復元に失敗した場合も処理全体は止めず、従来経路へフォールバックしつつ
-debug stats で追跡可能に整理</li>
-<li>ノートブックに <code>アプリ設定</code>
-タブを追加し、起動時効果音（<code>open_window.wav</code> /
-<code>notice.wav</code>）とクリーンアップ確認時効果音（<code>warning.wav</code>）を個別に
-ON/OFF 可能にした</li>
-<li>効果音トグル状態を
-<code>frontend/config_data/ui_catalogs.json</code> の
-<code>app_settings</code>
-へ保存し、次回起動時にも復元するようにした</li>
-</ul></li>
-</ul></li>
-<li>バージョン: 2.5.1
-<ul>
-<li>リリース日: 2026年3月31日</li>
-<li>主な変更点:
-<ul>
-<li>Ghostscript / pngquant 呼び出しに
-timeout、引数正規化、ファイル引数区切りを追加し、安全側の subprocess
-実行へ整理</li>
-<li>ZIP 展開で path traversal、絶対パス、Windows ドライブ指定、symlink
-相当 entry を拒否し、member 数と展開後合計サイズの上限を追加</li>
-<li>UI mapper で resize 値と Ghostscript custom DPI を clamp
-し、極端値入力が backend へ流れないよう改善</li>
-<li>unit / integration テストを追加し、ZIP 安全化、外部 CLI
-引数ガード、UI clamp 伝播を回帰テスト化</li>
-</ul></li>
-</ul></li>
-</ul>
-<hr />
-<p>2026年3月16日 株式会社京都ダイケンビルサービス 千總本社ビル設備
-川﨑　翔</p>
-</body>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install <span class="op">-</span>r requirements<span class="op">.</span><span class="fu">txt</span></span></code></pre>
+    </div>
+    <h2 id="実行ファイル化pyinstaller-one-folder">
+      実行ファイル化（PyInstaller / one-folder）
+    </h2>
+    <p>
+      本プロジェクトは <code>compressor_launcher_tkinter.spec</code> を使った
+      one-folder 配布を前提としています。
+    </p>
+    <p>
+      事前に <code>pyinstaller</code> をインストールしてください（<code
+        >requirements.txt</code
+      >
+      を使う場合は同時に導入されます）。
+    </p>
+    <div class="sourceCode" id="cb3">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pip install pyinstaller</span></code></pre>
+    </div>
+    <div class="sourceCode" id="cb4">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m PyInstaller <span class="op">--</span>clean <span class="op">.</span>\compressor_launcher_tkinter<span class="op">.</span><span class="fu">spec</span></span></code></pre>
+    </div>
+    <p>
+      生成先は
+      <code>dist/PDF_JPG_PNG_Compressor_v2.5.2/</code>
+      です。配布時はこのフォルダ全体を渡してください。
+    </p>
+    <p>補足:</p>
+    <ul>
+      <li>
+        one-folder 配布では <code>sounds/</code>、<code>images/</code> に加えて
+        <code>frontend/config_data/ui_catalogs.json</code> も同梱されます。
+      </li>
+      <li>
+        UI の表示用カタログと <code>app_settings</code> は JSON
+        から読み込むため、spec を介さず独自ビルドする場合も
+        <code>frontend/config_data/</code> を配布物へ含めてください。
+      </li>
+    </ul>
+    <p>PowerShell スクリプト経由で実行する場合:</p>
+    <ul>
+      <li>アプリ起動: <code>./compressor_launcher.ps1 -Mode Run</code></li>
+      <li>ビルド実行: <code>./compressor_launcher.ps1 -Mode Build</code></li>
+    </ul>
+    <p>システムツールのインストール:</p>
+    <p>
+      PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを使うのがおすすめです。
+    </p>
+    <ul>
+      <li>
+        pngquant: Windows: <code>choco install pngquant</code> / macOS:
+        <code>brew install pngquant</code> / Ubuntu/Debian:
+        <code>sudo apt install pngquant</code>
+      </li>
+      <li>
+        Ghostscript: Windows: <code>choco install ghostscript</code> / macOS:
+        <code>brew install ghostscript</code> / Ubuntu/Debian:
+        <code>sudo apt install ghostscript</code>
+      </li>
+    </ul>
+    <h2 id="使い方手順">使い方（手順）</h2>
+    <ol type="1">
+      <li>
+        アプリを起動します（仮想環境に入って
+        <code>python compressor_launcher_tkinter.py</code>）。
+      </li>
+      <li>入力フォルダを指定します（参照ボタンまたはドラッグ＆ドロップ）。</li>
+      <li>
+        出力フォルダを指定します（Windowsは初回起動時にデスクトップ作成提案あり）。
+      </li>
+      <li>
+        必要なら
+        <code>アプリ設定</code>
+        タブで、起動時効果音とクリーンアップ確認時効果音の ON/OFF
+        を切り替えます。
+      </li>
+      <li>
+        圧縮設定を行います（PDFエンジン選択、必要に応じてネイティブ/GS各設定、画像品質、リサイズ）。
+      </li>
+      <li>
+        圧縮を開始します（ZIP自動展開、進捗表示、CSVログ出力）。必要に応じて「圧縮対象外のファイルを出力フォルダへコピー」をONにします（既定はOFF）。
+        <ul>
+          <li>
+            WeasyPrint 由来 PDF などで PyMuPDF
+            の画像再圧縮が効いているか確認したい場合は、「デバッグモードで出力」をONにすると標準出力へ画像
+            xref ごとの統計が出ます。
+          </li>
+        </ul>
+      </li>
+      <li>統計を確認します（合計サイズ、削減量、削減率）。</li>
+      <li>
+        必要に応じてクリーンアップを実行します（入力/出力フォルダの対象拡張子を削除）。
+      </li>
+    </ol>
+    <h2 id="モジュール構成">モジュール構成</h2>
+    <h3 id="起動とフロントエンド">起動とフロントエンド</h3>
+    <ul>
+      <li>
+        <code>compressor_launcher_tkinter.py</code>:
+        起動エントリポイント（例外処理・クラッシュログ）
+      </li>
+      <li>
+        <code>frontend/bootstrap.py</code>:
+        起動順序の集約（UI生成・起動時サウンド、起動音トグル適用）
+      </li>
+      <li>
+        <code>frontend/ui_tkinter.py</code>: Tkinter
+        GUIのファサード（起動時副作用・App初期化・モジュール接続・既定フォルダ確認音の制御）
+      </li>
+      <li>
+        <code>frontend/ui_tkinter_state.py</code>: Tkinter
+        <code>Variable</code> 群の状態初期化責務
+      </li>
+      <li>
+        <code>frontend/ui_tkinter_view.py</code>:
+        ウィジェット構築・レイアウト責務
+      </li>
+      <li>
+        <code>frontend/ui_tkinter_controller.py</code>:
+        イベント処理・入力検証・非同期実行・進捗反映責務、クリーンアップ音とアプリ設定保存の制御
+      </li>
+      <li>
+        <code>frontend/ui_tkinter_mapper.py</code>: UI状態から
+        <code>CompressionRequest</code> への変換責務
+      </li>
+      <li>
+        <code>frontend/ui_contracts.py</code>:
+        フロントエンド内の型契約（Protocol）責務
+      </li>
+    </ul>
+    <h3 id="契約とオーケストレーション">契約とオーケストレーション</h3>
+    <ul>
+      <li>
+        <code>backend/contracts.py</code>: FE/BE境界契約（Request / Event /
+        Capability / Result）
+      </li>
+      <li>
+        <code>backend/capabilities.py</code>: 依存可用性検出（fitz / pikepdf /
+        ghostscript / pngquant）
+      </li>
+      <li>
+        <code>backend/orchestrator/job_runner.py</code>:
+        圧縮ジョブの実行オーケストレーション
+      </li>
+    </ul>
+    <p>契約駆動の主要データ:</p>
+    <ul>
+      <li><code>CompressionRequest</code>: UI設定をバックエンドへ渡すDTO</li>
+      <li>
+        <code>CompressionRequest.debug_mode</code>:
+        デバッグトグルの状態。現時点では PyMuPDF
+        非可逆圧縮の標準出力診断にのみ使用
+      </li>
+      <li>
+        <code>ProgressEvent</code> (<code>kind</code>: <code>log</code> /
+        <code>progress</code> / <code>stats</code> / <code>status</code> /
+        <code>error</code>): UI更新イベント
+      </li>
+      <li><code>CapabilityReport</code>: 起動時の依存可用性レポート</li>
+    </ul>
+    <h3 id="設定レイヤ">設定レイヤ</h3>
+    <ul>
+      <li>
+        <code>shared/runtime_paths.py</code>: 通常実行と PyInstaller
+        実行で共通に使う実行時パス解決責務
+      </li>
+      <li>
+        <code>backend/settings.py</code>: backend が所有する処理既定値（PDF
+        圧縮既定値、Ghostscript 既定プリセット、許可モード）
+      </li>
+      <li>
+        <code>frontend/settings.py</code>: frontend が所有する UI
+        既定値、cleanup 対象、リソースパス、UI カタログ / app_settings の JSON
+        読込保存責務
+      </li>
+      <li>
+        <code>frontend/config_data/ui_catalogs.json</code>: UI 表示用カタログと
+        <code>app_settings</code> を保持する JSON（PDF モード表示名、Ghostscript
+        プリセット表示名、長辺プリセット、効果音トグル既定値）
+      </li>
+      <li>
+        <code>shared/configs.py</code>: 旧 import
+        パス互換のための再エクスポート層。新規コードでは直接依存しない前提
+      </li>
+    </ul>
+    <h3 id="サービス層とコア処理">サービス層とコア処理</h3>
+    <ul>
+      <li>
+        <code>backend/services/*.py</code>:
+        PDF・画像・ZIP・クリーンアップ責務の分割入口
+      </li>
+      <li>
+        <code>backend/core/pdf_utils.py</code>: PDF圧縮（PyMuPDF / pikepdf /
+        Ghostscript）責務
+      </li>
+      <li>
+        <code>backend/core/image_utils.py</code>: 画像圧縮（Pillow /
+        pngquant）責務
+      </li>
+      <li><code>backend/core/archive_utils.py</code>: ZIP再帰展開責務</li>
+      <li>
+        <code>backend/core/file_ops.py</code>:
+        クリーンアップ／対象件数カウント責務
+      </li>
+      <li>
+        <code>backend/core/worker_ops.py</code>:
+        単一ファイル単位の処理ディスパッチ責務
+      </li>
+      <li>
+        <code>backend/core/format_utils.py</code>:
+        表示用フォーマット（human_readable）責務
+      </li>
+      <li>
+        <code>backend/core/compressor_utils.py</code>:
+        互換shim（公開API再エクスポート + compress_folder委譲）
+      </li>
+      <li>
+        <code>frontend/sound_utils.py</code>:
+        pygameを使った効果音再生（UI依存を持たない純粋ユーティリティ）
+      </li>
+    </ul>
+    <h3 id="実行パイプライン要約">実行パイプライン（要約）</h3>
+    <ol type="1">
+      <li>
+        UI設定を <code>frontend/ui_tkinter_mapper.py</code> が
+        <code>CompressionRequest</code> に変換
+      </li>
+      <li><code>backend/orchestrator/job_runner.py</code> がジョブを実行</li>
+      <li>
+        ZIP展開ON時はZIPを一時作業領域で展開（入力不変）し、通常入力ファイルとZIP由来ファイルをタスク化
+      </li>
+      <li><code>ThreadPoolExecutor(max(4, cpu_count()))</code> で並列実行</li>
+      <li>
+        <code>backend/core/worker_ops.py</code>
+        が拡張子別にサービス/コアへディスパッチ
+      </li>
+      <li><code>ProgressEvent</code> でログ・進捗・統計をUIへ反映</li>
+      <li>
+        CSV有効時は <code>compression_log_YYYYMMDD_HHMMSS.csv</code> を出力
+      </li>
+    </ol>
+    <h2 id="よくある質問">よくある質問</h2>
+    <ul>
+      <li>
+        Q: Ghostscriptとネイティブエンジン（PyMuPDF +
+        pikepdf）のどちらが良いですか？
+        <ul>
+          <li>
+            A:
+            Ghostscriptは再蒸留ベースで高い圧縮効果が期待できます。ネイティブエンジンはPython環境のみで動作しやすく、可逆最適化も併用できます。目的（画質優先/導入容易性）で選択してください。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: PDF圧縮の設定はどのように使い分ければよいですか？
+        <ul>
+          <li>
+            A:
+            ネイティブを選ぶと、モード（非可逆/可逆/両方）・DPI・JPEG品質・PNG品質・可逆オプションを設定できます。JPEG
+            品質は PDF 内の JPEG 系画像に、PNG 品質は PDF 内の PNG 系画像の
+            pngquant
+            量子化に使われます。Ghostscriptを選ぶと、プリセットまたはカスタムDPIを使った再蒸留に加え、必要ならpikepdf構造最適化を併用できます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: ネイティブ PDF の PNG 品質スライダーはいつ効きますか？
+        <ul>
+          <li>
+            A: <code>pngquant</code> が検出されている環境で、ネイティブ PDF
+            圧縮のモードが「非可逆」または「両方」のときに有効です。このとき
+            quality 範囲は通常 PNG 圧縮と同じく
+            <code>max=スライダー値</code>、<code>min=max-20</code>
+            で自動計算されます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: <code>pngquant</code> が無い環境では PDF 内 PNG
+        はどう圧縮されますか？
+        <ul>
+          <li>
+            A: ネイティブ PDF 非可逆圧縮は継続し、PDF 内 PNG 系画像だけが Pillow
+            の 256 色固定減色 PNG へフォールバックします。この場合、PDF 用 PNG
+            品質スライダーは UI 上で無効化され、値は backend では使われません。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: WeasyPrint 由来 PDF の透過 PNG はどのように扱われますか？
+        <ul>
+          <li>
+            A: WeasyPrint などが生成する PDF では、透過が画像本体ではなく
+            <code>SMask</code>
+            として分離されていることがあります。現在のネイティブ非可逆圧縮では、この
+            soft mask を再構成してから再圧縮し、透過がある画像は PNG
+            経路へ送るため、黒背景化を起こしにくくしています。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: soft mask の復元が失敗したかどうかは確認できますか？
+        <ul>
+          <li>
+            A: できます。出力設定の「デバッグモードで出力」をONにすると、PyMuPDF
+            非可逆段の標準出力に
+            <code>soft_mask_seen</code
+            >、<code>soft_mask_applied</code>、<code>soft_mask_failed</code>、<code
+              >cmyk_converted</code
+            >
+            が出るため、対象 PDF に soft mask
+            が含まれていたか、復元に失敗したか、CMYK 画像を RGB
+            へ変換したかを追えます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: CMYK の JPEG や PDF 埋め込み画像はどのように扱われますか？
+        <ul>
+          <li>
+            A: 現在の実装では、PDF
+            埋め込みラスター画像と単体画像ファイルの両方で、読み込み直後に CMYK
+            を RGB へ正規化します。ICC プロファイルを持つ画像は
+            <code>ImageCms.profileToProfile()</code> で sRGB へ寄せ、ICC
+            が無いか壊れている場合も
+            <code>convert('RGB')</code>
+            で安全側にフォールバックするため、黒潰れや保存時のモード不整合を起こしにくくしています。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: PNG を大幅に圧縮したいです。どのように設定すればよいですか？
+        <ul>
+          <li>
+            A:
+            pngquantでの圧縮をONにしてください。品質範囲（min-max）はスライダーの値をもとに設定されます（max=スライダー値、min=max-20）。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: 画像のリサイズ設定はどのように動きますか？
+        <ul>
+          <li>
+            A:
+            手動モードでは幅/高さを指定可能、アスペクト比を保持するかどうかを選べます。アスペクト比を保持する場合は、片方の数値の入力で十分です。（もう一方は0でOK。）両方入力した場合は、小さいほうのピクセル数に合わせます。長辺モードでは長辺がドロップダウンの指定ピクセルになるように等比縮小します。
+            <ul>
+              <li>
+                幅/高さが空欄や非数値の場合は自動で0に補正されます（処理開始時に一度だけ判定）。また、設定値の小数点以下は処理開始時に切り捨てられます。
+              </li>
+              <li>
+                手動モードで幅/高さの両方を0にした場合はリサイズされません。長辺モードで長辺を0にした場合もリサイズされません。
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: CSVログには何が記録されますか？
+        <ul>
+          <li>
+            A: 各ファイルの入力/出力パス、拡張子、処理方法（Ghostscript/Native
+            PDF/Pillow/pngquant/無処理）、元サイズ、出力サイズ、削減量、削減率が記録されます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: CSVログの無効化や保存先の変更はできますか？
+        <ul>
+          <li>
+            A:
+            できます。設定画面の「CSVログを出力する」のチェックを外すと無効化。保存先を変更する場合はその右の入力欄にパスを直接入力するか「参照」ボタンから選択してください。未指定の場合は出力フォルダにタイムスタンプ付きファイルが作成されます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: 効果音は無効化できますか？
+        <ul>
+          <li>
+            A: できます。<code>アプリ設定</code>
+            タブで「起動時に効果音を鳴らす」「クリーンアップ確認時に効果音を鳴らす」を個別に切り替えてください。起動時トグルは
+            <code>open_window.wav</code> と
+            <code>notice.wav</code> を、クリーンアップ時トグルは
+            <code>warning.wav</code>
+            を対象にします。設定は
+            <code>frontend/config_data/ui_catalogs.json</code> の
+            <code>app_settings</code> に保存され、次回起動時にも復元されます。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: 「デバッグモードで出力」をONにすると何が起きますか？
+        <ul>
+          <li>
+            A: 現時点では、ネイティブ PDF 圧縮のうち PyMuPDF
+            による非可逆画像再圧縮段だけが詳細診断を標準出力へ出します。GUI
+            のログタブ、進捗表示、CSV ログの形式は変わりません。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: クリーンアップで何が削除されますか？
+        <ul>
+          <li>
+            A: 入力フォルダは .pdf/.jpg/.jpeg/.png/.zip、出力フォルダは
+            .pdf/.jpg/.jpeg/.png/.csv
+            が対象です。サブフォルダ内の該当ファイルも削除されます。取り消し不可のため慎重に実行してください。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q:
+        「圧縮対象外のファイルを出力フォルダへコピー」をONにすると何が起きますか？
+        <ul>
+          <li>
+            A: 未対応拡張子（<code>.pdf/.jpg/.jpeg/.png</code>
+            以外）を入力と同じ相対フォルダ構造で出力先へコピーします。加えて、圧縮対象拡張子でも圧縮に失敗したファイルはフォールバックとして元ファイルを出力先へコピーします。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q:
+        ZIP展開オプションをONにしたとき、入力フォルダ内のZIPはどうなりますか？
+        <ul>
+          <li>
+            A:
+            入力フォルダのZIPはそのまま残ります。展開は一時作業領域で行われるため、入力フォルダ内に展開ファイルは残りません。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: ZIP展開時の出力先はどのようになりますか？
+        <ul>
+          <li>
+            A: 各ZIPごとに <code>ZIPのstem</code> 名フォルダを作成し、<code
+              >出力フォルダ/ZIPの元相対パス/ZIPのstem/</code
+            >
+            配下へZIP内部構造を維持して出力します。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: ZIP はどのくらいのサイズまで現実的に処理できますか？
+        <ul>
+          <li>
+            A: コード上は「1 ZIP あたり展開後合計 1 GB 未満、member 数 10000
+            以下」が上限です。ただし実運用では、ZIP
+            を一時領域へ複製してから展開し、その後に出力ファイルも作るため、安定運用の目安は
+            ZIP 実サイズ 300 MB から 500 MB 程度です。画像や PDF
+            が中心のため圧縮率が低いことが多く、ZIP
+            実サイズと展開後サイズは近くなりやすい前提で考えてください。
+          </li>
+        </ul>
+      </li>
+      <li>
+        Q: ZIP 展開時にどのくらい空き容量を見ておけばよいですか？
+        <ul>
+          <li>
+            A: 最低でも「展開後サイズの 2.5 倍から 3
+            倍」程度の空き容量を推奨します。一時領域への ZIP
+            複製、展開済みファイル、圧縮後の出力ファイルが同時に存在する時間帯があるためです。特に同一ドライブで入力・一時・出力を扱う場合は余裕を大きめに見てください。
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <h2 id="自動テスト">自動テスト</h2>
+    <p>
+      pytest による自動テストは
+      <code>tests/</code> 配下に集約しています。通常開発と CI では
+      <code>unit + integration</code> を標準実行とし、GUI を含む重めの確認は
+      <code>regression</code> として分離しています。
+    </p>
+    <ul>
+      <li>
+        <code>tests/conftest.py</code>
+        <ul>
+          <li>
+            共有 fixture 群です。サンプル画像、ZIP、CapabilityReport、Tk 回帰用
+            App 初期化を提供します。
+          </li>
+        </ul>
+      </li>
+      <li>
+        <code>tests/unit/</code>
+        <ul>
+          <li>
+            <code>backend/contracts.py</code
+            >、<code>backend/capabilities.py</code>、<code>backend/core/archive_utils.py</code>、<code>backend/core/image_utils.py</code>、<code>frontend/ui_tkinter_mapper.py</code>、<code
+              >frontend/settings.py</code
+            >
+            / <code>shared/configs.py</code> 互換レイヤ、<code
+              >backend/core/pdf_utils.py</code
+            >
+            の xref 処理、soft mask 再構成、PNG/JPEG 分岐、Ghostscript/pngquant
+            の入力正規化・timeout・ZIP 安全化などの純粋ロジックを検証します。
+          </li>
+        </ul>
+      </li>
+      <li>
+        <code>tests/integration/</code>
+        <ul>
+          <li>
+            <code>backend/orchestrator/job_runner.py</code> と
+            <code>frontend/ui_tkinter_controller.py</code> を中心に、CSV
+            出力、ZIP 展開、フォールバックコピー、イベント通知、スレッド起動、UI
+            から渡る極端値の clamp 伝播を検証します。
+          </li>
+        </ul>
+      </li>
+      <li>
+        <code>tests/regression/</code>
+        <ul>
+          <li>
+            旧 <code>scripts/tkinter_regression_check.py</code> を pytest 化した
+            GUI 回帰です。フォルダ選択、D&amp;D、CSV
+            パス選択、圧縮開始、クリーンアップ、入力/出力重なり防止、ZIP
+            組み合わせをまとめて確認します。
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <p>推奨実行コマンド:</p>
+    <div class="sourceCode" id="cb5">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest <span class="op">-</span>m <span class="st">&quot;unit or integration&quot;</span></span></code></pre>
+    </div>
+    <p>通常の開発確認と CI は上記を使用してください。</p>
+    <div class="sourceCode" id="cb6">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest <span class="op">-</span>m regression</span></code></pre>
+    </div>
+    <p>GUI を含む回帰確認は必要時のみ実行してください。</p>
+    <div class="sourceCode" id="cb7">
+      <pre
+        class="sourceCode powershell"
+      ><code class="sourceCode powershell"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>python <span class="op">-</span>m pytest</span></code></pre>
+    </div>
+    <p>すべてのテストをまとめて実行する場合は上記です。</p>
+    <p>注意:</p>
+    <ul>
+      <li>Tk を使う回帰テストは <code>requires_tk</code> マーカー付きです。</li>
+      <li>
+        実行中の Python に Tcl/Tk
+        ランタイムが正しく入っていない環境では、自動的に skip されます。
+      </li>
+      <li>
+        Ghostscript や pngquant を使う将来の外部依存テストは
+        <code>requires_external</code> で分離できる構成です。
+      </li>
+      <li>
+        旧 <code>scripts/tkinter_regression_check.py</code> は
+        <code>tests/regression/test_tkinter_regression.py</code>
+        へ移植済みです。
+      </li>
+    </ul>
+    <h2 id="手動回帰チェック5分版">手動回帰チェック（5分版）</h2>
+    <ul class="task-list">
+      <li>
+        <label
+          ><input type="checkbox" /><code
+            >python compressor_launcher_tkinter.py</code
+          >
+          で起動し、画面が表示される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input type="checkbox" />PDFエンジン状態ラベル（PyMuPDF / pikepdf /
+          GS）が表示される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />「入力フォルダ」「出力フォルダ」を選択し、値が反映される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />入力欄へファイルまたはフォルダをD&amp;Dしたとき、入力フォルダが更新される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />JPG/PNGを含む入力で「圧縮開始」を実行し、ログタブ切替（設定ON時）・進捗バー更新・統計更新が行われる。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input type="checkbox" />出力先に圧縮ファイルが生成される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />CSV出力ON時にログファイルが生成される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />出力設定の「デバッグモードで出力」が既定OFFで表示される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input type="checkbox" />同オプションON時、ネイティブ PDF
+          の非可逆圧縮でのみ標準出力へ debug summary/details が出る。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />出力設定の「圧縮対象外のファイルを出力フォルダへコピー」が既定OFFである。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />同オプションON時、未対応拡張子が相対構造を維持して出力先へコピーされる。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />同オプションON時、圧縮失敗ファイルがフォールバックコピーされる。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />リサイズON（手動または長辺指定）で出力画像サイズが設定に従う。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />出力フォルダの「クリーンアップ」で対象拡張子ファイルが削除される。</label
+        >
+      </li>
+      <li>
+        <label
+          ><input
+            type="checkbox"
+          />処理中に終了した場合、確認ダイアログが出る。</label
+        >
+      </li>
+    </ul>
+    <p>
+      補助: 自動回帰相当の確認は
+      <code>python -m pytest -m regression</code> で実行できます。
+    </p>
+    <h2 id="注意事項">注意事項</h2>
+    <ul>
+      <li>
+        大量のファイルを扱う場合、並列処理で高速化しますが、ディスク I/O
+        によるボトルネックは発生し得ます。
+      </li>
+      <li>
+        PDF圧縮は Ghostscript とネイティブ（PyMuPDF +
+        pikepdf）を選択可能です。エンジン可用性の再検出はアプリ再起動にて行う仕様です。
+      </li>
+      <li>
+        Ghostscript使用時はプリセットまたはカスタムDPIを指定でき、必要に応じてpikepdfの可逆最適化も併用できます。
+      </li>
+      <li>
+        Ghostscriptが未検出の環境では、Ghostscriptエンジン選択は自動的に無効化されます。
+      </li>
+      <li>
+        pngquantが未検出の環境では、pngquantトグルは自動的に無効化されます。
+      </li>
+      <li>
+        pngquantやGhostscript
+        は<strong>外部ソフトウェアとしてシステムにインストールする必要があります</strong>（pythonのpipモジュールではインストールできません）。
+      </li>
+      <li>
+        入力フォルダと出力フォルダが重なる場合は、ファイル破損を避けるため自動的に両方ともデフォルトフォルダにリセットされ、警告とログが出ます。
+      </li>
+    </ul>
+    <h2 id="開発者向けメモ">開発者向けメモ</h2>
+    <ul>
+      <li>
+        入力検証の最適化:
+        リサイズの幅/高さは処理開始時に一度だけ文字列から数値化し、空欄・非数値は0に補正。入力時の逐次検証を省きUIイベント負荷を低減。
+      </li>
+      <li>
+        並列処理: <code>compress_folder()</code> は
+        <code>ThreadPoolExecutor</code>
+        を用いてファイル単位で並列化（<code>max(4, cpu_count())</code
+        >）。大量ファイルでスループット改善。
+      </li>
+      <li>
+        I/O ボトルネックについて:
+        画像/PNG/PDFの読み書き速度はストレージのディスク I/O
+        能力に依存します。CPUスレッドの並列度を上げてもディスク性能がボトルネックになる場合があります。
+      </li>
+      <li>
+        UI分離:
+        <code>ui_tkinter.py</code>
+        はファサードとして責務を束ね、状態/ビュー/コントローラ/DTOマッパーを分離。圧縮はバックグラウンドスレッドで実行し、Tkのメインスレッドはログと進捗更新のみを担当（UIのフリーズ防止）。
+      </li>
+      <li>
+        実行時外部ツール検出と例外処理: Ghostscript/pngquantは実行時に
+        <code>shutil.which</code>
+        で検出し、未導入でも致命化せず機能単位で劣化します。
+      </li>
+      <li>
+        外部ツール呼び出しの安全化: Ghostscript / pngquant は shell
+        を経由せず引数配列で起動し、timeout・引数正規化・ファイル引数区切りを入れて、極端値や不正なファイル名で壊れにくい構成にしています。
+      </li>
+      <li>
+        ZIP 展開の安全化: path traversal・絶対パス・Windows
+        ドライブ指定・symlink 相当 entry を拒否し、1 ZIP あたりの member
+        数と展開後合計サイズにも上限を設けています。
+      </li>
+      <li>
+        ZIP 運用上限の目安: コード上限は展開後 1 GB
+        ですが、入力・一時・出力を同時に持つため、日常運用では ZIP 実サイズ 300
+        MB から 500 MB 程度を標準上限として扱うのが無難です。
+      </li>
+      <li>
+        バックエンド境界: UIは <code>CompressionRequest</code> を発行し、<code
+          >ProgressEvent</code
+        >
+        購読でログ/進捗/統計を反映します。
+      </li>
+      <li>
+        CSVログ:
+        1回のオープンで逐次追記し、行ごとにフラッシュを強制しない設計（過度な同期
+        I/O を回避）。
+      </li>
+      <li>
+        画像リサイズの計算:
+        長辺指定時の比率計算は軽量で、Pillowのリサイズ/保存が主なコスト。不要な再計算を避けるため設定を一度だけ作成。
+      </li>
+      <li>
+        設定の責務分離: runtime パス解決は
+        <code>shared/runtime_paths.py</code>、backend 既定値は
+        <code>backend/settings.py</code>、frontend の UI 設定と表示カタログは
+        <code>frontend/settings.py</code> +
+        <code>frontend/config_data/ui_catalogs.json</code> に分離。
+      </li>
+      <li>
+        JSON 化の方針: Path、OS 分岐、PyInstaller 判定は Python
+        に残し、純粋データだけを JSON へ外出しする。
+      </li>
+      <li>
+        PyMuPDF 非可逆圧縮の xref 走査:
+        <code>page.get_images(full=True)</code> は「resources
+        に見えている画像」まで返すため、WeasyPrint 系 PDF では先頭ページの
+        <code>no_rect</code> 判定を xref
+        単位で失敗キャッシュすると、後続ページで実描画される画像まで再圧縮対象から外れてしまう。
+      </li>
+      <li>
+        そのため <code>compress_pdf_lossy()</code> は
+        <code>page.get_image_info(xrefs=True)</code>
+        ベースへ切り替え、実描画画像だけを対象にしつつ、同じ xref は 1
+        回だけ処理する構造へ変更した。
+      </li>
+    </ul>
+    <h3 id="年3月11日追記">2026年3月11日追記</h3>
+    <ul>
+      <li><p>frontend 配下の Pylance 警告を、実行時挙動を変えずに解消。</p></li>
+      <li>
+        <p>
+          <code>frontend/ui_contracts.py</code> を追加し、<code
+            >frontend/ui_tkinter_mapper.py</code
+          >
+          の <code>app: Any</code> を Protocol ベースの型契約へ置換。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>frontend/ui_tkinter_state.py</code> で Tkinter
+          <code>StringVar</code> / <code>IntVar</code> /
+          <code>BooleanVar</code> を明示的に型注釈化。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>frontend/ui_tkinter_view.py</code> で、widget
+          属性・controller/state 依存・Tk 本体前提をクラス属性注釈と局所
+          <code>cast</code> で明示化。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>tkinterdnd2</code> の <code>drop_target_register</code> /
+          <code>dnd_bind</code> は局所 Protocol で扱い、広域 suppress
+          を避ける構成へ調整。
+        </p>
+      </li>
+      <li><p>frontend 全体の Pylance 診断で警告 0 を確認。</p></li>
+      <li>
+        <p>
+          <code>tests/regression/test_tkinter_regression.py</code> へ GUI
+          回帰を移植し、pytest から選択実行できるよう整理。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>frontend/ui_tkinter_controller.py</code>
+          の保守性改善を目的に、controller mixin が依存する Tk
+          変数・Widget・ランタイム属性・Tk メソッドを
+          <code>frontend/ui_contracts.py</code> の Protocol として明文化。
+        </p>
+      </li>
+      <li>
+        <p>
+          controller 側は Protocol ベースの <code>cast</code> に統一し、<code
+            >after()</code
+          >
+          を使った UI スレッド更新を helper 経由へ整理。Pylance 上の unknown
+          attribute 警告を、実行時挙動を変えずに解消。
+        </p>
+      </li>
+      <li>
+        <p>
+          D&amp;D イベントの <code>event.data</code> は局所 Protocol
+          で扱い、TkinterDnD 依存の動的オブジェクトを controller
+          内へ閉じ込める構成へ調整。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>frontend/sound_utils.py</code> を型整理し、module docstring
+          の位置修正、公開関数の引数・戻り値型付与、<code>Path | str</code>
+          の明示、pygame 任意依存の型狭義化を実施。
+        </p>
+      </li>
+      <li>
+        <p>
+          <code>frontend/ui_tkinter_controller.py</code
+          >、<code>frontend/ui_contracts.py</code>、<code
+            >frontend/sound_utils.py</code
+          >
+          の Pylance 診断でエラー 0 を確認。
+        </p>
+      </li>
+      <li>
+        <p>
+          起動確認として、messagebox と効果音を抑止した状態で
+          <code>frontend.ui_tkinter.App</code>
+          の生成と初期描画更新を実行し、初期化が正常終了することを確認。 備考:
+        </p>
+      </li>
+      <li>
+        <p>
+          GUIと圧縮ロジックは分離され、<code>backend</code> 層は
+          UI非依存で再利用可能です。
+        </p>
+      </li>
+      <li>
+        <p>
+          設定は runtime / backend / frontend の責務ごとに分離され、<code
+            >shared/configs.py</code
+          >
+          は互換レイヤとして残しています。
+        </p>
+      </li>
+      <li>
+        <p>
+          効果音の操作関数は
+          <code>frontend/sound_utils.py</code>
+          に切り出し、pygameが無い環境でも動作継続可能（初期化失敗時は警告のみ）。
+        </p>
+      </li>
+      <li><p>アプリ起動時はリサイズ関連UIを無効化してグレーアウト。</p></li>
+    </ul>
+    <h3 id="年3月15日追記-設定レイヤ再編">2026年3月15日追記 設定レイヤ再編</h3>
+    <ul>
+      <li>
+        <code>shared/configs.py</code> に混在していた runtime / backend /
+        frontend 設定を責務単位で分離。
+      </li>
+      <li>
+        実行時パス解決を <code>shared/runtime_paths.py</code> へ移し、通常実行と
+        PyInstaller 実行の基準パスをここへ集約。
+      </li>
+      <li>
+        backend が使う PDF 圧縮既定値と Ghostscript 既定値を
+        <code>backend/settings.py</code> へ移動。
+      </li>
+      <li>
+        frontend が使う UI 既定値、cleanup
+        対象、リソースパス、表示カタログローダを
+        <code>frontend/settings.py</code> へ移動。
+      </li>
+      <li>
+        純粋データのみを
+        <code>frontend/config_data/ui_catalogs.json</code> へ外出しし、PDF
+        モード表示名、Ghostscript プリセット表示名、長辺プリセットを JSON
+        管理へ変更。
+      </li>
+      <li>
+        backend の <code>pdf_utils.py</code> は UI 表示用
+        <code>PDF_COMPRESS_MODES</code>
+        依存をやめ、<code>PDF_ALLOWED_MODES</code> による許可値検証へ変更。
+      </li>
+      <li>
+        <code>shared/configs.py</code>
+        は後方互換のための再エクスポート層へ縮小し、新規コードの依存先から外した。
+      </li>
+      <li>
+        <code>compressor_launcher_tkinter.spec</code> に
+        <code>frontend/config_data/</code> を追加し、one-folder 配布でも JSON
+        カタログが欠けないようにした。
+      </li>
+      <li>
+        <code>tests/unit/test_settings_split.py</code> を追加し、JSON
+        ロード結果と <code>shared/configs.py</code> の互換再エクスポートを検証。
+      </li>
+    </ul>
+    <p>この改修が必要だった理由:</p>
+    <ul>
+      <li>
+        <code>shared/configs.py</code> に runtime 判定、backend
+        の処理既定値、frontend
+        の表示用データが混在しており、責務境界が曖昧だったため。
+      </li>
+      <li>
+        backend が UI
+        表示ラベルへ依存すると、処理条件の検証と画面表示の都合が結びつき、保守性が落ちるため。
+      </li>
+      <li>
+        PyInstaller 配布時に必要なデータと Python
+        ロジックを分けておかないと、配布物に何を含めるべきかが不明瞭になるため。
+      </li>
+      <li>
+        JSON 化できる純粋データだけを外出しし、Path 計算や OS 分岐のような
+        runtime ロジックは Python
+        側へ残すことで、構成の見通しと検証容易性を両立するため。
+      </li>
+    </ul>
+    <h3 id="年3月15日追記-pymupdf-画像再圧縮の実描画-xref-走査化">
+      2026年3月15日追記 PyMuPDF 画像再圧縮の実描画 xref 走査化
+    </h3>
+    <ul>
+      <li>
+        <code>backend/core/pdf_utils.py</code> の
+        <code>compress_pdf_lossy()</code>
+        を、<code>page.get_images(full=True)</code> ベースから
+        <code>page.get_image_info(xrefs=True)</code> ベースへ変更。
+      </li>
+      <li>
+        実際にページ上へ描画されている画像だけを対象にし、<code>bbox</code>
+        から実表示サイズを取得して DPI を計算するように変更。
+      </li>
+      <li>
+        同じ xref は <code>processed_xrefs</code> で 1 回だけ処理し、<code
+          >replace_image()</code
+        >
+        後に別ページで再 replace しない構造へ整理。
+      </li>
+      <li>
+        <code>skip_no_rect</code> 系ノイズを避けるため、ページ resources
+        上は見えていても当該ページでは未描画という xref を踏まないようにした。
+      </li>
+      <li>
+        <code>tests/unit/test_pdf_utils.py</code> を追加し、<code
+          >get_image_info(xrefs=True)</code
+        >
+        を使うこと、同じ xref を 1 回だけ処理すること、xref 欠落や zero bbox
+        を安全にスキップすることを unit テストで固定。
+      </li>
+    </ul>
+    <p>この改修が必要だった理由:</p>
+    <ul>
+      <li>
+        <code>page.get_images(full=True)</code> は「そのページの resources
+        に登録された画像」を返すため、「そのページで実際に描画されている画像」とは一致しないことがあるため。
+      </li>
+      <li>
+        特に WeasyPrint 系 PDF では、先頭ページの resources に後続ページの画像
+        xref が見えていても、そのページでは
+        <code>get_image_rects(xref)</code>
+        が空になるケースがあり、旧実装ではこれを xref
+        単位の失敗として扱っていたため。
+      </li>
+      <li>
+        その結果、1
+        ページ目で負の結果をキャッシュすると後続ページで実描画される画像も即
+        skip され、<code>replaced_count=0</code>
+        のまま圧縮効果を取り逃がしていたため。
+      </li>
+      <li>
+        実描画画像ベースの走査へ寄せることで、原因分析に使う debug summary も
+        <code>skip_already_processed</code>、<code>replaced</code>、<code
+          >skip_not_smaller</code
+        >
+        のように意味が揃い、挙動を追いやすくするため。
+      </li>
+    </ul>
+    <h3 id="年3月16日追記">2026年3月16日追記</h3>
+    <ul>
+      <li>
+        ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ変換せず、PNG
+        のまま量子化するように変更
+      </li>
+      <li>
+        PDF ネイティブ設定の <code>PNG→JPEG変換</code> を廃止し、<code
+          >PNG品質</code
+        >
+        スライダーを追加
+      </li>
+      <li>
+        <code>pngquant</code> が利用可能な環境では、PDF 用 PNG
+        品質スライダー値を上限に <code>min=max-20</code> の quality 範囲で量子化
+      </li>
+      <li>
+        <code>pngquant</code> が未導入の環境では、Pillow の 256 色固定減色 PNG
+        へ自動フォールバックし、PDF 用 PNG 品質スライダーは UI 上で無効化
+      </li>
+      <li>
+        request/worker 配線は
+        <code>pdf_png_quality</code> ベースへ移行し、デバッグ出力やログでも PNG
+        量子化経路が追えるように整理
+      </li>
+    </ul>
+    <p>
+      今回の版では、PDF 内の PNG 系画像を JPEG
+      化して逃がす旧挙動を完全にやめ、PNG
+      のまま圧縮経路を選べるように整理しました。これにより、透明情報や PNG
+      系素材の扱いを崩しにくくしつつ、<code>pngquant</code>
+      がある環境では圧縮率を稼ぎ、無い環境でもアプリ全体は止めずに減色処理を継続できます。
+    </p>
+    <h3 id="年3月30日追記">2026年3月30日追記</h3>
+    <ul>
+      <li>
+        ネイティブ PDF 非可逆圧縮で、PDF 画像の
+        <code>SMask</code> を読み取って透過を再構成する処理を追加
+      </li>
+      <li>
+        WeasyPrint などが生成する soft mask 付き画像は、内部拡張子が JPEG
+        系でも透過付き PNG 経路へ送るように変更
+      </li>
+      <li>
+        soft mask
+        の抽出または復元に失敗した場合は処理全体を止めず、従来経路へフォールバックしつつ
+        debug stats で追跡可能に整理
+      </li>
+      <li>
+        <code>tests/unit/test_pdf_utils.py</code> に soft mask 保持と fallback
+        の回帰テストを追加
+      </li>
+    </ul>
+    <p>
+      今回の追記では、PDF 内部表現が「透過 PNG らしく見えるが、実体は base image
+      + soft mask」であるケースを正しく扱うようにしました。これにより、HTML から
+      WeasyPrint で生成した PDF に貼り付けた透過 PNG
+      が、非可逆圧縮後に黒背景化するリスクを下げています。
+    </p>
+    <h3 id="年3月30日追記アプリ設定-効果音">
+      2026年3月30日追記（アプリ設定 / 効果音）
+    </h3>
+    <ul>
+      <li>
+        ノートブックに
+        <code>アプリ設定</code>
+        タブを追加し、起動時とクリーンアップ確認時の効果音を個別トグルで切り替え可能に変更
+      </li>
+      <li>
+        起動時効果音トグルは、起動直後の <code>open_window.wav</code>
+        と、Windows 環境でデスクトップ配下の既定フォルダ作成を尋ねる前の
+        <code>notice.wav</code> を共通で制御
+      </li>
+      <li>
+        クリーンアップ効果音トグルは、入力/出力フォルダのクリーンアップ確認前に鳴る
+        <code>warning.wav</code> を制御
+      </li>
+      <li>
+        トグル状態は <code>frontend/config_data/ui_catalogs.json</code> の
+        <code>app_settings</code>
+        セクションへ永続化され、次回起動時にも復元
+      </li>
+      <li>
+        <code>frontend/settings.py</code> に JSON 読込保存責務を追加し、UI state
+        は <code>play_startup_sound</code> /
+        <code>play_cleanup_sound</code> として保持
+      </li>
+    </ul>
+    <p>
+      今回の追記では、圧縮機能とは独立したアプリ全体の動作設定を GUI
+      から扱えるように整理しました。特に、毎回起動音やクリーンアップ警告音が不要な環境でも、コード編集なしで振る舞いを固定できるようになっています。
+    </p>
+    <h3 id="年3月31日追記セキュリティと-zip-運用上限">
+      2026年3月31日追記（セキュリティと ZIP 運用上限）
+    </h3>
+    <ul>
+      <li>
+        <code>backend/core/pdf_utils.py</code> と
+        <code>backend/core/image_utils.py</code> で、Ghostscript / pngquant
+        の呼び出しを安全側へ整理
+      </li>
+      <li>
+        外部コマンド呼び出しは shell を使わず引数配列のまま実行し、timeout
+        を追加
+      </li>
+      <li>
+        Ghostscript の custom DPI、JPG/PNG 品質、pngquant quality range
+        は安全な範囲へ正規化
+      </li>
+      <li>
+        Ghostscript には <code>-dSAFER</code> とファイル引数区切り、pngquant
+        には <code>--</code> を追加し、オプション解釈のぶれを減らした
+      </li>
+      <li>
+        <code>backend/core/archive_utils.py</code> で ZIP member の path
+        traversal、絶対パス、Windows ドライブ指定、symlink 相当 entry を拒否
+      </li>
+      <li>
+        ZIP 展開には <code>member数 &lt;= 10000</code>、<code
+          >展開後合計サイズ &lt;= 1,000,000,000 bytes</code
+        >
+        の上限を追加
+      </li>
+      <li>
+        <code>frontend/ui_tkinter_mapper.py</code> で resize 幅/高さ/長辺と
+        Ghostscript DPI を clamp し、極端値が backend へ流れないように整理
+      </li>
+      <li>
+        <code>tests/unit/test_archive_utils.py</code
+        >、<code>tests/unit/test_image_utils.py</code>、<code>tests/unit/test_pdf_utils.py</code>、<code>tests/unit/test_ui_tkinter_mapper.py</code>、<code
+          >tests/integration/test_job_runner.py</code
+        >
+        に回帰テストを追加
+      </li>
+    </ul>
+    <p>
+      今回の追記では、主に「未信頼入力を ZIP 展開や外部 CLI
+      に通す境界」を硬化しました。OS
+      コマンドインジェクション自体は元々起きにくい構成でしたが、ZIP の危険
+      member、極端な品質値や
+      DPI、長時間ハングする外部ツール呼び出しに対して、失敗し方を制御できるようにしています。あわせて、ZIP
+      の現実的な運用上限はコード上限の 1 GB ではなく、実サイズ 300 MB から 500
+      MB 程度を標準目安とする方が安定、という判断を README に明記しました。
+    </p>
+    <h3 id="フローチャートなど">フローチャートなど</h3>
+    <p>こちらのドキュメントを参照してください:</p>
+    <ul>
+      <li>
+        HTML版:
+        <a href="./flow_sequence_and_class_diagrams.html"
+          >フロー図、シーケンス図およびクラス図</a
+        >
+      </li>
+      <li>
+        Markdown版:
+        <a href="./flow_sequence_and_class_diagrams.md"
+          >flow_sequence_and_class_diagrams.md</a
+        >
+      </li>
+    </ul>
+    <h2 id="ライセンス">ライセンス</h2>
+    <p>
+      このアプリケーションは自由に改変・利用可能です。ご利用環境に応じた依存関係のライセンス条項に従ってください。
+    </p>
+    <h2 id="バージョン情報">バージョン情報</h2>
+    <ul>
+      <li>
+        バージョン: 1.0.0
+        <ul>
+          <li>リリース日: 2025年12月11日</li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.0.0
+        <ul>
+          <li>リリース日: 2026年3月5日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                PDF圧縮エンジンの選択肢追加（PyMuPDF(非可逆・画像圧縮) +
+                pikepdf(可逆・メタデータ最適化) / Ghostscript）
+              </li>
+              <li>GUIの改善 (タブ表示など)</li>
+              <li>
+                コードベースの大規模リファクタリング
+                <ul>
+                  <li>フロントエンド/バックエンドの完全分離</li>
+                  <li>
+                    起動経路の整理（launcher → frontend.bootstrap →
+                    frontend/ui_tkinter）
+                  </li>
+                  <li>コードベースのクリーンアップとモジュール再配置</li>
+                  <li>
+                    <code>backend/core/compressor_utils.py</code>
+                    を責務分割（pdf/image/archive/file_ops/worker/format）し、互換shim化
+                  </li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.0.1
+        <ul>
+          <li>リリース日: 2026年3月6日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                出力設定に「圧縮対象外のファイルを出力フォルダへコピー」トグルを追加（既定OFF）
+              </li>
+              <li>
+                未対応拡張子のコピー出力（入力フォルダの相対構造を維持）を追加
+              </li>
+              <li>圧縮失敗時のフォールバックコピーを追加（トグルON時）</li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.1.0
+        <ul>
+          <li>リリース日: 2026年3月6日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                ZIP展開時の処理を入力フォルダ直接展開から一時作業領域展開へ変更（入力フォルダ不変を保証）
+              </li>
+              <li>
+                ZIP展開時の出力先を、ZIPファイルの拡張子(.zip)を除いた名前のフォルダ配下に統一し、ZIP内部構造を維持して出力
+              </li>
+              <li>
+                ZIP処理を <code>ZIP展開してから圧縮</code> と
+                <code>ミラー圧縮</code> の組み合わせで明確化
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.1.1
+        <ul>
+          <li>リリース日: 2026年3月11日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                frontend 配下の Pylance 警告を解消するため、型契約ファイル
+                <code>frontend/ui_contracts.py</code> を追加
+              </li>
+              <li>
+                <code>ui_tkinter_mapper.py</code> の
+                <code>Any</code> を除去し、UI状態からDTO変換までの型安全性を改善
+              </li>
+              <li>
+                <code>ui_tkinter_state.py</code> /
+                <code>ui_tkinter_view.py</code> に明示的な型注釈を追加
+              </li>
+              <li>
+                <code>tkinterdnd2</code>
+                連携を局所型補助へ整理し、可読性と保守性を改善
+              </li>
+              <li>
+                <code>scripts/tkinter_regression_check.py</code>
+                による回帰確認を実施し、主要GUIフローの動作継続を確認
+              </li>
+              <li>
+                <code>frontend/ui_tkinter_controller.py</code> の mixin 依存を
+                <code>frontend/ui_contracts.py</code> の Protocol
+                として明文化し、controller の Pylance 警告を解消
+              </li>
+              <li>
+                <code>frontend/sound_utils.py</code> に型注釈と optional pygame
+                の型狭義化を追加し、保守性と可読性を改善
+              </li>
+              <li>
+                <code>after()</code> を使う UI 更新経路を helper
+                化し、controller のスレッド境界処理を整理
+              </li>
+              <li>
+                <code>Documentation/flow_sequence_and_class_diagrams.md</code>
+                に
+                <code>frontend/ui_contracts.py</code>
+                の現行内容を追記し、型契約の実体を図面ドキュメント側から参照できるよう整理
+              </li>
+              <li>対象モジュールの Pylance 診断でエラー 0 を確認</li>
+              <li>
+                <code>frontend.ui_tkinter.App</code>
+                の生成による起動スモークテストを実施し、初期化が正常終了することを確認
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.2.1
+        <ul>
+          <li>リリース日: 2026年3月15日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                pytest の実行プロファイルを <code>unit</code> /
+                <code>integration</code> /
+                <code>regression</code> に整理し、<code>pyproject.toml</code> に
+                marker と discovery 設定を追加
+              </li>
+              <li>
+                <code>tests/conftest.py</code> と
+                <code>tests/unit/</code> を追加し、契約、依存検出、ZIP
+                展開、画像圧縮、UI DTO マッピングの自動テストを整備
+              </li>
+              <li>
+                <code>tests/integration/</code> を追加し、<code
+                  >job_runner</code
+                >
+                の CSV 出力・ZIP staging・フォールバックコピー、および
+                <code>ui_tkinter_controller</code> の主要導線を検証可能にした
+              </li>
+              <li>
+                旧 <code>scripts/tkinter_regression_check.py</code> を
+                <code>tests/regression/test_tkinter_regression.py</code>
+                へ完全移植し、GUI 回帰を pytest から選択実行できるよう統合
+              </li>
+              <li>
+                <code>backend/orchestrator/job_runner.py</code> の CSV
+                入出力パス連携不具合を修正し、テストで再発防止を追加
+              </li>
+              <li>
+                PyMuPDF の画像再圧縮で、デバッグモードON時に標準出力へ画像 xref
+                ごとの統計を出すようにして、効果が確認できるようにした
+              </li>
+              <li>
+                設定レイヤを <code>shared/runtime_paths.py</code> /
+                <code>backend/settings.py</code> /
+                <code>frontend/settings.py</code>
+                に分離し、UI の純粋データを
+                <code>frontend/config_data/ui_catalogs.json</code> へ移行
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.3.0
+        <ul>
+          <li>リリース日: 2026年3月15日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                <code>compress_pdf_lossy()</code> を
+                <code>page.get_image_info(xrefs=True)</code>
+                ベースへ変更し、実描画画像だけを対象にするよう修正
+              </li>
+              <li>
+                WeasyPrint 系 PDF
+                で先頭ページの負の判定が全ページへ伝播し、後続ページの画像再圧縮を取り逃がす不具合を解消
+              </li>
+              <li>
+                <code>tests/unit/test_pdf_utils.py</code> を追加し、xref
+                一回処理と missing xref / zero bbox の分岐を回帰テスト化
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.4.0
+        <ul>
+          <li>リリース日: 2026年3月16日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                ネイティブ PDF 非可逆圧縮で、PDF 内 PNG 系画像を JPEG へ変換せず
+                PNG のまま量子化するよう変更
+              </li>
+              <li>
+                PDF ネイティブ設定の <code>PNG→JPEG変換</code> を廃止し、<code
+                  >PNG品質</code
+                >
+                スライダーを追加
+              </li>
+              <li>
+                <code>pngquant</code> 利用時は PDF 用 PNG 品質スライダー値から
+                quality 範囲を自動計算し、未導入時は Pillow の 256
+                色固定減色へフォールバックするよう整理
+              </li>
+              <li>
+                <code>CompressionRequest</code> と worker 配線を
+                <code>pdf_png_quality</code> ベースへ移行し、関連
+                unit/integration テストを更新
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.5.0
+        <ul>
+          <li>リリース日: 2026年3月30日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                ネイティブ PDF 非可逆圧縮で、<code>SMask</code>
+                を読み取って透過情報を再構成し、soft mask 付き画像を透過付き PNG
+                経路へ送るよう改善
+              </li>
+              <li>
+                soft mask
+                の抽出または復元に失敗した場合も処理全体は止めず、従来経路へフォールバックしつつ
+                debug stats で追跡可能に整理
+              </li>
+              <li>
+                ノートブックに
+                <code>アプリ設定</code> タブを追加し、起動時効果音（<code
+                  >open_window.wav</code
+                >
+                /
+                <code>notice.wav</code
+                >）とクリーンアップ確認時効果音（<code>warning.wav</code>）を個別に
+                ON/OFF 可能にした
+              </li>
+              <li>
+                効果音トグル状態を
+                <code>frontend/config_data/ui_catalogs.json</code> の
+                <code>app_settings</code>
+                へ保存し、次回起動時にも復元するようにした
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.5.2
+        <ul>
+          <li>リリース日: 2026年4月6日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                PDF 埋め込み画像と単体画像ファイルの両経路で、CMYK 画像を ICC
+                プロファイル優先で RGB へ変換する処理を追加
+              </li>
+              <li>
+                ネイティブ PDF 非可逆圧縮の debug stats に
+                <code>cmyk_converted</code>
+                を追加し、色空間変換の発生件数を確認可能にした
+              </li>
+              <li>
+                <code>backend/core/pdf_utils.py</code> と
+                <code>backend/core/image_utils.py</code> の CMYK
+                変換経路へ自己文書化の Docstring と inline comment を追加
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+      <li>
+        バージョン: 2.5.1
+        <ul>
+          <li>リリース日: 2026年3月31日</li>
+          <li>
+            主な変更点:
+            <ul>
+              <li>
+                Ghostscript / pngquant 呼び出しに
+                timeout、引数正規化、ファイル引数区切りを追加し、安全側の
+                subprocess 実行へ整理
+              </li>
+              <li>
+                ZIP 展開で path traversal、絶対パス、Windows
+                ドライブ指定、symlink 相当 entry を拒否し、member
+                数と展開後合計サイズの上限を追加
+              </li>
+              <li>
+                UI mapper で resize 値と Ghostscript custom DPI を clamp
+                し、極端値入力が backend へ流れないよう改善
+              </li>
+              <li>
+                unit / integration テストを追加し、ZIP 安全化、外部 CLI
+                引数ガード、UI clamp 伝播を回帰テスト化
+              </li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul>
+    <hr />
+    <p>
+      2026年3月16日 株式会社京都ダイケンビルサービス 千總本社ビル設備 川﨑　翔
+    </p>
+  </body>
 </html>

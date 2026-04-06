@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, cast
 
-from PIL import Image
+from PIL import Image, ImageCms
 
 from backend.settings import (
     GS_DEFAULT_PRESET,
@@ -86,6 +86,34 @@ def _import_pikepdf():
         return None, e
 
 
+def _convert_cmyk_to_rgb(pil_img: Image.Image) -> tuple[Image.Image, bool]:
+    """CMYK 画像を ICC プロファイル優先で RGB へ変換する。
+
+    返り値の bool は「今回の読み込みで CMYK→RGB 変換を実施したか」を示す。
+    PDF から抽出したラスターは CMYK のまま残ることがあり、そのまま JPEG/PNG の
+    後段へ流すと暗転や保存失敗の原因になるため、入口で RGB 系へ正規化する。
+    """
+    if pil_img.mode != 'CMYK':
+        return pil_img, False
+
+    icc_profile = pil_img.info.get('icc_profile')
+    if isinstance(icc_profile, bytes) and icc_profile:
+        try:
+            # 埋め込み ICC がある場合は、Pillow 任せの単純変換より色再現を優先する。
+            src_profile = ImageCms.ImageCmsProfile(io.BytesIO(icc_profile))
+            dst_profile = ImageCms.createProfile('sRGB')
+            converted = ImageCms.profileToProfile(pil_img, src_profile, dst_profile, outputMode='RGB')
+            converted.load()
+            return converted, True
+        except Exception:
+            pass
+
+    # ICC が無い、または壊れているケースでも処理を止めず RGB 化だけは継続する。
+    converted = pil_img.convert('RGB')
+    converted.load()
+    return converted, True
+
+
 def _normalize_pdf_png_source_image(pil_img: Image.Image) -> Image.Image:
     """PNG 系量子化へ渡す前に Pillow 画像モードを正規化する。
 
@@ -96,6 +124,9 @@ def _normalize_pdf_png_source_image(pil_img: Image.Image) -> Image.Image:
     has_alpha = 'A' in pil_img.getbands() or 'transparency' in pil_img.info
 
     if pil_img.mode in ('RGB', 'RGBA', 'L'):
+        return pil_img
+    if pil_img.mode == 'CMYK':
+        pil_img, _converted = _convert_cmyk_to_rgb(pil_img)
         return pil_img
     if pil_img.mode == 'LA':
         return pil_img.convert('RGBA')
@@ -152,10 +183,13 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
     の RGBA 画像へ寄せておくことで後段の PNG/JPEG 分岐を単純化する。
     """
     pil_img = _open_pdf_raster_image(cast(bytes, base_image['image']))
+    # soft mask 合成や JPEG/PNG 再保存は RGB 系モード前提で扱う方が分岐を単純化できる。
+    pil_img, cmyk_converted = _convert_cmyk_to_rgb(pil_img)
     smask_xref = base_image.get('smask', 0)
     if not isinstance(smask_xref, int) or smask_xref <= 0:
         # soft mask が無いケースも通常系なので、透過判定だけ返して呼び出し側へ渡す。
         return pil_img, {
+            'cmyk_converted': cmyk_converted,
             'smask_xref': 0,
             'soft_mask_applied': False,
             'soft_mask_error': None,
@@ -167,6 +201,7 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
         # xref は指していても抽出できない PDF があるため、ここでは失敗を握りつぶさず
         # メタ情報として残し、画像本体だけで続行する。
         return pil_img, {
+            'cmyk_converted': cmyk_converted,
             'smask_xref': smask_xref,
             'soft_mask_applied': False,
             'soft_mask_error': 'smask_extract_failed',
@@ -182,6 +217,7 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
             pil_img = pil_img.convert('RGBA')
         pil_img.putalpha(alpha_mask)
         return pil_img, {
+            'cmyk_converted': cmyk_converted,
             'smask_xref': smask_xref,
             'soft_mask_applied': True,
             'soft_mask_error': None,
@@ -191,6 +227,7 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
         # soft mask だけ壊れていても PDF 全体を諦めず、後段が安全側の経路を選べるよう
         # 失敗理由と現在の透過有無だけ返す。
         return pil_img, {
+            'cmyk_converted': cmyk_converted,
             'smask_xref': smask_xref,
             'soft_mask_applied': False,
             'soft_mask_error': f'smask_open_failed:{exc}',
@@ -335,6 +372,7 @@ def compress_pdf_lossy(
             'pages': len(doc),
             'image_infos_seen': 0,
             'unique_xrefs_seen': 0,
+            'cmyk_converted': 0,
             'skip_xref_missing': 0,
             'skip_already_processed': 0,
             'skip_zero_rect': 0,
@@ -463,9 +501,13 @@ def compress_pdf_lossy(
                     continue
 
                 soft_mask_xref = cast(int, transparency_meta['smask_xref'])
+                cmyk_converted = cast(bool, transparency_meta['cmyk_converted'])
                 soft_mask_error = cast(str | None, transparency_meta['soft_mask_error'])
                 soft_mask_applied = cast(bool, transparency_meta['soft_mask_applied'])
                 has_transparency = cast(bool, transparency_meta['has_transparency'])
+                if cmyk_converted:
+                    # debug stats から「今回の PDF で何枚の CMYK 画像を救済したか」を追えるようにする。
+                    debug_stats['cmyk_converted'] += 1
                 if soft_mask_xref > 0:
                     debug_stats['soft_mask_seen'] += 1
                     if soft_mask_applied:
@@ -533,6 +575,7 @@ def compress_pdf_lossy(
                     'effective_dpi': round(effective_dpi, 2),
                     'resized': resized,
                     'resized_to': resized_to,
+                    'cmyk_converted': cmyk_converted,
                     'has_transparency': has_transparency,
                     'soft_mask_xref': soft_mask_xref,
                     'soft_mask_applied': soft_mask_applied,

@@ -7,11 +7,12 @@ from __future__ import annotations
 処理全体を止めずに同等の出力責務を維持する。
 """
 
+import io
 import shutil
 import subprocess
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageCms
 
 
 MAX_IMAGE_QUALITY = 100
@@ -31,6 +32,34 @@ def _clamp_quality(value, default=MAX_IMAGE_QUALITY):
     return max(0, min(MAX_IMAGE_QUALITY, parsed))
 
 
+def _convert_cmyk_to_rgb(img: Image.Image) -> tuple[Image.Image, bool]:
+    """CMYK 画像を ICC プロファイル優先で RGB へ変換する。
+
+    単体画像圧縮では JPEG 保存、PNG 量子化前の一時 PNG 生成、リサイズ処理の
+    すべてが RGB 系を前提に進むため、読み込み直後に吸収して downstream の責務を
+    単純化する。返り値の bool は変換実施有無の観測用である。
+    """
+    if img.mode != 'CMYK':
+        return img, False
+
+    icc_profile = img.info.get('icc_profile')
+    if isinstance(icc_profile, bytes) and icc_profile:
+        try:
+            # 埋め込み ICC を優先して sRGB へ寄せることで、CMYK JPEG の色転びを抑える。
+            src_profile = ImageCms.ImageCmsProfile(io.BytesIO(icc_profile))
+            dst_profile = ImageCms.createProfile('sRGB')
+            converted = ImageCms.profileToProfile(img, src_profile, dst_profile, outputMode='RGB')
+            converted.load()
+            return converted, True
+        except Exception:
+            pass
+
+    # ICC が扱えなくても RGB 化だけは実施し、圧縮処理全体を止めない。
+    converted = img.convert('RGB')
+    converted.load()
+    return converted, True
+
+
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。
 
@@ -44,6 +73,9 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
 
     try:
         img = Image.open(str(input_file))
+        img.load()
+        # 保存形式や resize ロジックは RGB 系モードの方が安定するため、最上流で吸収する。
+        img, _cmyk_converted = _convert_cmyk_to_rgb(img)
         if resize_cfg and resize_cfg.get('enabled'):
             # UI 側では複数の入力形式を許容しているため、ここで mode を見て
             # 実際のリサイズ戦略へ落とし込む。
@@ -118,6 +150,9 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                 # pngquant 自身はリサイズをしないため、一時 PNG を作ってから量子化する。
                 tmp_path = output_file.with_suffix(output_file.suffix + ".tmp_resize.png")
                 img = Image.open(str(input_file))
+                img.load()
+                # 量子化用の一時 PNG も RGB 前提で作ることで、CMYK 入力をここで閉じ込める。
+                img, _cmyk_converted = _convert_cmyk_to_rgb(img)
                 mode = resize_cfg.get('mode', 'manual')
                 orig_w, orig_h = img.size
                 if mode == 'long_edge':
