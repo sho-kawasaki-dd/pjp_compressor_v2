@@ -21,6 +21,7 @@ from frontend.settings import save_app_settings
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
+from shared.runtime_paths import describe_tool_source
 
 
 class TkUiControllerMixin:
@@ -48,16 +49,18 @@ class TkUiControllerMixin:
     def _pdf_png_engine_label_text(self) -> str:
         """PDF 内 PNG 再圧縮で使う量子化エンジン表記を返す。"""
         host = self._controller_host()
+        source_label = describe_tool_source(host.capabilities.pngquant_source)
         if host.capabilities.pngquant_available:
-            return 'PNG圧縮エンジン: pngquant'
-        return 'PNG圧縮エンジン: Pillow 256色固定'
+            return f'PNG圧縮エンジン: pngquant ({source_label})'
+        return f'PNG圧縮エンジン: Pillow 256色固定 (pngquant:{source_label})'
 
     def _image_png_engine_label_text(self) -> str:
         """通常 PNG 圧縮で使うエンジン表記を返す。"""
         host = self._controller_host()
+        source_label = describe_tool_source(host.capabilities.pngquant_source)
         if host.use_pngquant.get() and host.capabilities.pngquant_available:
-            return 'PNG圧縮エンジン: pngquant'
-        return 'PNG圧縮エンジン: Pillow'
+            return f'PNG圧縮エンジン: pngquant ({source_label})'
+        return f'PNG圧縮エンジン: Pillow (pngquant:{source_label})'
 
     def _update_png_engine_labels(self) -> None:
         """PNG 圧縮エンジン注記ラベルの文言を現在状態へ同期する。"""
@@ -150,7 +153,8 @@ class TkUiControllerMixin:
         parts = [
             'PyMuPDF:OK' if report.fitz_available else 'PyMuPDF:なし',
             'pikepdf:OK' if report.pikepdf_available else 'pikepdf:なし',
-            'GS:OK' if report.ghostscript_available else 'GS:未検出',
+            f'GS:{describe_tool_source(report.ghostscript_source)}',
+            f'pngquant:{describe_tool_source(report.pngquant_source)}',
         ]
 
         if not report.ghostscript_available:
@@ -404,27 +408,32 @@ class TkUiControllerMixin:
         self.log(f'出力先: {output_dir}')
 
         if request.pdf_engine == 'native':
-            pdf_png_method = 'pngquant' if host.capabilities.pngquant_available else 'Pillow 256色固定'
+            pdf_png_method = (
+                f"pngquant({describe_tool_source(host.capabilities.pngquant_source)})"
+                if host.capabilities.pngquant_available
+                else f"Pillow 256色固定 (pngquant:{describe_tool_source(host.capabilities.pngquant_source)})"
+            )
             self.log(
                 f'PDF: ネイティブ モード={request.pdf_mode}, DPI={request.pdf_dpi}, '
                 f'JPEG品質={request.pdf_jpeg_quality}, PNG品質={request.pdf_png_quality}, '
                 f'PNG量子化={pdf_png_method}'
             )
         else:
+            gs_source = describe_tool_source(host.capabilities.ghostscript_source)
             if request.gs_preset == 'custom':
                 self.log(
-                    f'PDF: Ghostscript カスタムDPI={request.gs_custom_dpi}, '
+                    f'PDF: Ghostscript[{gs_source}] カスタムDPI={request.gs_custom_dpi}, '
                     f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
             else:
                 self.log(
-                    f'PDF: Ghostscript プリセット={request.gs_preset}, '
+                    f'PDF: Ghostscript[{gs_source}] プリセット={request.gs_preset}, '
                     f'pikepdf併用={host.gs_use_lossless.get()}'
                 )
 
         self.log(
             f'画像: JPG={request.jpg_quality}, PNG={request.png_quality}, '
-            f'pngquant={request.use_pngquant}'
+            f'pngquant={request.use_pngquant} ({describe_tool_source(host.capabilities.pngquant_source)})'
         )
         if host.resize_enabled.get():
             self.log(f'リサイズ: {result.resize_config}')

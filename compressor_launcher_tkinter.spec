@@ -1,17 +1,21 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 
 tkdnd_datas = collect_data_files('tkinterdnd2')
 tkdnd_hiddenimports = collect_submodules('tkinterdnd2')
+project_root = Path(__file__).resolve().parent
+vendor_datas = [('vendor', 'vendor')] if (project_root / 'vendor').exists() else []
 
 
 a = Analysis(
     ['compressor_launcher_tkinter.py'],
     pathex=[],
     binaries=[],
-    datas=[('sounds', 'sounds'), ('images', 'images'), ('frontend/config_data', 'frontend/config_data'), *tkdnd_datas],
+    datas=[('sounds', 'sounds'), ('images', 'images'), ('frontend/config_data', 'frontend/config_data'), *vendor_datas, *tkdnd_datas],
     hiddenimports=[
         'frontend.bootstrap',
         'backend.contracts',

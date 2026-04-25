@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from typing import Any, Callable, Literal
 
 EventKind = Literal['log', 'progress', 'stats', 'status', 'error']
+ToolSource = Literal['system', 'bundled', 'unavailable']
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,8 @@ class CapabilityReport:
     pikepdf_available: bool
     ghostscript_path: str | None
     pngquant_path: str | None
+    ghostscript_source: ToolSource = 'unavailable'
+    pngquant_source: ToolSource = 'unavailable'
 
     @property
     def ghostscript_available(self) -> bool:

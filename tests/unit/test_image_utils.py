@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -45,7 +46,7 @@ def test_compress_png_pngquant_falls_back_to_pillow(monkeypatch: pytest.MonkeyPa
     expected = (True, 'fallback called')
     calls: list[tuple[str, str, int, object]] = []
 
-    monkeypatch.setattr(image_utils.shutil, 'which', lambda _: None)
+    monkeypatch.setattr(image_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=False, source='unavailable', path=None))
     monkeypatch.setattr(
         image_utils,
         'compress_image_pillow',
@@ -54,7 +55,7 @@ def test_compress_png_pngquant_falls_back_to_pillow(monkeypatch: pytest.MonkeyPa
 
     result = image_utils.compress_png_pngquant(tmp_path / 'in.png', tmp_path / 'out.png', 30, 60, resize_cfg={'enabled': True})
 
-    assert result == expected
+    assert result == (True, 'fallback called [pngquant=未検出, fallback=pngquant_unavailable]')
     assert calls == [(str(tmp_path / 'in.png'), str(tmp_path / 'out.png'), 60, {'enabled': True})]
 
 
@@ -70,7 +71,7 @@ def test_compress_png_pngquant_reports_resize_when_external_tool_succeeds(
         Path(cmd[5]).write_bytes(b'pngquant-output')
         return subprocess.CompletedProcess(cmd, 0, stdout='', stderr='')
 
-    monkeypatch.setattr(image_utils.shutil, 'which', lambda _: 'C:/tools/pngquant.exe')
+    monkeypatch.setattr(image_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=True, source='bundled', path='C:/tools/pngquant.exe'))
     monkeypatch.setattr(image_utils.subprocess, 'run', fake_run)
 
     ok, message = image_utils.compress_png_pngquant(
@@ -83,6 +84,7 @@ def test_compress_png_pngquant_reports_resize_when_external_tool_succeeds(
 
     assert ok is True
     assert output_path.read_bytes() == b'pngquant-output'
+    assert 'pngquant:bundled' in message
     assert 'resize=300x150' in message
     assert not output_path.with_suffix('.png.tmp_resize.png').exists()
 
@@ -102,7 +104,7 @@ def test_compress_png_pngquant_clamps_quality_and_uses_timeout(
         Path(cmd[5]).write_bytes(b'pngquant-output')
         return subprocess.CompletedProcess(cmd, 0, stdout='', stderr='')
 
-    monkeypatch.setattr(image_utils.shutil, 'which', lambda _: 'C:/tools/pngquant.exe')
+    monkeypatch.setattr(image_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=True, source='system', path='C:/tools/pngquant.exe'))
     monkeypatch.setattr(image_utils.subprocess, 'run', fake_run)
 
     ok, message = image_utils.compress_png_pngquant(input_path, output_path, -15, 180, speed=99)
@@ -112,6 +114,7 @@ def test_compress_png_pngquant_clamps_quality_and_uses_timeout(
     assert '--speed=11' in seen['cmd']
     assert '--' in seen['cmd']
     assert seen['timeout'] == image_utils.PNGQUANT_TIMEOUT_SECONDS
+    assert 'pngquant:system' in message
     assert 'quality=0-100' in message
 
 
@@ -141,7 +144,7 @@ def test_compress_png_pngquant_resizes_cmyk_input_before_cli(
         Path(cmd[5]).write_bytes(b'pngquant-output')
         return subprocess.CompletedProcess(cmd, 0, stdout='', stderr='')
 
-    monkeypatch.setattr(image_utils.shutil, 'which', lambda _: 'C:/tools/pngquant.exe')
+    monkeypatch.setattr(image_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=True, source='bundled', path='C:/tools/pngquant.exe'))
     monkeypatch.setattr(image_utils.subprocess, 'run', fake_run)
 
     ok, message = image_utils.compress_png_pngquant(
@@ -154,6 +157,7 @@ def test_compress_png_pngquant_resizes_cmyk_input_before_cli(
 
     assert ok is True
     assert output_path.read_bytes() == b'pngquant-output'
+    assert 'pngquant:bundled' in message
     assert 'resize=300x150' in message
     assert seen['timeout'] == image_utils.PNGQUANT_TIMEOUT_SECONDS
     assert not output_path.with_suffix('.png.tmp_resize.png').exists()

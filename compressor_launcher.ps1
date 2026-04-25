@@ -20,6 +20,10 @@ if ($Mode -eq 'Build') {
 		exit 1
 	}
 
+	if (-not (Test-Path ./vendor)) {
+		Write-Warning 'vendor/ が見つからないため、system 優先のみの構成でビルドします。bundled fallback は同梱されません。'
+	}
+
 	python -m PyInstaller --clean ./compressor_launcher_tkinter.spec
 	$exitCode = $LASTEXITCODE
 	deactivate

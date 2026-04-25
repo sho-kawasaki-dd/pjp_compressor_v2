@@ -10,8 +10,9 @@
 ```mermaid
 flowchart TD
     A[アプリ起動] --> A0[ui_catalogs.json から UI カタログと app_settings を読込]
-    A0 --> A1[detect_capabilities 実行]
-    A1 --> A2[CapabilityReportでUI状態を制御]
+    A0 --> A1[detect_capabilities 実行
+system 優先 / vendor fallback / 未検出を解決]
+    A1 --> A2[CapabilityReport(source付き)でUI状態を制御]
     A2 --> A3[圧縮設定 / アプリ設定 / ログ の各タブを構築]
     A3 --> A4{play_startup_sound ?}
     A4 -- はい --> A5[open_window.wav を再生]
@@ -40,13 +41,14 @@ member数 展開後合計サイズ 危険pathを検査]
     K --> L{worker_opsで拡張子分岐}
     L -- PDF --> M{pdf_engine}
     M -- ghostscript --> N[Ghostscript圧縮
+system→bundled→skip
 timeout DPI正規化 dSAFER]
     M -- native --> O[PyMuPDF + pikepdf]
     O --> O0{透過保持が必要?\nsoft mask または alpha}
     O0 -- はい --> O4{pngquant 利用可?}
     O0 -- いいえ --> O3{PDF内PNG系画像?}
     O3 -- はい --> O4{pngquant 利用可?}
-    O4 -- はい --> O5[pngquant で PNG のまま量子化]
+    O4 -- はい --> O5[pngquant(system/bundled) で PNG のまま量子化]
     O4 -- いいえ --> O6[Pillow 256色固定減色へフォールバック]
     O3 -- いいえ --> O7[JPEG系画像は JPEG 再圧縮]
     O --> O1{debug_mode ON?}
@@ -59,6 +61,7 @@ timeout DPI正規化 dSAFER]
     L -- JPG/JPEG --> P[Pillow圧縮]
     L -- PNG --> Q{use_pngquant}
     Q -- true --> R[pngquant圧縮
+system→bundled→Pillow fallback
 quality正規化 timeout]
     Q -- false --> S[Pillow圧縮]
     L -- その他 --> T[圧縮対象外として通過]
@@ -84,6 +87,7 @@ sequenceDiagram
     participant Ctrl as Controller
     participant Mapper as RequestMapper
     participant Cap as CapabilityDetector
+    participant Paths as RuntimePathsResolver
     participant Ctr as Contracts
     participant Runner as JobRunner
     participant FS as ファイルシステム
@@ -97,7 +101,9 @@ sequenceDiagram
     App->>Config: load_app_settings() / UIカタログ読込
     Config-->>App: app_settings + 表示カタログ
     App->>Cap: detect_capabilities()
-    Cap-->>App: CapabilityReport
+    Cap->>Paths: resolve_ghostscript_executable() / resolve_pngquant_executable()
+    Paths-->>Cap: ExternalToolResolution(system/bundled/unavailable)
+    Cap-->>App: CapabilityReport(source付き)
     alt play_startup_sound == True
         App->>App: open_window.wav 再生
     end
@@ -120,7 +126,11 @@ sequenceDiagram
             alt request.pdf_engine == ghostscript
                 Worker->>Svc: pdf_service
                 Svc->>GS: PDF圧縮
-                GS-->>Worker: 出力PDF
+                alt Ghostscript 成功
+                    GS-->>Worker: 出力PDF
+                else Ghostscript 失敗 / タイムアウト / 未検出
+                    GS-->>Worker: 対象PDFを skip して元ファイルを維持
+                end
             else request.pdf_engine == native
                 Worker->>Svc: pdf_service
                 Svc->>Native: PDF圧縮
@@ -143,7 +153,11 @@ sequenceDiagram
             alt PNG and request.use_pngquant
                 Worker->>Svc: image_service
                 Svc->>PNGQ: PNG圧縮
-                PNGQ-->>Worker: 出力PNG
+                alt pngquant 成功
+                    PNGQ-->>Worker: 出力PNG
+                else pngquant 失敗 / 未検出
+                    PNGQ-->>Worker: Pillow フォールバック出力PNG
+                end
             else JPG or Pillow使用
                 Worker->>Svc: image_service
                 Svc->>PIL: 画像圧縮
@@ -207,11 +221,25 @@ classDiagram
         +detect_capabilities()
     }
 
+    class RuntimePathsResolver {
+        +resolve_ghostscript_executable()
+        +resolve_pngquant_executable()
+        +describe_tool_source()
+    }
+
+    class ExternalToolResolution {
+        +path
+        +source
+        +available
+    }
+
     class CapabilityReport {
         +fitz_available
         +pikepdf_available
         +ghostscript_path
         +pngquant_path
+        +ghostscript_source
+        +pngquant_source
     }
 
     class TkUiStateMixin {
@@ -291,6 +319,8 @@ classDiagram
     }
 
     App --> CapabilityDetector : 起動時に実行
+    CapabilityDetector --> RuntimePathsResolver : system→bundled→未検出を解決
+    RuntimePathsResolver --> ExternalToolResolution : 返却
     CapabilityDetector --> CapabilityReport : 返却
     App --> FrontendSettings : app_settings読込/保存
     App --> Contracts : Request/Eventを利用
@@ -312,8 +342,9 @@ classDiagram
 設定まわりは単一の `shared/configs.py` から、所有責務ごとの層へ再編しました。
 
 - `shared/runtime_paths.py`
-  通常実行と PyInstaller 実行の両方で使う `APP_BASE_DIR` / `RESOURCE_BASE_DIR` を提供します。
-  Path 計算や `sys.frozen` / `sys._MEIPASS` 判定のような runtime 依存ロジックはここへ集約します。
+    通常実行と PyInstaller 実行の両方で使う `APP_BASE_DIR` / `RESOURCE_BASE_DIR` を提供します。
+    さらに `vendor/` 配下の bundled ツール探索と、Ghostscript / pngquant の system 優先 resolver もここへ集約します。
+    Path 計算や `sys.frozen` / `sys._MEIPASS` 判定のような runtime 依存ロジックはここへ集約します。
 - `backend/settings.py`
   PDF 圧縮既定値、Ghostscript 既定プリセット、backend が許可する PDF モード値を保持します。
   backend は UI 表示ラベルに依存せず、`PDF_ALLOWED_MODES` のような処理都合の値だけを参照します。
@@ -326,6 +357,22 @@ classDiagram
 - `shared/configs.py`
   旧 import 互換のための再エクスポート層です。
   新規コードは原則としてこのモジュールを直接参照せず、runtime / backend / frontend の各設定モジュールを直接参照します。
+
+## 今回の改修（v2.6.0 / 2026年4月25日追記）
+
+- Ghostscript / pngquant の外部ツール探索を system 優先・bundled fallback・未検出の共通 resolver に統一しました。
+- `shared/runtime_paths.py` に bundled `vendor/` の探索規約を追加し、開発実行と PyInstaller one-folder 配布で同じ探索順を使うようにしました。
+- `backend/contracts.py` の `CapabilityReport` に source 情報を追加し、UI とログで system / bundled / 未検出 を表示できるようにしました。
+- Ghostscript は実行失敗時に対象 PDF だけを skip して元ファイルを維持するよう整理しました。
+- pngquant は通常 PNG と PDF 内 PNG の両方で source 付き表示にし、失敗時は Pillow フォールバックを維持するように整理しました。
+- PyInstaller one-folder 配布では `vendor/` を条件付きで同梱し、ビルドスクリプトでは vendor 不在時も警告のみで継続します。
+- `tests/unit/test_capabilities.py`、`tests/unit/test_image_utils.py`、`tests/unit/test_pdf_utils.py`、`tests/integration/test_job_runner.py`、`tests/integration/test_ui_controller.py` で source-aware な分岐と fallback を回帰確認しました。
+
+この改修が必要だった理由:
+
+- system にあるツールを優先しつつ、配布物では bundled fallback を使えるようにして、開発環境と配布環境の差を小さくするためです。
+- どの経路で Ghostscript / pngquant を使ったかを UI とログで追えるようにし、失敗時の挙動を説明可能にするためです。
+- Ghostscript 失敗時の skip と pngquant fallback を明確に分けることで、job 全体を止めずに対象ファイル単位での継続性を保つためです。
 
 ## 今回の改修（v2.4.0 / 2026年3月16日追記）
 

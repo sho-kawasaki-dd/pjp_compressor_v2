@@ -16,11 +16,14 @@ def test_capability_report_properties_reflect_detected_paths() -> None:
         pikepdf_available=True,
         ghostscript_path='C:/gs/gswin64c.exe',
         pngquant_path=None,
+        ghostscript_source='bundled',
+        pngquant_source='unavailable',
     )
 
     assert report.ghostscript_available is True
     assert report.pngquant_available is False
     assert report.native_pdf_available is True
+    assert report.ghostscript_source == 'bundled'
 
 
 def test_progress_event_defaults_are_optional() -> None:

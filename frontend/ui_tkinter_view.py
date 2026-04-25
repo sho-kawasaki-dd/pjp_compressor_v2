@@ -7,11 +7,11 @@ from __future__ import annotations
  「どの widget をどう並べるか」まで知る必要をなくしている。
 """
 
-import shutil
 import tkinter as tk
 from tkinter import ttk
 from typing import Callable, Protocol, cast
 
+from backend.contracts import CapabilityReport
 from frontend.settings import (
     GS_PRESETS,
     LONG_EDGE_PRESETS,
@@ -33,6 +33,7 @@ class _DndEntryProtocol(Protocol):
 class TkUiViewMixin:
     dnd_available: bool
     DND_FILES: str
+    capabilities: CapabilityReport
 
     input_dir: tk.StringVar
     output_dir: tk.StringVar
@@ -592,7 +593,7 @@ class TkUiViewMixin:
             command=self._update_png_engine_labels,
         )
         self.pngquant_check.pack(side='left')
-        if not shutil.which('pngquant'):
+        if not self.capabilities.pngquant_available:
             # 未検出時に UI からも無効化しておくと、実行時フォールバックの理由が分かりやすい。
             self.pngquant_check.config(state='disabled')
             ttk.Label(pq_row, text='（pngquant 未検出のため無効）', foreground='gray').pack(side='left', padx=10)

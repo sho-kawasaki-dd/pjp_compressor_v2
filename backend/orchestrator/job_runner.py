@@ -27,8 +27,10 @@ from backend.settings import (
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
 
+from backend.capabilities import detect_capabilities
 from backend.services.archive_service import extract_zip_archives
 from backend.contracts import CompressionRequest, ProgressEvent
+from shared.runtime_paths import describe_tool_source
 
 
 def _safe_rel(path: Path, base: Path) -> str:
@@ -37,6 +39,18 @@ def _safe_rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except Exception:
         return path.name
+
+
+def _tool_detection_summary() -> str:
+    """起動時ログに出す外部ツール検出要約を返す。"""
+    report = detect_capabilities()
+    parts = [
+        'PyMuPDF=OK' if report.fitz_available else 'PyMuPDF=なし',
+        'pikepdf=OK' if report.pikepdf_available else 'pikepdf=なし',
+        f'Ghostscript={describe_tool_source(report.ghostscript_source)}',
+        f'pngquant={describe_tool_source(report.pngquant_source)}',
+    ]
+    return '依存検出: ' + ', '.join(parts)
 
 
 def run_compression_job(
@@ -230,6 +244,7 @@ def run_compression_job(
             shutil.rmtree(temp_extract_root, ignore_errors=True)
         return
 
+    log_func(_tool_detection_summary())
     max_workers = max(4, multiprocessing.cpu_count())
     log_func(f"並列処理開始（ワーカー数: {max_workers}、ファイル数: {total_len}）")
 

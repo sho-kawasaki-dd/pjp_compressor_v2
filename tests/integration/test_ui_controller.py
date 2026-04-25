@@ -128,7 +128,7 @@ class ControllerHost(TkUiControllerMixin):
 
     def __init__(self, tmp_path: Path):
         # pngquant 未検出を既定にして、PDF PNG フォールバック UI の既定分岐を直接検証する。
-        self.capabilities = CapabilityReport(True, True, 'C:/gs.exe', None)
+        self.capabilities = CapabilityReport(True, True, 'C:/gs.exe', None, ghostscript_source='system', pngquant_source='unavailable')
         self.default_input_dir = str(tmp_path / 'default_input')
         self.default_output_dir = str(tmp_path / 'default_output')
         self.input_dir = DummyVar('')
@@ -259,22 +259,22 @@ def test_update_pdf_controls_disables_pdf_png_slider_without_pngquant(tmp_path: 
     assert all(widget.state == 'disabled' for widget in host._native_png_quality_widgets)
     assert host.pdf_png_q_scale.state == 'disabled'
     assert host.pdf_png_method_label.packed is True
-    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: Pillow 256色固定'
+    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: Pillow 256色固定 (pngquant:未検出)'
     assert host.pdf_png_fallback_note_label.packed is True
     assert host.jpeg_note_label.packed is True
-    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow'
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow (pngquant:未検出)'
 
 
 def test_update_pdf_controls_enables_pdf_png_slider_with_pngquant(tmp_path: Path) -> None:
     host = ControllerHost(tmp_path)
-    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe')
+    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe', ghostscript_source='system', pngquant_source='bundled')
 
     host._update_pdf_controls()
 
     assert all(widget.state == 'normal' for widget in host._native_png_quality_widgets)
     assert host.pdf_png_q_scale.state == 'normal'
     assert host.pdf_png_method_label.packed is True
-    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: pngquant'
+    assert host.pdf_png_method_label.text == 'PNG圧縮エンジン: pngquant (bundled)'
     assert host.pdf_png_fallback_note_label.packed is False
 
 
@@ -289,15 +289,24 @@ def test_update_pdf_controls_hides_pdf_png_method_label_when_lossy_disabled(tmp_
 
 def test_update_png_engine_labels_tracks_pngquant_checkbox(tmp_path: Path) -> None:
     host = ControllerHost(tmp_path)
-    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe')
+    host.capabilities = CapabilityReport(True, True, 'C:/gs.exe', 'C:/pngquant.exe', ghostscript_source='system', pngquant_source='system')
 
     host.use_pngquant.set(True)
     host._update_png_engine_labels()
-    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: pngquant'
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: pngquant (system)'
 
     host.use_pngquant.set(False)
     host._update_png_engine_labels()
-    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow'
+    assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow (pngquant:system)'
+
+
+def test_refresh_pdf_engine_status_shows_tool_sources(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = CapabilityReport(True, False, 'C:/gs.exe', 'C:/pngquant.exe', ghostscript_source='bundled', pngquant_source='system')
+
+    host._refresh_pdf_engine_status()
+
+    assert host.pdf_engine_status_var.get() == '（PyMuPDF:OK, pikepdf:なし, GS:bundled, pngquant:system）'
 
 
 def test_save_app_settings_passes_current_toggle_values(

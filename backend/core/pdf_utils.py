@@ -11,6 +11,7 @@ from __future__ import annotations
 """
 
 import io
+from dataclasses import dataclass
 import shutil
 import subprocess
 import tempfile
@@ -27,6 +28,7 @@ from backend.settings import (
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
+from shared.runtime_paths import describe_tool_source, resolve_ghostscript_executable, resolve_pngquant_executable
 
 
 PDF_PNG_LIKE_EXTENSIONS = frozenset({'png', 'bmp', 'tiff', 'tif', 'gif'})
@@ -34,6 +36,15 @@ PDF_UNSUPPORTED_RASTER_EXTENSIONS = frozenset({'jbig2', 'jpx'})
 PROCESS_TIMEOUT_SECONDS = 300
 MAX_IMAGE_QUALITY = 100
 MAX_CUSTOM_DPI = 2400
+
+
+@dataclass(frozen=True)
+class GhostscriptRunResult:
+    """Ghostscript 実行の成否と skip 状態を保持する。"""
+
+    ok: bool
+    message: str
+    skipped: bool = False
 
 
 def _clamp_quality(value: int, default: int = PDF_LOSSY_PNG_QUALITY_DEFAULT) -> int:
@@ -64,6 +75,21 @@ def _sanitize_subprocess_error(message: str, *paths: Path) -> str:
         if path_str:
             sanitized = sanitized.replace(path_str, path.name)
     return sanitized[:240]
+
+
+def _preserve_original_pdf(input_file: Path, output_file: Path) -> None:
+    """Ghostscript skip 時に元 PDF を出力側へ維持する。"""
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(str(input_file), str(output_file))
+
+
+def _pngquant_quantizer_label(png_metadata: dict[str, Any]) -> str:
+    """PDF 内 PNG 量子化のログ表示名を返す。"""
+    quantizer = str(png_metadata['quantizer'])
+    if quantizer == 'pngquant':
+        source = cast(str, png_metadata.get('quantizer_source') or 'unavailable')
+        return f'pngquant({describe_tool_source(source)})'
+    return quantizer
 
 
 def _import_fitz():
@@ -263,9 +289,10 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
     ここで失敗しても PDF 圧縮全体を止めず、呼び出し側が Pillow 256 色固定へ
     退避できるように詳細だけ返す。
     """
-    pngquant_exe = shutil.which('pngquant')
-    if not pngquant_exe:
-        return None, {'fallback_reason': 'pngquant_unavailable'}
+    resolution = resolve_pngquant_executable()
+    if not resolution.available:
+        return None, {'fallback_reason': 'pngquant_unavailable', 'source': resolution.source}
+    pngquant_exe = cast(str, resolution.path)
 
     safe_quality = _clamp_quality(png_quality)
     quality_min = max(0, safe_quality - 20)
@@ -302,16 +329,19 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
                 return out_path.read_bytes(), {
                     'quality_range': (quality_min, quality_max),
                     'fallback_reason': None,
+                    'source': resolution.source,
                 }
 
             return None, {
                 'quality_range': (quality_min, quality_max),
                 'fallback_reason': _sanitize_subprocess_error(result.stderr, src_path, out_path) or f'pngquant_exit_{result.returncode}',
+                'source': resolution.source,
             }
         except subprocess.TimeoutExpired:
             return None, {
                 'quality_range': (quality_min, quality_max),
                 'fallback_reason': 'pngquant_timeout',
+                'source': resolution.source,
             }
 
 
@@ -326,12 +356,14 @@ def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int) -> tuple[byt
     if quantized_bytes is not None:
         return quantized_bytes, {
             'quantizer': 'pngquant',
+            'quantizer_source': pngquant_meta.get('source'),
             'quality_range': pngquant_meta.get('quality_range'),
             'fallback_reason': None,
         }
 
     return _compress_pdf_png_with_pillow(pil_img), {
         'quantizer': 'Pillow 256-color fallback',
+        'quantizer_source': None,
         'quality_range': None,
         'fallback_reason': pngquant_meta.get('fallback_reason'),
     }
@@ -390,6 +422,7 @@ def compress_pdf_lossy(
         debug_seen_xrefs = set()
         debug_rows = []
         png_quantizers_used: set[str] = set()
+        png_fallback_reasons_used: set[str] = set()
 
         def _rect_from_bbox(bbox):
             if bbox is None:
@@ -543,11 +576,14 @@ def compress_pdf_lossy(
                     # soft mask で表現された透過もここで保ったまま再保存する。
                     new_bytes, png_metadata = _compress_pdf_png_image(pil_img, png_quality)
                     output_format = 'PNG'
-                    png_quantizers_used.add(str(png_metadata['quantizer']))
+                    png_quantizers_used.add(_pngquant_quantizer_label(png_metadata))
                     if png_metadata['quantizer'] == 'pngquant':
                         debug_stats['pngquant_used'] += 1
                     else:
                         debug_stats['pillow_png_fallback_used'] += 1
+                        fallback_reason = cast(str | None, png_metadata.get('fallback_reason'))
+                        if fallback_reason:
+                            png_fallback_reasons_used.add(fallback_reason)
                 else:
                     buf = io.BytesIO()
                     if pil_img.mode in ('RGBA', 'PA', 'LA', 'P'):
@@ -584,6 +620,7 @@ def compress_pdf_lossy(
                     'new_size': new_size,
                     'output_format': output_format,
                     'png_quantizer': png_metadata.get('quantizer') if png_metadata else None,
+                    'png_quantizer_source': png_metadata.get('quantizer_source') if png_metadata else None,
                     'png_quality_range': png_metadata.get('quality_range') if png_metadata else None,
                     'png_fallback_reason': png_metadata.get('fallback_reason') if png_metadata else None,
                 }
@@ -630,6 +667,8 @@ def compress_pdf_lossy(
         detail = f"一意の画像{total_images}個中{replaced_count}個を再圧縮"
         if png_quantizers_used:
             detail += f", PNG量子化={', '.join(sorted(png_quantizers_used))}"
+        if png_fallback_reasons_used:
+            detail += f", PNGフォールバック理由={', '.join(sorted(png_fallback_reasons_used))}"
         return True, f"PDF非可逆圧縮(PyMuPDF): {input_file.name} → OK ({detail}, DPI={target_dpi}, JPEG品質={jpeg_quality})"
     except Exception as e:
         return False, f"PDF非可逆圧縮失敗: {input_file.name} ({e})"
@@ -694,30 +733,30 @@ def compress_pdf_lossless(input_path, output_path, options=None):
         return False, f"PDF可逆圧縮失敗: {input_file.name} ({e})"
 
 
+def get_ghostscript_resolution():
+    """Ghostscript の実行パスと供給元を返す。"""
+    return resolve_ghostscript_executable()
+
+
 def get_ghostscript_path():
     """OSに応じてGhostscriptの実行パスを取得する。"""
-    candidates = ['gswin64c', 'gswin32c', 'gs']
-    for cmd in candidates:
-        path = shutil.which(cmd)
-        if path:
-            return path
-    return None
+    return get_ghostscript_resolution().path
 
 
-def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None):
-    """Ghostscriptを利用してPDFを再蒸留・圧縮する。
+def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom_dpi=None) -> GhostscriptRunResult:
+    """Ghostscript 実行結果を skip 情報付きで返す。"""
+    resolution = get_ghostscript_resolution()
+    source_label = describe_tool_source(resolution.source)
 
-    Ghostscript は PDF 全体を描き直す系の圧縮なので、個別画像差し替えより強く効く
-    一方で、内容によってはサイズが増えることもある。そこで成功判定と圧縮効果判定を
-    分け、悪化時は元ファイルを維持する。
-    """
-    input_file = Path(input_path)
-    output_file = Path(output_path)
+    if not resolution.available:
+        _preserve_original_pdf(input_file, output_file)
+        return GhostscriptRunResult(
+            ok=True,
+            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript未検出, 元ファイルを維持)',
+            skipped=True,
+        )
 
-    gs_exe = get_ghostscript_path()
-    if not gs_exe:
-        return False, 'Ghostscriptが見つかりません。インストールされているか確認してください。'
-
+    gs_exe = cast(str, resolution.path)
     cmd = [
         gs_exe,
         '-sDEVICE=pdfwrite',
@@ -766,19 +805,54 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
 
             if out_size >= orig_size:
                 # Ghostscript は内容次第で逆に肥大化するため、悪化時は元ファイルを維持する。
-                shutil.copy2(str(input_file), str(output_file))
-                return True, f"PDF圧縮(GS): {input_file.name} → 圧縮効果なし（元ファイルを維持）"
+                _preserve_original_pdf(input_file, output_file)
+                return GhostscriptRunResult(
+                    ok=True,
+                    message=f'PDF圧縮(GS:{source_label}): {input_file.name} → 圧縮効果なし（元ファイルを維持）',
+                )
 
             mode_str = f'custom_dpi={safe_custom_dpi}' if preset == 'custom' and safe_custom_dpi else f'preset={preset}'
-            return True, f"PDF圧縮(GS): {input_file.name} → OK ({mode_str})"
-        detail = _sanitize_subprocess_error(result.stderr, input_file, output_file)
-        return False, f"PDF圧縮(GS) エラー: {detail or f'gs_exit_{result.returncode}'}"
+            return GhostscriptRunResult(
+                ok=True,
+                message=f'PDF圧縮(GS:{source_label}): {input_file.name} → OK ({mode_str})',
+            )
+
+        detail = _sanitize_subprocess_error(result.stderr, input_file, output_file) or f'gs_exit_{result.returncode}'
+        _preserve_original_pdf(input_file, output_file)
+        return GhostscriptRunResult(
+            ok=True,
+            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript失敗: {detail}, 元ファイルを維持)',
+            skipped=True,
+        )
 
     except subprocess.TimeoutExpired:
-        return False, f"PDF圧縮(GS) タイムアウト: {input_file.name}"
+        _preserve_original_pdf(input_file, output_file)
+        return GhostscriptRunResult(
+            ok=True,
+            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscriptタイムアウト, 元ファイルを維持)',
+            skipped=True,
+        )
 
     except Exception as e:
-        return False, f"PDF圧縮(GS) 実行失敗: {e}"
+        _preserve_original_pdf(input_file, output_file)
+        return GhostscriptRunResult(
+            ok=True,
+            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript実行失敗: {e}, 元ファイルを維持)',
+            skipped=True,
+        )
+
+
+def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None):
+    """Ghostscriptを利用してPDFを再蒸留・圧縮する。
+
+    Ghostscript は PDF 全体を描き直す系の圧縮なので、個別画像差し替えより強く効く
+    一方で、内容によってはサイズが増えることもある。そこで成功判定と圧縮効果判定を
+    分け、悪化時は元ファイルを維持する。
+    """
+    input_file = Path(input_path)
+    output_file = Path(output_path)
+    result = _run_ghostscript(input_file, output_file, preset, custom_dpi)
+    return result.ok, result.message
 
 
 def compress_pdf_native(
@@ -844,17 +918,20 @@ def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dp
     if lossless_options:
         tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_gs.pdf')
         try:
-            ok_gs, msg_gs = compress_pdf_ghostscript(str(input_file), str(tmp_path), preset, custom_dpi)
-            if not ok_gs:
-                return False, msg_gs
+            gs_result = _run_ghostscript(input_file, tmp_path, preset, custom_dpi)
+            if not gs_result.ok:
+                return False, gs_result.message
+            if gs_result.skipped:
+                shutil.copy2(str(tmp_path), str(output_file))
+                return True, gs_result.message
 
             ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
             if not ok_ll:
                 # GS 結果が得られている場合は、可逆段の失敗だけで全体を失敗扱いにしない。
                 shutil.copy2(str(tmp_path), str(output_file))
-                return True, f"{msg_gs} / {msg_ll}（可逆段失敗、GS結果を採用）"
+                return True, f"{gs_result.message} / {msg_ll}（可逆段失敗、GS結果を採用）"
 
-            return True, f"{msg_gs} / {msg_ll}"
+            return True, f"{gs_result.message} / {msg_ll}"
         finally:
             try:
                 if tmp_path.exists():

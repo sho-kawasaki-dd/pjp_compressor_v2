@@ -10,9 +10,9 @@ UI 側は詳細な import 例外や PATH 探索を知らなくてよいように
 """
 
 import importlib
-import shutil
 
 from .contracts import CapabilityReport
+from shared.runtime_paths import resolve_ghostscript_executable, resolve_pngquant_executable
 
 
 def _has_module(module_name: str) -> bool:
@@ -24,18 +24,24 @@ def _has_module(module_name: str) -> bool:
         return False
 
 
+def _detect_ghostscript():
+    """Ghostscript の実行パスと供給元を解決する。"""
+    return resolve_ghostscript_executable()
+
+
 def _detect_ghostscript_path() -> str | None:
-    """Windows と Unix 系の代表的な Ghostscript コマンド名を順に探索する。"""
-    for cmd in ('gswin64c', 'gswin32c', 'gs'):
-        path = shutil.which(cmd)
-        if path:
-            return path
-    return None
+    """Ghostscript 実行パスだけを返す互換ラッパー。"""
+    return _detect_ghostscript().path
+
+
+def _detect_pngquant():
+    """pngquant の実行パスと供給元を解決する。"""
+    return resolve_pngquant_executable()
 
 
 def _detect_pngquant_path() -> str | None:
-    """pngquant が PATH 上に存在する場合のみ実行パスを返す。"""
-    return shutil.which('pngquant')
+    """pngquant 実行パスだけを返す互換ラッパー。"""
+    return _detect_pngquant().path
 
 
 def detect_capabilities() -> CapabilityReport:
@@ -45,9 +51,13 @@ def detect_capabilities() -> CapabilityReport:
     import や PATH 探索を繰り返さずに済む。依存が無いこと自体は異常ではないため、
     例外ではなく単なる状態として返す。
     """
+    ghostscript = _detect_ghostscript()
+    pngquant = _detect_pngquant()
     return CapabilityReport(
         fitz_available=_has_module('fitz'),
         pikepdf_available=_has_module('pikepdf'),
-        ghostscript_path=_detect_ghostscript_path(),
-        pngquant_path=_detect_pngquant_path(),
+        ghostscript_path=ghostscript.path,
+        pngquant_path=pngquant.path,
+        ghostscript_source=ghostscript.source,
+        pngquant_source=pngquant.source,
     )

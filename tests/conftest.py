@@ -110,6 +110,8 @@ def capability_report() -> CapabilityReport:
         pikepdf_available=True,
         ghostscript_path='C:/tools/gswin64c.exe',
         pngquant_path='C:/tools/pngquant.exe',
+        ghostscript_source='system',
+        pngquant_source='system',
     )
 
 
@@ -132,7 +134,11 @@ def tk_regression_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     output_dir.mkdir()
 
     monkeypatch.setattr(ui_module, 'init_mixer', lambda: (True, None))
-    monkeypatch.setattr(ui_module, 'detect_capabilities', lambda: CapabilityReport(True, True, None, None))
+    monkeypatch.setattr(
+        ui_module,
+        'detect_capabilities',
+        lambda: CapabilityReport(True, True, None, None, ghostscript_source='unavailable', pngquant_source='unavailable'),
+    )
     monkeypatch.setattr(ui_module, 'get_default_dirs', lambda: (str(input_dir), str(output_dir)))
     monkeypatch.setattr(ui_module.messagebox, 'showwarning', lambda *args, **kwargs: None)
     monkeypatch.setattr(ui_module.messagebox, 'askquestion', lambda *args, **kwargs: 'no')

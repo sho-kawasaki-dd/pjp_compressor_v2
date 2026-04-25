@@ -197,7 +197,7 @@ def test_compress_pdf_lossy_png_uses_pngquant_when_available(
     page = _FakePage([{'xref': 15, 'bbox': (0.0, 0.0, 140.0, 140.0)}])
     fake_doc = _FakeDoc([page], extracted_images={15: {'image': original_bytes, 'ext': 'png'}})
     monkeypatch.setattr(pdf_utils, '_import_fitz', lambda: (_FakeFitzModule(fake_doc), None))
-    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda name: 'C:/tools/pngquant.exe' if name == 'pngquant' else None)
+    monkeypatch.setattr(pdf_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=True, source='bundled', path='C:/tools/pngquant.exe'))
 
     seen_cmds: list[list[str]] = []
 
@@ -220,7 +220,7 @@ def test_compress_pdf_lossy_png_uses_pngquant_when_available(
     assert '--quality=42-62' in seen_cmds[0]
     assert '--' in seen_cmds[0]
     assert len(page.replace_calls) == 1
-    assert 'PNG量子化=pngquant' in message
+    assert 'PNG量子化=pngquant(bundled)' in message
 
 
 def test_compress_pdf_ghostscript_clamps_custom_dpi_and_uses_timeout(
@@ -232,7 +232,7 @@ def test_compress_pdf_ghostscript_clamps_custom_dpi_and_uses_timeout(
     input_path.write_bytes(b'%PDF-1.4 test with more bytes')
     seen: dict[str, object] = {}
 
-    monkeypatch.setattr(pdf_utils, 'get_ghostscript_path', lambda: 'C:/tools/gswin64c.exe')
+    monkeypatch.setattr(pdf_utils, 'get_ghostscript_resolution', lambda: SimpleNamespace(available=True, source='system', path='C:/tools/gswin64c.exe'))
 
     def fake_run(cmd, **kwargs):
         seen['cmd'] = cmd
@@ -251,13 +251,14 @@ def test_compress_pdf_ghostscript_clamps_custom_dpi_and_uses_timeout(
     assert '-dMonoImageResolution=4800' in seen['cmd']
     assert '-f' in seen['cmd']
     assert seen['timeout'] == pdf_utils.PROCESS_TIMEOUT_SECONDS
+    assert 'GS:system' in message
     assert 'custom_dpi=2400' in message
 
 
 def test_compress_pdf_png_image_falls_back_to_fixed_palette_without_pngquant(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(pdf_utils.shutil, 'which', lambda _name: None)
+    monkeypatch.setattr(pdf_utils, 'resolve_pngquant_executable', lambda: SimpleNamespace(available=False, source='unavailable', path=None))
     source = Image.new('RGBA', (64, 64), color=(48, 144, 220, 180))
 
     bytes_low, meta_low = pdf_utils._compress_pdf_png_image(source, 15)
@@ -271,6 +272,31 @@ def test_compress_pdf_png_image_falls_back_to_fixed_palette_without_pngquant(
     colors = quantized.getcolors(maxcolors=257)
     assert colors is not None
     assert len(colors) <= 256
+
+
+def test_compress_pdf_ghostscript_skips_failed_file_and_keeps_original(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_path = tmp_path / 'input.pdf'
+    output_path = tmp_path / 'output.pdf'
+    original_bytes = b'%PDF-1.4 original payload'
+    input_path.write_bytes(original_bytes)
+
+    monkeypatch.setattr(pdf_utils, 'get_ghostscript_resolution', lambda: SimpleNamespace(available=True, source='bundled', path='C:/tools/gswin64c.exe'))
+    monkeypatch.setattr(
+        pdf_utils.subprocess,
+        'run',
+        lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr='broken gs run'),
+    )
+
+    ok, message = pdf_utils.compress_pdf_ghostscript(input_path, output_path, preset='ebook')
+
+    assert ok is True
+    assert output_path.read_bytes() == original_bytes
+    assert 'GS:bundled' in message
+    assert 'スキップ' in message
+    assert 'broken gs run' in message
 
 
 def test_compress_pdf_lossy_reconstructs_soft_mask_and_preserves_transparency(
