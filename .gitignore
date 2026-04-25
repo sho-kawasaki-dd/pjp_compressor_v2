@@ -14,6 +14,7 @@ build/
 .ipynb_checkpoints/
 .DS_Store
 *.zip
+installer/
 
 # Ghostscript & pngquant bundle folder
 vendor/

@@ -1,10 +1,9 @@
 <#
     このスクリプトは、プロジェクトルート配下のうち .gitignore で無視されないファイルと、
-    例外的に必ず含める dist/ 配下のファイルをタイムスタンプ付き ZIP としてバックアップする。
+    dist/ 配下を除いたファイルをタイムスタンプ付き ZIP としてバックアップする。
 
     無視判定は PowerShell 側で再実装せず、Git の `ls-files --exclude-standard` に委ねることで、
     `.gitignore`・`.git/info/exclude`・グローバル ignore を含む Git 標準の判定結果に合わせる。
-    ただし dist/ だけはビルド成果物も保全できるように、Git の ignore 判定に関係なく追加収集する。
 #>
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -34,21 +33,11 @@ try {
     $files = New-Object 'System.Collections.Generic.List[string]'
     foreach ($gitTrackedPath in @(git -C $rootPath ls-files --cached --others --exclude-standard)) {
         if (-not [string]::IsNullOrWhiteSpace($gitTrackedPath)) {
-            [void]$files.Add([string]$gitTrackedPath)
-        }
-    }
-
-    # dist/ は .gitignore の対象でもバックアップへ含めたいので、ここで例外追加する。
-    # 相対パスへ変換して通常収集分と同じ形式にそろえる。
-    $distPath = Join-Path $rootPath 'dist'
-    if (Test-Path -LiteralPath $distPath -PathType Container) {
-        $distFiles = Get-ChildItem -LiteralPath $distPath -Recurse -File | ForEach-Object {
-            [System.IO.Path]::GetRelativePath($rootPath, $_.FullName)
-        }
-        foreach ($distFile in @($distFiles)) {
-            if (-not [string]::IsNullOrWhiteSpace($distFile)) {
-                [void]$files.Add([string]$distFile)
+            if ($gitTrackedPath -eq 'dist' -or $gitTrackedPath.StartsWith('dist/')) {
+                continue
             }
+
+            [void]$files.Add([string]$gitTrackedPath)
         }
     }
 
@@ -59,7 +48,7 @@ try {
     # ステージング用ディレクトリを新規作成し、ここへ必要なファイルだけを並べる。
     New-Item -ItemType Directory -Path $stagingPath | Out-Null
 
-    # Git 管理対象と dist/ 追加分で同じファイルが重複する可能性があるため、
+    # Git 管理対象と未追跡分で同じファイルが重複する可能性があるため、
     # コピー済みパスを集合で管理して二重コピーを防ぐ。
     $copiedPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
