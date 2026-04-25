@@ -25,6 +25,30 @@ if ($Mode -eq 'Build') {
 	}
 
 	python -m PyInstaller --clean ./compressor_launcher_tkinter.spec
+	if ($LASTEXITCODE -ne 0) {
+		$exitCode = $LASTEXITCODE
+		deactivate
+		exit $exitCode
+	}
+
+	$installerScript = Join-Path $PSScriptRoot 'pjp_compressor.iss'
+	if (-not (Test-Path $installerScript)) {
+		Write-Error 'pjp_compressor.iss が見つかりません。'
+		deactivate
+		exit 1
+	}
+
+	$innoSetupCompiler = Get-Command ISCC.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+	if (-not $innoSetupCompiler) {
+		$innoSetupCompiler = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -First 1
+	}
+	if (-not $innoSetupCompiler) {
+		Write-Error 'Inno Setup Compiler (ISCC.exe) が見つかりません。Inno Setup をインストールしてから再実行してください。'
+		deactivate
+		exit 1
+	}
+
+	& $innoSetupCompiler.Path $installerScript
 	$exitCode = $LASTEXITCODE
 	deactivate
 	exit $exitCode

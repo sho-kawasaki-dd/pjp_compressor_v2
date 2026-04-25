@@ -53,6 +53,9 @@ def resource_base_dir() -> Path:
 
 def vendor_base_dir() -> Path:
     """同梱外部ツールを配置する vendor ディレクトリを返す。"""
+    bundled_vendor = RESOURCE_BASE_DIR / 'vendor'
+    if bundled_vendor.exists():
+        return bundled_vendor
     return APP_BASE_DIR / 'vendor'
 
 

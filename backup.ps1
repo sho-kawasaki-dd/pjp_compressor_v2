@@ -15,7 +15,7 @@ $rootPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 # バックアップファイル名は作成日時を含め、連続実行しても重複しにくい命名にする。
 $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$appName = 'pjp_compressor_v2.5.2'
+$appName = 'pjp_compressor_v2.6.0'
 $archiveName = "${appName}_$timestamp.zip"
 $archivePath = Join-Path $rootPath $archiveName
 
