@@ -7,7 +7,7 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 tkdnd_datas = collect_data_files('tkinterdnd2')
 tkdnd_hiddenimports = collect_submodules('tkinterdnd2')
-project_root = Path(__file__).resolve().parent
+project_root = Path.cwd()
 vendor_datas = [('vendor', 'vendor')] if (project_root / 'vendor').exists() else []
 
 
@@ -42,7 +42,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='PDF_JPG_PNG_Compressor_v2.5.2',
+    name='PDF_JPG_PNG_Compressor_v2.6.0',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -62,5 +62,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='PDF_JPG_PNG_Compressor_v2.5.2',
+    name='PDF_JPG_PNG_Compressor_v2.6.0',
 )
