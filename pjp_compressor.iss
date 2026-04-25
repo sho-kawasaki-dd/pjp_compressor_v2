@@ -27,7 +27,7 @@ SetupIconFile=images\pjp_compressor_icon.ico
 UninstallDisplayIcon={app}\images\pjp_compressor_icon.ico
 
 [Tasks]
-Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"; Flags: unchecked
+Name: "desktopicon"; Description: "Create a &desktop icon"; GroupDescription: "Additional icons:"; Flags: checkedonce
 
 [Files]
 Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
