@@ -12,6 +12,20 @@ if (-not (Test-Path ./.venv/Scripts/Activate.ps1)) {
 
 . ./.venv/Scripts/Activate.ps1
 
+function Get-ProjectVersion {
+	param(
+		[string]$ProjectRoot
+	)
+
+	$versionScript = Join-Path $ProjectRoot 'scripts/get_version.py'
+	$version = (& python $versionScript).Trim()
+	if ([string]::IsNullOrWhiteSpace($version)) {
+		throw 'pyproject.toml からバージョン番号を取得できませんでした。'
+	}
+
+	return $version
+}
+
 if ($Mode -eq 'Build') {
 	python -c "import PyInstaller" 2>$null
 	if ($LASTEXITCODE -ne 0) {
@@ -24,7 +38,7 @@ if ($Mode -eq 'Build') {
 		Write-Warning 'vendor/ が見つからないため、system 優先のみの構成でビルドします。bundled fallback は同梱されません。'
 	}
 
-	python -m PyInstaller --clean ./compressor_launcher_tkinter.spec
+	python -m PyInstaller --clean --noconfirm ./compressor_launcher_tkinter.spec
 	if ($LASTEXITCODE -ne 0) {
 		$exitCode = $LASTEXITCODE
 		deactivate
@@ -48,7 +62,8 @@ if ($Mode -eq 'Build') {
 		exit 1
 	}
 
-	& $innoSetupCompiler.Path $installerScript
+	$projectVersion = Get-ProjectVersion -ProjectRoot $PSScriptRoot
+	& $innoSetupCompiler.Path "/DMyAppVersion=$projectVersion" $installerScript
 	$exitCode = $LASTEXITCODE
 	deactivate
 	exit $exitCode

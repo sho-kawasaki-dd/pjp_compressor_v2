@@ -42,7 +42,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='PDF_JPG_PNG_Compressor_v2.6.0',
+    name='PDF_JPG_PNG_Compressor',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -62,5 +62,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='PDF_JPG_PNG_Compressor_v2.6.0',
+    name='PDF_JPG_PNG_Compressor',
 )

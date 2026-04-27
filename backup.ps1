@@ -12,9 +12,33 @@ $ErrorActionPreference = 'Stop'
 # 実行時のカレントディレクトリに依存させないため、呼び出し元がどこでも同じ結果になる。
 $rootPath = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Get-ProjectVersion {
+    param(
+        [string]$ProjectRoot
+    )
+
+    $versionScript = Join-Path $ProjectRoot 'scripts/get_version.py'
+    $pythonExecutable = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath $pythonExecutable)) {
+        if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+            throw 'python コマンドが見つかりません。Python をインストールするか、.venv を作成してください。'
+        }
+
+        $pythonExecutable = 'python'
+    }
+
+    $version = (& $pythonExecutable $versionScript).Trim()
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw 'pyproject.toml からバージョン番号を取得できませんでした。'
+    }
+
+    return $version
+}
+
 # バックアップファイル名は作成日時を含め、連続実行しても重複しにくい命名にする。
 $timestamp = Get-Date -Format 'yyyyMMdd_HHmmss'
-$appName = 'pjp_compressor_v2.6.0'
+$projectVersion = Get-ProjectVersion -ProjectRoot $rootPath
+$appName = "pjp_compressor_v$projectVersion"
 $archiveName = "${appName}_$timestamp.zip"
 $archivePath = Join-Path $rootPath $archiveName
 
