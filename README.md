@@ -111,25 +111,23 @@ For detailed flow, sequence, and class diagrams, see:
 ### Setup from source / ソースからのセットアップ
 
 ```powershell
-# Clone the repository and navigate to the project folder
-# リポジトリをクローンしてプロジェクトフォルダへ移動
+# Install uv if needed, then sync the project environment
+# uv が未導入の場合は先にインストールし、プロジェクト環境を同期します
 
-python -m venv .venv
+uv sync
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
 ```
 
 ### Run / 起動
 
 ```powershell
-python compressor_launcher_tkinter.py
+uv run python compressor_launcher_tkinter.py
 ```
 
 ### Run tests / テスト実行
 
 ```powershell
-pytest
+uv run pytest
 ```
 
 Available markers / 使用可能なマーカー:
@@ -144,7 +142,7 @@ Available markers / 使用可能なマーカー:
 
 ```powershell
 # Run only unit tests / ユニットテストのみ実行
-pytest -m unit
+uv run pytest -m unit
 ```
 
 ### Build installer / インストーラービルド

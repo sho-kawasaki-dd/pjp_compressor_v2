@@ -105,33 +105,18 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
 カレントディレクトリを `pjp_compressor_v2` フォルダに設定してから次のコマンドを入力してください。
 
 ```powershell
-python -m venv .venv
+uv sync
 .\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install Pillow pymupdf pikepdf tkinterdnd2 pygame
-```
-
-requirements.txt を利用する場合:
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
 ```
 
 ## 実行ファイル化（PyInstaller / one-folder）
 
 本プロジェクトは `compressor_launcher_tkinter.spec` を使った one-folder 配布を前提としています。
 
-事前に `pyinstaller` をインストールしてください（`requirements.txt` を使う場合は同時に導入されます）。
+`uv sync` で `pyinstaller` も導入されます。
 
 ```powershell
-python -m pip install pyinstaller
-```
-
-```powershell
-python -m PyInstaller --clean .\compressor_launcher_tkinter.spec
+uv run python -m PyInstaller --clean .\compressor_launcher_tkinter.spec
 ```
 
 生成先は `dist/PDF_JPG_PNG_Compressor_v2.5.2/` です。配布時はこのフォルダ全体を渡してください。
