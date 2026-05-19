@@ -462,6 +462,19 @@ python -m pytest
 
 今回の追記では、主に「未信頼入力を ZIP 展開や外部 CLI に通す境界」を硬化しました。OS コマンドインジェクション自体は元々起きにくい構成でしたが、ZIP の危険 member、極端な品質値や DPI、長時間ハングする外部ツール呼び出しに対して、失敗し方を制御できるようにしています。あわせて、ZIP の現実的な運用上限はコード上限の 1 GB ではなく、実サイズ 300 MB から 500 MB 程度を標準目安とする方が安定、という判断を README に明記しました。
 
+### 2026年5月19日追記（ZIP出力モードと追加調整）
+
+- `.github/prompts/plan-zipOutputMode.prompt.md` の内容に沿って、ZIP入力を展開した後の出力形式をフォルダ / ZIP で切り替える ZIP 出力モードを追加
+- `backend/contracts.py` の `CompressionRequest` に `zip_output_enabled` を追加し、`frontend/ui_tkinter_state.py`、`frontend/ui_tkinter_mapper.py`、`backend/orchestrator/job_runner.py` まで同一フラグを伝搬するように整理
+- `frontend/ui_tkinter_view.py` の出力設定に「展開した ZIP の出力を ZIP に戻す」トグルを追加し、`extract_zip` が OFF のときは UI 上で無効化して値も自動で OFF に戻すように変更
+- ZIP 再生成は `backend/core/archive_utils.py` の helper で相対パスを保ったまま archive 化し、成功後に対象フォルダを削除するように整理
+- ZIP出力時は mirror 圧縮で残る非圧縮対象ファイルも再生成 ZIP に含め、元の入力 ZIP は別コピーしないように変更
+- CSV は既存互換を優先して `zip::path` と `zip_stem/internal/path` 系の内部表現を維持し、`ZIP再生成` はログで補足する形に整理
+- `tests/unit/test_contracts.py`、`tests/unit/test_ui_tkinter_mapper.py`、`tests/integration/test_job_runner.py`、`tests/regression/test_tkinter_regression.py` を更新し、request 伝搬、ZIP 再生成、mirror 併用、入力不変性を固定
+- その後の追加調整として、`extract_zip` OFF 時の ZIP 出力トグル無効化、`frontend/settings.py` の出力クリーンアップ対象に `.zip` を追加、`backend/core/file_ops.py` の削除対象確認を unit test で固定した
+
+今回の追記では、ZIP 出力モードの本体実装だけでなく、UI の依存関係、入力値の正規化、クリーンアップ対象、GUI 回帰の 3 軸化まで含めて、一連の挙動として追跡しやすく整理しました。特に `extract_zip` が OFF の場合は ZIP 出力が no-op になるように UI と mapper を揃え、利用者が見た状態と backend の request がずれないようにしています。
+
 ### フローチャートなど
 
 こちらのドキュメントを参照してください:
