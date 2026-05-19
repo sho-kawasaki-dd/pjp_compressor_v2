@@ -18,8 +18,6 @@ def test_load_app_settings_defaults_when_section_missing(tmp_path: Path) -> None
     config_path.write_text(
         json.dumps(
             {
-                'pdf_compress_modes': {'both': '両方'},
-                'gs_presets': {'ebook': '電子書籍用 (150dpi)'},
                 'long_edge_presets': ['640'],
             },
             ensure_ascii=False,
@@ -37,10 +35,9 @@ def test_save_app_settings_round_trip(tmp_path: Path) -> None:
     config_path.write_text(
         json.dumps(
             {
-                'pdf_compress_modes': {'both': '両方'},
-                'gs_presets': {'ebook': '電子書籍用 (150dpi)'},
                 'long_edge_presets': ['640'],
                 'app_settings': {
+                    'language': '',
                     'play_startup_sound': True,
                     'play_cleanup_sound': True,
                 },
@@ -51,6 +48,7 @@ def test_save_app_settings_round_trip(tmp_path: Path) -> None:
     )
 
     saved = frontend_settings.save_app_settings(
+        language='en',
         play_startup_sound=False,
         play_cleanup_sound=True,
         resource_path=config_path,
@@ -58,6 +56,7 @@ def test_save_app_settings_round_trip(tmp_path: Path) -> None:
 
     assert saved is True
     assert frontend_settings.load_app_settings(config_path) == {
+        'language': 'en',
         'play_startup_sound': False,
         'play_cleanup_sound': True,
     }

@@ -12,12 +12,18 @@ from types import SimpleNamespace
 
 import pytest
 
+import frontend.i18n as i18n
 import frontend.ui_tkinter_controller as controller_module
 from backend.contracts import CapabilityReport, ProgressEvent
 from frontend.ui_tkinter_controller import TkUiControllerMixin
 
 
 pytestmark = pytest.mark.integration
+
+
+@pytest.fixture(autouse=True)
+def load_japanese_locale() -> None:
+    i18n.load('ja')
 
 
 class DummyVar:
@@ -149,6 +155,7 @@ class ControllerHost(TkUiControllerMixin):
         self.auto_switch_log_tab = DummyVar(True)
         self.play_startup_sound = DummyVar(True)
         self.play_cleanup_sound = DummyVar(True)
+        self.ui_language = DummyVar('ja')
         self.status_var = DummyVar('待機中')
         self.stats_var = DummyVar('')
         self.pdf_engine_status_var = DummyVar('')
@@ -338,21 +345,24 @@ def test_save_app_settings_passes_current_toggle_values(
     tmp_path: Path,
 ) -> None:
     host = ControllerHost(tmp_path)
-    captured: dict[str, bool] = {}
+    captured: dict[str, bool | str] = {}
 
-    def fake_save_app_settings(*, play_startup_sound: bool, play_cleanup_sound: bool) -> bool:
+    def fake_save_app_settings(*, language: str, play_startup_sound: bool, play_cleanup_sound: bool) -> bool:
+        captured['language'] = language
         captured['play_startup_sound'] = play_startup_sound
         captured['play_cleanup_sound'] = play_cleanup_sound
         return True
 
     host.play_startup_sound.set(False)
     host.play_cleanup_sound.set(True)
+    host.ui_language.set('en')
     monkeypatch.setattr(controller_module, 'save_app_settings', fake_save_app_settings)
 
     saved = host._save_app_settings()
 
     assert saved is True
     assert captured == {
+        'language': 'en',
         'play_startup_sound': False,
         'play_cleanup_sound': True,
     }

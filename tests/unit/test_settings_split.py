@@ -14,10 +14,10 @@ pytestmark = pytest.mark.unit
 
 
 def test_frontend_settings_load_ui_catalogs_from_json() -> None:
-    assert frontend_settings.PDF_COMPRESS_MODES['both'] == '両方'
-    assert frontend_settings.GS_PRESETS['ebook'] == '電子書籍用 (150dpi)'
     assert frontend_settings.LONG_EDGE_PRESETS[0] == '640'
     assert frontend_settings.LONG_EDGE_PRESETS[-1] == '3840'
+    assert not hasattr(frontend_settings, 'PDF_COMPRESS_MODES')
+    assert not hasattr(frontend_settings, 'GS_PRESETS')
 
 
 def test_shared_configs_reexports_split_settings() -> None:
@@ -29,5 +29,7 @@ def test_shared_configs_reexports_split_settings() -> None:
     assert legacy_configs.PDF_LOSSY_PNG_QUALITY_DEFAULT == backend_settings.PDF_LOSSY_PNG_QUALITY_DEFAULT
     assert legacy_configs.PDF_LOSSLESS_OPTIONS_DEFAULT == backend_settings.PDF_LOSSLESS_OPTIONS_DEFAULT
     assert legacy_configs.GS_DEFAULT_PRESET == backend_settings.GS_DEFAULT_PRESET
-    assert legacy_configs.PDF_COMPRESS_MODES == frontend_settings.PDF_COMPRESS_MODES
+    assert legacy_configs.LONG_EDGE_PRESETS == frontend_settings.LONG_EDGE_PRESETS
+    assert not hasattr(legacy_configs, 'PDF_COMPRESS_MODES')
+    assert not hasattr(legacy_configs, 'GS_PRESETS')
     assert legacy_configs.INPUT_DIR_CLEANUP_EXTENSIONS == frontend_settings.INPUT_DIR_CLEANUP_EXTENSIONS
