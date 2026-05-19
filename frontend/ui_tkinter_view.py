@@ -776,22 +776,22 @@ class TkUiViewMixin:
 
         row1 = ttk.Frame(frame)
         row1.pack(fill='x', padx=5, pady=2)
-        for text, var in [
-            ('Linearize', self.pdf_ll_linearize),
-            ('ObjStream圧縮', self.pdf_ll_object_streams),
-            ('メタデータ除去', self.pdf_ll_clean_metadata),
+        for text_key, var in [
+            ('pdf_lossless.linearize', self.pdf_ll_linearize),
+            ('pdf_lossless.object_streams', self.pdf_ll_object_streams),
+            ('pdf_lossless.clean_metadata', self.pdf_ll_clean_metadata),
         ]:
-            checkbox = ttk.Checkbutton(row1, text=text, variable=var)
+            checkbox = ttk.Checkbutton(row1, text=t(text_key), variable=var)
             checkbox.pack(side='left', padx=(0, 12))
             widgets.append(checkbox)
 
         row2 = ttk.Frame(frame)
         row2.pack(fill='x', padx=5, pady=2)
-        for text, var in [
-            ('Flate再圧縮', self.pdf_ll_recompress_streams),
-            ('孤立リソース削除', self.pdf_ll_remove_unreferenced),
+        for text_key, var in [
+            ('pdf_lossless.recompress_streams', self.pdf_ll_recompress_streams),
+            ('pdf_lossless.remove_unreferenced', self.pdf_ll_remove_unreferenced),
         ]:
-            checkbox = ttk.Checkbutton(row2, text=text, variable=var)
+            checkbox = ttk.Checkbutton(row2, text=t(text_key), variable=var)
             checkbox.pack(side='left', padx=(0, 12))
             widgets.append(checkbox)
 
