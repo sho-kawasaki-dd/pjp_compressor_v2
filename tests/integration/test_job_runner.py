@@ -143,6 +143,7 @@ def test_run_compression_request_forwards_clamped_ui_values(monkeypatch: pytest.
     }
     assert captured['resize_width'] == 65535
     assert captured['resize_height'] == 65535
+    assert captured['zip_output_enabled'] is False
     assert events == []
 
 

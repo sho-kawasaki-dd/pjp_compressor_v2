@@ -14,6 +14,7 @@ import csv
 import multiprocessing
 import shutil
 import tempfile
+from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -53,6 +54,41 @@ def _tool_detection_summary() -> str:
     return '依存検出: ' + ', '.join(parts)
 
 
+@dataclass(frozen=True)
+class ZipOutputPlan:
+    """1 つの ZIP 入力に対する出力関連パスをまとめる。"""
+
+    input_zip_path: Path
+    relative_zip_path: Path
+    folder_output_root: Path
+    archive_output_path: Path
+
+    def staged_root_for(self, temp_root: Path) -> Path:
+        """一時展開先を ZIP ごとに決める。"""
+        return temp_root / self.relative_zip_path.parent / self.input_zip_path.stem
+
+    def csv_input_path_for(self, rel_inside_zip: Path) -> str:
+        """CSV に残す ZIP 内パス表現を返す。"""
+        return f"{self.relative_zip_path.as_posix()}::{rel_inside_zip.as_posix()}"
+
+    def csv_output_path_for(self, rel_inside_zip: Path) -> str:
+        """CSV に残す最終出力側パス表現を返す。"""
+        return str((self.relative_zip_path.parent / self.folder_output_root.name / rel_inside_zip).as_posix())
+
+
+def _build_zip_output_plan(input_base: Path, output_base: Path, zip_path: Path) -> ZipOutputPlan:
+    """ZIP 1 件ぶんの出力用パスをまとめて決める。"""
+    relative_zip_path = zip_path.relative_to(input_base)
+    folder_output_root = output_base / relative_zip_path.parent / zip_path.stem
+    archive_output_path = folder_output_root.parent / f"{folder_output_root.name}.zip"
+    return ZipOutputPlan(
+        input_zip_path=zip_path,
+        relative_zip_path=relative_zip_path,
+        folder_output_root=folder_output_root,
+        archive_output_path=archive_output_path,
+    )
+
+
 def run_compression_job(
     input_dir: str,
     output_dir: str,
@@ -76,6 +112,7 @@ def run_compression_job(
     csv_enable: bool = True,
     csv_path: str | None = None,
     extract_zip: bool = False,
+    zip_output_enabled: bool = False,
     debug_mode: bool = False,
     copy_non_target_files: bool = False,
 ) -> None:
@@ -106,18 +143,19 @@ def run_compression_job(
 
     # ミラー圧縮では ZIP 自体も 1 つの出力成果物として扱うため、圧縮タスクとは
     # 別に先行コピー対象を保持する。
+    zip_output_plans: list[ZipOutputPlan] = [
+        _build_zip_output_plan(input_base, output_base, zip_path)
+        for zip_path in zip_files
+    ]
     zip_output_copies: list[tuple[Path, Path, str, str]] = []
     temp_extract_root: Path | None = None
     if copy_non_target_files:
-        # ミラー圧縮では ZIP 自体も出力へ残し、展開結果と元 ZIP の両方を保持する。
-        for zip_path in zip_files:
-            rel_zip = zip_path.relative_to(input_base)
-            out_zip = output_base / rel_zip
+        for plan in zip_output_plans:
             zip_output_copies.append((
-                zip_path,
-                out_zip,
-                str(rel_zip),
-                str(rel_zip),
+                plan.input_zip_path,
+                plan.archive_output_path,
+                plan.relative_zip_path.as_posix(),
+                plan.relative_zip_path.as_posix(),
             ))
 
     # worker 側は 1 ファイル処理だけに集中させたいので、ログ/CSV に必要な入力文脈も
@@ -199,13 +237,12 @@ def run_compression_job(
             extracted_cnt_total = 0
             failed_cnt_total = 0
 
-            for zip_path in zip_files:
-                rel_zip = zip_path.relative_to(input_base)
+            for plan in zip_output_plans:
                 # 入力フォルダを直接書き換えないため、ZIP ごとに一時作業領域へ複製する。
-                staged_root = temp_root / rel_zip.parent / zip_path.stem
+                staged_root = plan.staged_root_for(temp_root)
                 staged_root.mkdir(parents=True, exist_ok=True)
-                staged_zip = staged_root / zip_path.name
-                shutil.copy2(zip_path, staged_zip)
+                staged_zip = staged_root / plan.input_zip_path.name
+                shutil.copy2(plan.input_zip_path, staged_zip)
 
                 extracted_cnt, failed_cnt = extract_zip_archives(staged_root, log_func)
                 extracted_cnt_total += extracted_cnt
@@ -213,15 +250,14 @@ def run_compression_job(
 
                 # 展開由来ファイルは `.../zip_stem/...` 配下へ揃えることで、出力だけ見ても
                 # どの ZIP 由来かを復元できる。
-                output_zip_root = output_base / rel_zip.parent / zip_path.stem
                 for extracted_file in staged_root.rglob('*'):
                     if not extracted_file.is_file() or extracted_file.suffix.lower() == '.zip':
                         continue
                     # CSV では「どの ZIP の中のどのファイルか」が分かるよう `zip::path` 形式で残す。
                     rel_inside_zip = extracted_file.relative_to(staged_root)
-                    outpath = output_zip_root / rel_inside_zip
-                    csv_input = f"{rel_zip.as_posix()}::{rel_inside_zip.as_posix()}"
-                    csv_output = str((rel_zip.parent / zip_path.stem / rel_inside_zip).as_posix())
+                    outpath = plan.folder_output_root / rel_inside_zip
+                    csv_input = plan.csv_input_path_for(rel_inside_zip)
+                    csv_output = plan.csv_output_path_for(rel_inside_zip)
                     append_task(extracted_file, outpath, csv_input, csv_output)
 
             if extracted_cnt_total == 0 and failed_cnt_total == 0:
@@ -441,6 +477,7 @@ def run_compression_request(
             csv_enable=request.csv_enable,
             csv_path=request.csv_path,
             extract_zip=request.extract_zip,
+            zip_output_enabled=request.zip_output_enabled,
             debug_mode=request.debug_mode,
             copy_non_target_files=request.copy_non_target_files,
         )
