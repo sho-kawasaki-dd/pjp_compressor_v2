@@ -119,7 +119,7 @@ PDF_COMPRESS_MODES, GS_PRESETS, LONG_EDGE_PRESETS = _load_ui_catalogs()
 PDF_LOSSY_DPI_RANGE = (36, 600)
 
 INPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.zip'}
-OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv'}
+OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv', '.zip'}
 
 APP_DEFAULT_INPUT_DIR = APP_BASE_DIR / 'input_files'
 APP_DEFAULT_OUTPUT_DIR = APP_BASE_DIR / 'output_files'
