@@ -97,9 +97,10 @@ class DummyProgressbar(dict):
 class DummyThread:
     """バックグラウンド起動の意図だけを観測する thread ダミー。"""
 
-    def __init__(self, *, target, kwargs, daemon):
+    def __init__(self, *, target, args=(), kwargs=None, daemon):
         self.target = target
-        self.kwargs = kwargs
+        self.args = args
+        self.kwargs = kwargs or {}
         self.daemon = daemon
         self.started = False
 
@@ -225,6 +226,15 @@ def test_on_progress_event_routes_error_to_log_and_status(tmp_path: Path) -> Non
 
     assert any('bad' in line for line in host.log_text.lines)
     assert host.status_var.get() == '失敗（詳細はログ）'
+
+
+def test_append_log_does_not_infer_status_from_message_text(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+
+    host._append_log('完了！')
+    host._append_log('処理中にエラー発生')
+
+    assert host.status_var.get() == '待機中'
 
 
 def test_start_compress_spawns_background_runner(
@@ -385,6 +395,28 @@ def test_cleanup_input_skips_warning_sound_when_disabled(
     host.cleanup_input()
 
     assert played == []
+
+
+def test_cleanup_input_passes_stable_cleanup_target_key(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    input_dir = tmp_path / 'input'
+    input_dir.mkdir()
+    host.input_dir.set(str(input_dir))
+    host.play_cleanup_sound.set(False)
+
+    monkeypatch.setattr(controller_module.messagebox, 'askyesno', lambda *args, **kwargs: True)
+    monkeypatch.setattr(controller_module, 'play_sound', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(controller_module.threading, 'Thread', DummyThread)
+
+    host.cleanup_input()
+
+    assert len(host.threads) == 1
+    thread = host.threads[0]
+    assert thread.kwargs['log_language'] == 'ja'
+    assert thread.args[2] == 'cleanup_target_input'
 
 
 def test_cleanup_output_plays_warning_sound_when_enabled(

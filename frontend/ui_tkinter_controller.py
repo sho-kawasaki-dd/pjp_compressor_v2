@@ -295,19 +295,13 @@ class TkUiControllerMixin:
     def _append_log(self, msg: str) -> None:
         """ログウィジェットへ 1 行追加し、必要に応じて状態表示も更新する。
 
-        ログは単なる履歴ではなく、終了/失敗のような高水準状態もここから派生させる。
-        そのため、backend 側は詳細メッセージだけを流し、最終的な UI 文言は controller が
-        組み立てる。
+        ログは単なる履歴として扱い、状態遷移は progress / stats / error / status イベント
+        だけで更新する。本文の自然言語に依存すると、多言語化や文言変更で UI 状態が
+        壊れやすくなるためである。
         """
         host = self._controller_host()
         host.log_text.insert('end', msg + '\n')
         host.log_text.see('end')
-
-        if '完了！' in msg:
-            current = int(float(host.progress['value']))
-            host.status_var.set(t('status_completed_progress', pct=current))
-        elif '処理中にエラー発生' in msg:
-            host.status_var.set(t('status_failed_see_log'))
 
     def log(self, msg: str) -> None:
         """どのスレッドからでも安全にログを追記する。"""
@@ -515,7 +509,7 @@ class TkUiControllerMixin:
             # 削除処理も I/O 待ちがあるため、UI 凍結を避けて別スレッド化する。
             thread = threading.Thread(
                 target=cleanup_folder,
-                args=(input_dir, self.log, t('cleanup_target_input'), INPUT_DIR_CLEANUP_EXTENSIONS),
+                args=(input_dir, self.log, 'cleanup_target_input', INPUT_DIR_CLEANUP_EXTENSIONS),
                 kwargs={'log_language': host.ui_language.get()},
                 daemon=True,
             )
@@ -547,7 +541,7 @@ class TkUiControllerMixin:
             self.log(t('log_output_cleanup_started', exts=exts))
             thread = threading.Thread(
                 target=cleanup_folder,
-                args=(output_dir, self.log, t('cleanup_target_output'), OUTPUT_DIR_CLEANUP_EXTENSIONS),
+                args=(output_dir, self.log, 'cleanup_target_output', OUTPUT_DIR_CLEANUP_EXTENSIONS),
                 kwargs={'log_language': host.ui_language.get()},
                 daemon=True,
             )

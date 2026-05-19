@@ -32,7 +32,7 @@ def test_cleanup_folder_removes_zip_and_known_output_files(tmp_path: Path) -> No
     assert count_target_files(output_dir, OUTPUT_DIR_CLEANUP_EXTENSIONS) == 2
 
     logs: list[str] = []
-    cleanup_folder(output_dir, logs.append, '出力フォルダ', OUTPUT_DIR_CLEANUP_EXTENSIONS, log_language='ja')
+    cleanup_folder(output_dir, logs.append, 'cleanup_target_output', OUTPUT_DIR_CLEANUP_EXTENSIONS, log_language='ja')
 
     assert not zip_path.exists()
     assert not csv_path.exists()
@@ -49,7 +49,7 @@ def test_cleanup_folder_logs_english_when_requested(tmp_path: Path) -> None:
     target_path.write_text('timestamp,input_path', encoding='utf-8')
 
     logs: list[str] = []
-    cleanup_folder(output_dir, logs.append, 'Output folder', {'.csv'}, log_language='en')
+    cleanup_folder(output_dir, logs.append, 'cleanup_target_output', {'.csv'}, log_language='en')
 
     assert not target_path.exists()
     assert any(message.startswith('Deleted:') for message in logs)

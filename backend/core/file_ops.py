@@ -30,7 +30,7 @@ def count_target_files(target_dir, target_extensions):
     return count
 
 
-def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_extensions=None, log_language: str = 'ja'):
+def cleanup_folder(target_dir, log_func, folder_type_key="cleanup_target_input", target_extensions=None, log_language: str = 'ja'):
     """指定フォルダ配下の対象拡張子ファイルを削除し、空フォルダも除去する。
 
     対象外ファイルを残す設計にしているのは、ユーザーが同じフォルダに置いた成果物や
@@ -39,6 +39,8 @@ def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_exte
     """
     def t(key: str, **kwargs):
         return translate(log_language, key, **kwargs)
+
+    folder_type = t(folder_type_key)
 
     if not target_dir:
         log_func(t('cleanup_folder_missing', folder_type=folder_type))
