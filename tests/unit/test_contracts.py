@@ -58,6 +58,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
         zip_output_enabled=False,
         debug_mode=True,
         copy_non_target_files=False,
+        log_language='ja',
     )
 
     log_messages: list[str] = []
@@ -73,6 +74,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
     assert kwargs['zip_output_enabled'] is False
     assert kwargs['pdf_png_quality'] == 58
     assert kwargs['resize_enabled'] == {'enabled': True, 'mode': 'long_edge', 'long_edge': 1280}
+    assert request.log_language == 'ja'
     assert kwargs['log_func'].__self__ is log_messages
     assert callable(kwargs['progress_func'])
     assert callable(kwargs['stats_func'])

@@ -10,6 +10,7 @@ controller は widget 操作、backend は request 契約に集中したいの�
 from dataclasses import dataclass
 
 from backend.contracts import CompressionRequest
+from frontend.i18n import get_current_language
 from frontend.settings import PDF_LOSSY_DPI_RANGE
 from frontend.ui_contracts import CompressionRequestAppProtocol
 
@@ -156,6 +157,7 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         zip_output_enabled=zip_output_enabled,
         debug_mode=app.debug_mode.get(),
         copy_non_target_files=app.copy_non_target_files.get(),
+        log_language=get_current_language(),
     )
 
     return RequestBuildResult(

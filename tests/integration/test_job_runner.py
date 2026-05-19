@@ -16,6 +16,7 @@ from backend.contracts import CompressionRequest, ProgressEvent
 from backend.core import compressor_utils
 from backend.orchestrator import job_runner
 from frontend.settings import PDF_LOSSY_DPI_RANGE
+import frontend.ui_tkinter_mapper as mapper_module
 from frontend.ui_tkinter_mapper import build_compression_request
 
 
@@ -69,6 +70,7 @@ class DummyMapperApp:
         self.zip_output_enabled = DummyVar(False)
         self.debug_mode = DummyVar(True)
         self.copy_non_target_files = DummyVar(False)
+        self.ui_language = DummyVar('ja')
 
 
 def snapshot_tree(root: Path) -> dict[str, int]:
@@ -112,6 +114,7 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
         zip_output_enabled=False,
         debug_mode=True,
         copy_non_target_files=False,
+        log_language='ja',
     )
 
     job_runner.run_compression_request(request=request, event_callback=events.append)
@@ -146,6 +149,14 @@ def test_run_compression_request_forwards_clamped_ui_values(monkeypatch: pytest.
     assert captured['resize_height'] == 65535
     assert captured['zip_output_enabled'] is False
     assert events == []
+
+
+def test_build_compression_request_uses_current_language(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(mapper_module, 'get_current_language', lambda: 'en')
+
+    request = build_compression_request(DummyMapperApp()).request
+
+    assert request.log_language == 'en'
 
 
 def test_compat_compress_folder_forwards_zip_output_enabled(monkeypatch: pytest.MonkeyPatch) -> None:

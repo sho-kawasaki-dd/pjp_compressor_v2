@@ -96,6 +96,7 @@ class CompressionRequest:
     zip_output_enabled: bool
     debug_mode: bool
     copy_non_target_files: bool
+    log_language: str
 
     def to_legacy_kwargs(
         self,
