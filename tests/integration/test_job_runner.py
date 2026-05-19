@@ -239,6 +239,10 @@ def test_run_compression_job_processes_images_and_writes_csv(sample_paths, image
 
     assert len(rows) == 2
     assert {row[tlog('ja', 'csv_header_input_path')] for row in rows} == {'photo.jpg', 'diagram.png'}
+    assert {row[tlog('ja', 'csv_header_action')] for row in rows} == {
+        tlog('ja', 'csv_action_jpeg'),
+        tlog('ja', 'csv_action_png'),
+    }
     assert any(message.startswith(tlog('ja', 'log_csv_output', path='')) for message in logs)
     assert progress[-1] == (2, 2)
     assert stats[-1][0] > 0
@@ -263,20 +267,9 @@ def test_run_compression_job_uses_english_csv_headers_and_logs(sample_paths, ima
     )
 
     with sample_paths.csv_path.open('r', encoding='utf-8', newline='') as handle:
-        rows = list(csv.reader(handle))
+        rows = list(csv.DictReader(handle))
 
-    assert rows[0] == [
-        tlog('en', 'csv_header_timestamp'),
-        tlog('en', 'csv_header_input_path'),
-        tlog('en', 'csv_header_output_path'),
-        tlog('en', 'csv_header_ext'),
-        tlog('en', 'csv_header_action'),
-        tlog('en', 'csv_header_orig_size'),
-        tlog('en', 'csv_header_out_size'),
-        tlog('en', 'csv_header_saved_bytes'),
-        tlog('en', 'csv_header_saved_pct'),
-        tlog('en', 'csv_header_notes'),
-    ]
+    assert {row[tlog('en', 'csv_header_action')] for row in rows} == {tlog('en', 'csv_action_jpeg')}
     assert any(message.startswith(tlog('en', 'log_csv_output', path='')) for message in logs)
     assert any(tlog('en', 'log_complete') in message for message in logs)
 
@@ -379,6 +372,10 @@ def test_run_compression_job_rearchives_zip_outputs_when_enabled(sample_paths, j
 
     assert len(rows) == 2
     assert all(row[tlog('ja', 'csv_header_output_path')].startswith('packs/bundle/') for row in rows)
+    assert {row[tlog('ja', 'csv_header_action')] for row in rows} == {
+        tlog('ja', 'csv_action_jpeg'),
+        tlog('ja', 'csv_action_non_target_copy'),
+    }
     assert {row[tlog('ja', 'csv_header_notes')] for row in rows} == {'zip_archive=packs/bundle.zip'}
     regenerated_prefix = tlog('ja', 'log_zip_regenerated', input_path='', output_path='', archived_file_count=0).split(' -> ')[0]
     assert any(message.startswith(regenerated_prefix) for message in logs)

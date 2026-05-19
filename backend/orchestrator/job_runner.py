@@ -112,6 +112,19 @@ def _csv_headers(catalog: dict[str, str]) -> list[str]:
     ]
 
 
+def _csv_action_label(catalog: dict[str, str], ext: str, *, processed: bool) -> str:
+    """CSV の action 列に入れる処理種別ラベルを返す。"""
+    if ext == 'pdf':
+        return catalog.get('csv_action_pdf', 'PDF compression')
+    if ext in {'jpg', 'jpeg'}:
+        return catalog.get('csv_action_jpeg', 'JPEG compression')
+    if ext == 'png':
+        return catalog.get('csv_action_png', 'PNG compression')
+    if processed:
+        return catalog.get('csv_action_unknown', 'Unknown')
+    return catalog.get('csv_action_failed', 'Compression failed')
+
+
 def _tool_detection_summary(catalog: dict[str, str]) -> str:
     """起動時ログに出す外部ツール検出要約を返す。"""
     report = detect_capabilities()
@@ -427,8 +440,12 @@ def run_compression_job(
 
                     try:
                         if csv_writer:
-                            # 画面ログと CSV の action を揃えるため、メッセージ先頭を action 名として使う。
-                            action = msg.split(' | ')[0]
+                            action = _csv_action_label(catalog, ext_task, processed=processed_flag)
+                            if not processed_flag:
+                                if copy_non_target_files:
+                                    action = t('csv_action_non_target_copy') if is_non_target else t('csv_action_fallback_copy')
+                                else:
+                                    action = t('csv_action_failed')
                             saved = orig_size - out_size
                             saved_pct = (saved / orig_size * 100) if orig_size > 0 else 0.0
                             timestamp = datetime.now().isoformat()
