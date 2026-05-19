@@ -59,6 +59,7 @@ class DummyApp:
         self.csv_enable = DummyVar(True)
         self.csv_path = DummyVar('  out/log.csv  ')
         self.extract_zip = DummyVar(True)
+        self.zip_output_enabled = DummyVar(False)
         self.debug_mode = DummyVar(True)
         self.copy_non_target_files = DummyVar(False)
 

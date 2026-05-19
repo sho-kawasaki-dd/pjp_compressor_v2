@@ -27,3 +27,6 @@ PDF_LOSSLESS_OPTIONS_DEFAULT = {
 
 # Ghostscript は汎用用途で破綻しにくい `ebook` を backend 標準とする。
 GS_DEFAULT_PRESET = 'ebook'
+
+# ZIP 展開後の出力は既定でフォルダのままにする。
+ZIP_OUTPUT_ENABLED_DEFAULT = False

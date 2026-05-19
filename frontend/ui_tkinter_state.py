@@ -14,6 +14,7 @@ from backend.settings import (
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
+    ZIP_OUTPUT_ENABLED_DEFAULT,
 )
 from frontend.settings import (
     APP_SETTINGS_DEFAULTS,
@@ -76,6 +77,7 @@ class TkUiStateMixin:
         self.csv_enable: tk.BooleanVar = tk.BooleanVar(value=True)
         self.csv_path: tk.StringVar = tk.StringVar(value='')
         self.extract_zip: tk.BooleanVar = tk.BooleanVar(value=True)
+        self.zip_output_enabled: tk.BooleanVar = tk.BooleanVar(value=ZIP_OUTPUT_ENABLED_DEFAULT)
         self.debug_mode: tk.BooleanVar = tk.BooleanVar(value=DEBUG_MODE_DEFAULT)
         self.copy_non_target_files: tk.BooleanVar = tk.BooleanVar(value=COPY_NON_TARGET_FILES_DEFAULT)
         self.auto_switch_log_tab: tk.BooleanVar = tk.BooleanVar(value=True)

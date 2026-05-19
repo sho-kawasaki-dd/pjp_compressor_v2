@@ -93,6 +93,7 @@ class CompressionRequest:
     csv_enable: bool
     csv_path: str | None
     extract_zip: bool
+    zip_output_enabled: bool
     debug_mode: bool
     copy_non_target_files: bool
 
@@ -130,6 +131,7 @@ class CompressionRequest:
             'csv_enable': self.csv_enable,
             'csv_path': self.csv_path,
             'extract_zip': self.extract_zip,
+            'zip_output_enabled': self.zip_output_enabled,
             'debug_mode': self.debug_mode,
             'copy_non_target_files': self.copy_non_target_files,
         }

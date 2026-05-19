@@ -65,6 +65,7 @@ class DummyMapperApp:
         self.csv_enable = DummyVar(True)
         self.csv_path = DummyVar('')
         self.extract_zip = DummyVar(True)
+        self.zip_output_enabled = DummyVar(False)
         self.debug_mode = DummyVar(True)
         self.copy_non_target_files = DummyVar(False)
 
@@ -107,6 +108,7 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
         csv_enable=False,
         csv_path=None,
         extract_zip=True,
+        zip_output_enabled=False,
         debug_mode=True,
         copy_non_target_files=False,
     )

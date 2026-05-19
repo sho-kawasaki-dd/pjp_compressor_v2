@@ -55,6 +55,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
         csv_enable=True,
         csv_path='out/log.csv',
         extract_zip=True,
+        zip_output_enabled=False,
         debug_mode=True,
         copy_non_target_files=False,
     )

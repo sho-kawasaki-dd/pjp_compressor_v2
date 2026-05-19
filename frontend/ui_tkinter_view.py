@@ -57,6 +57,7 @@ class TkUiViewMixin:
     csv_enable: tk.BooleanVar
     csv_path: tk.StringVar
     extract_zip: tk.BooleanVar
+    zip_output_enabled: tk.BooleanVar
     copy_non_target_files: tk.BooleanVar
     auto_switch_log_tab: tk.BooleanVar
     play_startup_sound: tk.BooleanVar
@@ -668,6 +669,14 @@ class TkUiViewMixin:
         zip_row = ttk.Frame(out_lf)
         zip_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(zip_row, text='ZIP 展開してから圧縮', variable=self.extract_zip).pack(side='left')
+
+        zip_output_row = ttk.Frame(out_lf)
+        zip_output_row.pack(fill='x', padx=5, pady=2)
+        ttk.Checkbutton(
+            zip_output_row,
+            text='展開した ZIP の出力を ZIP に戻す',
+            variable=self.zip_output_enabled,
+        ).pack(side='left')
 
         debug_row = ttk.Frame(out_lf)
         debug_row.pack(fill='x', padx=5, pady=2)
