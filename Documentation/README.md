@@ -589,6 +589,13 @@ python -m pytest
     - `frontend/settings.py` と `frontend/config_data/ui_catalogs.json` に言語設定を追加し、次回起動時に反映される UI 多言語対応を実装した
     - ZIP 展開後の出力形式を ZIP 入力由来の成果物に限ってフォルダ / ZIP で切り替えられるようにし、再生成 ZIP に mirror 圧縮で残る非圧縮対象も含めるようにした
     - ZIP 出力時は元の入力 ZIP を出力フォルダへ別コピーしないように整理し、既存 CSV の互換性を維持したままログを調整した
+- バージョン: 2.6.3
+  - リリース日: 2026年5月20日
+  - 主な変更点:
+    - controller の状態更新をログ本文依存から `ProgressEvent` ベースへ整理し、`_append_log()` の日本語部分一致判定を撤去した
+    - cleanup 呼び出し境界を安定したキー渡しへ変更し、backend 側でロケールを解決する形へ整理した
+    - image / PDF / worker のログ結果メッセージと message 合成を整え、ログ多言語化の責務分離を維持しやすくした
+    - 関連する unit / integration テストを更新し、ログ文言の変更で UI 状態更新が壊れないことを固定した
 
 ---
 

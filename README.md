@@ -42,7 +42,9 @@
   言語はアプリ設定タブで選択でき、`ui_catalogs.json` の `app_settings.language` に保存されて、次回起動時に反映されます。
 - Default folders and the desktop folder creation flow also follow the selected UI language.
   既定フォルダ名やデスクトップフォルダ作成の確認文も、選択した UI 言語に追従します。
-
+- Task L-N: controller の状態更新をログ本文依存から `ProgressEvent` ベースへ整理し、cleanup 呼び出し境界も安定したキー渡しに変更しました。
+- Task L-N: cleanup / image / PDF / worker のログ処理と message 合成を整え、JA/EN のログ多言語化を維持しやすい構成にしました。
+- Task L-N: 関連する unit / integration テストを更新し、ログ本文の自然言語変更でも UI 状態が壊れないことを確認しました。
 ---
 
 ## Requirements / 動作環境
