@@ -9,7 +9,7 @@ guard の連携を、実 App に近い形で崩れていないか確認する。
 import shutil
 import time
 import zipfile
-from dataclasses import replace
+from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,7 +87,7 @@ def create_zip_fixture(input_dir: Path) -> tuple[Path, Path, Path]:
 
 
 def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
-    """ZIP 展開 ON/OFF とミラー圧縮 ON/OFF の 4 象限をまとめて検証する。"""
+    """ZIP 展開・mirror・ZIP出力の 3 軸組み合わせを回帰確認する。"""
 
     zip_path, _, _ = create_zip_fixture(input_dir)
     input_before = snapshot_input_tree(input_dir)
@@ -105,41 +105,42 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
         assert any(getattr(event, 'kind', '') == 'progress' for event in captured), 'progress event missing in zip case'
         assert any(getattr(event, 'kind', '') == 'stats' for event in captured), 'stats event missing in zip case'
 
-    clear_output_dir(output_dir)
-    # 展開のみ: ZIP 内 target だけが処理され、元 ZIP は残さない。
-    execute_case(extract_zip=True, mirror_mode=False)
-    assert (output_dir / 'subpack' / 'myzip' / 'img' / 'photo.jpg').exists()
-    assert not (output_dir / 'subpack' / 'myzip' / 'docs' / 'readme.txt').exists()
-    assert not (output_dir / 'subpack' / 'myzip.zip').exists()
+    for extract_zip, mirror_mode, zip_output_mode in product((False, True), repeat=3):
+        case_label = (
+            f'extract_zip={extract_zip}, '
+            f'mirror_mode={mirror_mode}, '
+            f'zip_output_mode={zip_output_mode}'
+        )
+        clear_output_dir(output_dir)
+        execute_case(extract_zip=extract_zip, mirror_mode=mirror_mode, zip_output_mode=zip_output_mode)
 
-    clear_output_dir(output_dir)
-    # どちらも OFF: ZIP は無視され、展開結果もコピーも生まれない。
-    execute_case(extract_zip=False, mirror_mode=False)
-    assert not (output_dir / 'subpack' / 'myzip.zip').exists()
-    assert not (output_dir / 'subpack' / 'myzip').exists()
+        normal_jpg_output = output_dir / 'normal.jpg'
+        normal_txt_output = output_dir / 'normal.txt'
+        zipped_output = output_dir / 'subpack' / 'myzip.zip'
+        folder_output = output_dir / 'subpack' / 'myzip'
+        zipped_file_entries: set[str] = set()
 
-    clear_output_dir(output_dir)
-    # 両方 ON: 元 ZIP と展開結果を両方残し、non-target も mirror する。
-    execute_case(extract_zip=True, mirror_mode=True)
-    assert (output_dir / 'subpack' / 'myzip.zip').exists()
-    assert (output_dir / 'subpack' / 'myzip' / 'img' / 'photo.jpg').exists()
-    assert (output_dir / 'subpack' / 'myzip' / 'docs' / 'readme.txt').exists()
+        assert normal_jpg_output.exists(), case_label
+        assert normal_txt_output.exists() is mirror_mode, case_label
 
-    clear_output_dir(output_dir)
-    # mirror のみ: 元 ZIP は残すが、中身の展開はしない。
-    execute_case(extract_zip=False, mirror_mode=True)
-    assert (output_dir / 'subpack' / 'myzip.zip').exists()
-    assert not (output_dir / 'subpack' / 'myzip').exists()
+        expected_zip_exists = mirror_mode or (extract_zip and zip_output_mode)
+        expected_folder_exists = extract_zip and not zip_output_mode
+        expected_zip_files = {'img/photo.jpg'}
+        if mirror_mode:
+            expected_zip_files.add('docs/readme.txt')
 
-    clear_output_dir(output_dir)
-    # ZIP出力 + mirror: 非圧縮対象も再ZIPへ含め、展開フォルダは残さない。
-    execute_case(extract_zip=True, mirror_mode=True, zip_output_mode=True)
-    zipped_output = output_dir / 'subpack' / 'myzip.zip'
-    assert zipped_output.exists()
-    assert not (output_dir / 'subpack' / 'myzip').exists()
-    with zipfile.ZipFile(zipped_output, 'r') as archive:
-        assert 'img/photo.jpg' in archive.namelist()
-        assert 'docs/readme.txt' in archive.namelist()
+        assert zipped_output.exists() is expected_zip_exists, case_label
+        assert folder_output.exists() is expected_folder_exists, case_label
+
+        if zipped_output.exists():
+            with zipfile.ZipFile(zipped_output, 'r') as archive:
+                zipped_file_entries = {name for name in archive.namelist() if not name.endswith('/')}
+            assert zipped_file_entries == expected_zip_files, case_label
+
+        photo_output = folder_output / 'img' / 'photo.jpg'
+        txt_output = folder_output / 'docs' / 'readme.txt'
+        assert photo_output.exists() is expected_folder_exists, case_label
+        assert txt_output.exists() is (expected_folder_exists and mirror_mode), case_label
 
     input_after = snapshot_input_tree(input_dir)
     assert input_before == input_after

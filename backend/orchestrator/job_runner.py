@@ -158,7 +158,7 @@ def run_compression_job(
     ]
     zip_output_copies: list[tuple[Path, Path, str, str]] = []
     temp_extract_root: Path | None = None
-    if copy_non_target_files and not zip_output_enabled:
+    if copy_non_target_files and not (extract_zip and zip_output_enabled):
         # ZIP を最終的に再生成する場合は、元 ZIP の別コピーは残さず 1 つの成果物にまとめる。
         for plan in zip_output_plans:
             zip_output_copies.append((
