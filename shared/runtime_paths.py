@@ -15,7 +15,7 @@ ToolSource = Literal['system', 'bundled', 'unavailable']
 TOOL_SOURCE_LABELS: dict[ToolSource, str] = {
     'system': 'system',
     'bundled': 'bundled',
-    'unavailable': '未検出',
+    'unavailable': 'unavailable',
 }
 
 

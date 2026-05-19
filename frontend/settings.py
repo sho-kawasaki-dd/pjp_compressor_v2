@@ -19,6 +19,7 @@ from shared.runtime_paths import APP_BASE_DIR, RESOURCE_BASE_DIR
 
 UI_CATALOGS_PATH = RESOURCE_BASE_DIR / 'frontend' / 'config_data' / 'ui_catalogs.json'
 APP_SETTINGS_DEFAULTS = {
+    'language': '',
     'play_startup_sound': True,
     'play_cleanup_sound': True,
 }
@@ -43,7 +44,7 @@ def _read_ui_catalogs_payload(resource_path: Path | None = None) -> dict[str, An
     return payload
 
 
-def load_app_settings(resource_path: Path | None = None) -> dict[str, bool]:
+def load_app_settings(resource_path: Path | None = None) -> dict[str, bool | str]:
     """永続化されたアプリ設定を読み込み、欠落値には既定値を補う。
 
     設定 JSON はユーザー編集や将来の項目追加で欠損しうるため、常に完全な辞書を返して
@@ -57,13 +58,16 @@ def load_app_settings(resource_path: Path | None = None) -> dict[str, bool]:
     resolved = dict(APP_SETTINGS_DEFAULTS)
     for key in resolved:
         value = settings.get(key)
-        if isinstance(value, bool):
+        if isinstance(resolved[key], bool) and isinstance(value, bool):
+            resolved[key] = value
+        elif isinstance(resolved[key], str) and isinstance(value, str):
             resolved[key] = value
     return resolved
 
 
 def save_app_settings(
     *,
+    language: str = '',
     play_startup_sound: bool,
     play_cleanup_sound: bool,
     resource_path: Path | None = None,
@@ -80,6 +84,7 @@ def save_app_settings(
         return False
 
     payload['app_settings'] = {
+        'language': language,
         'play_startup_sound': bool(play_startup_sound),
         'play_cleanup_sound': bool(play_cleanup_sound),
     }
@@ -91,7 +96,7 @@ def save_app_settings(
     return True
 
 
-def _load_ui_catalogs() -> tuple[dict[str, str], dict[str, str], tuple[str, ...]]:
+def _load_ui_catalogs() -> tuple[str, ...]:
     """UI 表示用の静的カタログを JSON から読み込む。
 
     文字列カタログを Python コードへベタ書きしないことで、UI 文言と選択肢の追加を
@@ -99,21 +104,15 @@ def _load_ui_catalogs() -> tuple[dict[str, str], dict[str, str], tuple[str, ...]
     """
     payload = _read_ui_catalogs_payload()
 
-    pdf_modes = payload.get('pdf_compress_modes')
-    gs_presets = payload.get('gs_presets')
     long_edge_presets = payload.get('long_edge_presets')
 
-    if not isinstance(pdf_modes, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in pdf_modes.items()):
-        raise RuntimeError('pdf_compress_modes は文字列キー/値の object である必要があります')
-    if not isinstance(gs_presets, dict) or not all(isinstance(key, str) and isinstance(value, str) for key, value in gs_presets.items()):
-        raise RuntimeError('gs_presets は文字列キー/値の object である必要があります')
     if not isinstance(long_edge_presets, list) or not all(isinstance(value, str) for value in long_edge_presets):
         raise RuntimeError('long_edge_presets は文字列配列である必要があります')
 
-    return dict(pdf_modes), dict(gs_presets), tuple(long_edge_presets)
+    return tuple(long_edge_presets)
 
 
-PDF_COMPRESS_MODES, GS_PRESETS, LONG_EDGE_PRESETS = _load_ui_catalogs()
+LONG_EDGE_PRESETS = _load_ui_catalogs()
 
 # DPI 範囲は UI スライダーと mapper の clamp 基準を揃えるため frontend 側で共有する。
 PDF_LOSSY_DPI_RANGE = (36, 600)
