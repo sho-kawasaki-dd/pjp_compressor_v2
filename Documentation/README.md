@@ -582,10 +582,17 @@ python -m pytest
   - 主な変更点:
     - `scripts/get_version.py` を追加し、バージョン番号を pyproject.toml から一元管理するようにした
     - `pjp_compressor.iss` に記述を追加し、インストーラーでインストールする際に、既存の `_internal/`を削除するようにした
+- バージョン: 2.6.2
+  - リリース日: 2026年5月19日
+  - 主な変更点:
+    - `frontend/i18n.py` と `frontend/config_data/locales/ja.json` / `en.json` を追加し、UI 表示文字列をロケールキー経由で切り替えられるようにした
+    - `frontend/settings.py` と `frontend/config_data/ui_catalogs.json` に言語設定を追加し、次回起動時に反映される UI 多言語対応を実装した
+    - ZIP 展開後の出力形式を ZIP 入力由来の成果物に限ってフォルダ / ZIP で切り替えられるようにし、再生成 ZIP に mirror 圧縮で残る非圧縮対象も含めるようにした
+    - ZIP 出力時は元の入力 ZIP を出力フォルダへ別コピーしないように整理し、既存 CSV の互換性を維持したままログを調整した
 
 ---
 
-2026年4月27日
+2026年5月18日
 株式会社京都ダイケンビルサービス
 千總本社ビル設備
 川﨑　翔
