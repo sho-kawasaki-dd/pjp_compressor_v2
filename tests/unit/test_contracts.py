@@ -70,6 +70,7 @@ def test_compression_request_to_legacy_kwargs_includes_debug_mode() -> None:
     )
 
     assert kwargs['debug_mode'] is True
+    assert kwargs['zip_output_enabled'] is False
     assert kwargs['pdf_png_quality'] == 58
     assert kwargs['resize_enabled'] == {'enabled': True, 'mode': 'long_edge', 'long_edge': 1280}
     assert kwargs['log_func'].__self__ is log_messages

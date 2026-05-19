@@ -120,6 +120,7 @@ class DummyRequest:
     jpg_quality: int = 70
     png_quality: int = 70
     use_pngquant: bool = True
+    zip_output_enabled: bool = False
     debug_mode: bool = True
 
 

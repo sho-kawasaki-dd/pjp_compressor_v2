@@ -38,6 +38,7 @@ def test_detect_pngquant_falls_back_to_bundled(monkeypatch: pytest.MonkeyPatch, 
     bundled.write_text('stub', encoding='utf-8')
 
     monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path)
+    monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path)
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda _name: None)
 
     resolution = capabilities._detect_pngquant()

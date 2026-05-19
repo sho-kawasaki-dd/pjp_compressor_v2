@@ -137,6 +137,7 @@ def test_build_compression_request_includes_debug_mode_and_trimmed_csv() -> None
     result = build_compression_request(app)
 
     assert result.request.debug_mode is True
+    assert result.request.zip_output_enabled is False
     assert result.request.pdf_png_quality == 62
     assert result.request.csv_path == 'out/log.csv'
     assert result.request.resize_config == {
