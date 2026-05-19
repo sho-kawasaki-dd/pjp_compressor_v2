@@ -18,6 +18,7 @@ from backend.orchestrator import job_runner
 from frontend.settings import PDF_LOSSY_DPI_RANGE
 import frontend.ui_tkinter_mapper as mapper_module
 from frontend.ui_tkinter_mapper import build_compression_request
+from shared.locale_catalog import translate as tlog
 
 
 pytestmark = pytest.mark.integration
@@ -120,6 +121,7 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
     job_runner.run_compression_request(request=request, event_callback=events.append)
 
     assert captured['debug_mode'] is True
+    assert captured['log_language'] == 'ja'
     assert captured['pdf_png_quality'] == 55
     assert events == []
 
@@ -131,6 +133,7 @@ def test_run_compression_request_forwards_clamped_ui_values(monkeypatch: pytest.
         captured.update(kwargs)
 
     monkeypatch.setattr(job_runner, 'run_compression_job', fake_run_compression_job)
+    monkeypatch.setattr(mapper_module, 'get_current_language', lambda: 'ja')
 
     request = build_compression_request(DummyMapperApp()).request
     events: list[ProgressEvent] = []
@@ -148,6 +151,7 @@ def test_run_compression_request_forwards_clamped_ui_values(monkeypatch: pytest.
     assert captured['resize_width'] == 65535
     assert captured['resize_height'] == 65535
     assert captured['zip_output_enabled'] is False
+    assert captured['log_language'] == 'ja'
     assert events == []
 
 
@@ -197,9 +201,10 @@ def test_run_compression_job_handles_empty_input(sample_paths) -> None:
         progress_func=lambda current, total: progress.append((current, total)),
         stats_func=lambda orig, out, saved, pct: stats.append((orig, out, saved, pct)),
         csv_enable=False,
+        log_language='ja',
     )
 
-    assert logs[-1] == '完了！'
+    assert logs[-1] == tlog('ja', 'log_complete')
     assert progress == [(1, 1)]
     assert stats == [(0, 0, 0, 0.0)]
 
@@ -223,6 +228,7 @@ def test_run_compression_job_processes_images_and_writes_csv(sample_paths, image
         csv_enable=True,
         csv_path=str(sample_paths.csv_path),
         resize_enabled={'enabled': True, 'mode': 'long_edge', 'long_edge': 400},
+        log_language='ja',
     )
 
     assert (sample_paths.output_dir / 'photo.jpg').exists()
@@ -232,10 +238,47 @@ def test_run_compression_job_processes_images_and_writes_csv(sample_paths, image
         rows = list(csv.DictReader(handle))
 
     assert len(rows) == 2
-    assert {row['input_path'] for row in rows} == {'photo.jpg', 'diagram.png'}
-    assert any('CSVログ出力' in message for message in logs)
+    assert {row[tlog('ja', 'csv_header_input_path')] for row in rows} == {'photo.jpg', 'diagram.png'}
+    assert any(message.startswith(tlog('ja', 'log_csv_output', path='')) for message in logs)
     assert progress[-1] == (2, 2)
     assert stats[-1][0] > 0
+
+
+def test_run_compression_job_uses_english_csv_headers_and_logs(sample_paths, image_factory) -> None:
+    image_factory(sample_paths.input_dir / 'photo.jpg', size=(1600, 1200), fmt='JPEG')
+    logs: list[str] = []
+
+    job_runner.run_compression_job(
+        input_dir=str(sample_paths.input_dir),
+        output_dir=str(sample_paths.output_dir),
+        jpg_quality=55,
+        png_quality=60,
+        use_pngquant=False,
+        log_func=logs.append,
+        progress_func=lambda _current, _total: None,
+        stats_func=lambda _orig, _out, _saved, _pct: None,
+        csv_enable=True,
+        csv_path=str(sample_paths.csv_path),
+        log_language='en',
+    )
+
+    with sample_paths.csv_path.open('r', encoding='utf-8', newline='') as handle:
+        rows = list(csv.reader(handle))
+
+    assert rows[0] == [
+        tlog('en', 'csv_header_timestamp'),
+        tlog('en', 'csv_header_input_path'),
+        tlog('en', 'csv_header_output_path'),
+        tlog('en', 'csv_header_ext'),
+        tlog('en', 'csv_header_action'),
+        tlog('en', 'csv_header_orig_size'),
+        tlog('en', 'csv_header_out_size'),
+        tlog('en', 'csv_header_saved_bytes'),
+        tlog('en', 'csv_header_saved_pct'),
+        tlog('en', 'csv_header_notes'),
+    ]
+    assert any(message.startswith(tlog('en', 'log_csv_output', path='')) for message in logs)
+    assert any(tlog('en', 'log_complete') in message for message in logs)
 
 
 def test_run_compression_job_tolerates_out_of_range_quality_values(sample_paths, image_factory) -> None:
@@ -255,6 +298,7 @@ def test_run_compression_job_tolerates_out_of_range_quality_values(sample_paths,
         progress_func=lambda _current, _total: None,
         stats_func=lambda orig, out, saved, pct: stats.append((orig, out, saved, pct)),
         csv_enable=False,
+        log_language='ja',
     )
 
     assert (sample_paths.output_dir / 'photo.jpg').exists()
@@ -286,6 +330,7 @@ def test_run_compression_job_extracts_zip_without_mutating_input(sample_paths, j
         csv_enable=False,
         extract_zip=True,
         copy_non_target_files=False,
+        log_language='ja',
     )
 
     assert (sample_paths.output_dir / 'packs' / 'bundle' / 'img' / 'photo.jpg').exists()
@@ -317,6 +362,7 @@ def test_run_compression_job_rearchives_zip_outputs_when_enabled(sample_paths, j
         extract_zip=True,
         zip_output_enabled=True,
         copy_non_target_files=True,
+        log_language='ja',
     )
 
     zipped_output = sample_paths.output_dir / 'packs' / 'bundle.zip'
@@ -326,15 +372,16 @@ def test_run_compression_job_rearchives_zip_outputs_when_enabled(sample_paths, j
     with zipfile.ZipFile(zipped_output, 'r') as archive:
         assert 'img/photo.jpg' in archive.namelist()
         assert 'docs/readme.txt' in archive.namelist()
-    assert any('ZIP再生成' in message for message in logs)
-    assert any('ZIP出力モード有効' in message for message in logs)
+    assert any(tlog('ja', 'log_zip_output_mode_enabled') in message for message in logs)
     assert sample_paths.csv_path.exists()
     with sample_paths.csv_path.open('r', encoding='utf-8', newline='') as handle:
         rows = list(csv.DictReader(handle))
 
     assert len(rows) == 2
-    assert all(row['output_path'].startswith('packs/bundle/') for row in rows)
-    assert {row['notes'] for row in rows} == {'zip_archive=packs/bundle.zip'}
+    assert all(row[tlog('ja', 'csv_header_output_path')].startswith('packs/bundle/') for row in rows)
+    assert {row[tlog('ja', 'csv_header_notes')] for row in rows} == {'zip_archive=packs/bundle.zip'}
+    regenerated_prefix = tlog('ja', 'log_zip_regenerated', input_path='', output_path='', archived_file_count=0).split(' -> ')[0]
+    assert any(message.startswith(regenerated_prefix) for message in logs)
     assert snapshot_tree(sample_paths.input_dir) == before
 
 
@@ -365,7 +412,8 @@ def test_run_compression_job_copies_failed_compressible_file_in_mirror_mode(
         stats_func=lambda _orig, _out, _saved, _pct: None,
         csv_enable=False,
         copy_non_target_files=True,
+        log_language='ja',
     )
 
     assert (sample_paths.output_dir / 'broken.jpg').exists()
-    assert any('フォールバックコピー' in message for message in logs)
+    assert any(tlog('ja', 'log_fallback_copy') in message for message in logs)

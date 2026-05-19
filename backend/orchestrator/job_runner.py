@@ -32,6 +32,7 @@ from backend.capabilities import detect_capabilities
 from backend.services.archive_service import extract_zip_archives
 from backend.core.archive_utils import zip_directory
 from backend.contracts import CompressionRequest, ProgressEvent
+from shared.locale_catalog import load_locale_catalog, translate as locale_translate
 from shared.runtime_paths import describe_tool_source
 
 
@@ -41,18 +42,6 @@ def _safe_rel(path: Path, base: Path) -> str:
         return str(path.relative_to(base))
     except Exception:
         return path.name
-
-
-def _tool_detection_summary() -> str:
-    """起動時ログに出す外部ツール検出要約を返す。"""
-    report = detect_capabilities()
-    parts = [
-        'PyMuPDF=OK' if report.fitz_available else 'PyMuPDF=なし',
-        'pikepdf=OK' if report.pikepdf_available else 'pikepdf=なし',
-        f'Ghostscript={describe_tool_source(report.ghostscript_source)}',
-        f'pngquant={describe_tool_source(report.pngquant_source)}',
-    ]
-    return '依存検出: ' + ', '.join(parts)
 
 
 @dataclass(frozen=True)
@@ -98,6 +87,43 @@ def _build_zip_output_plan(input_base: Path, output_base: Path, zip_path: Path) 
     )
 
 
+def _format_message(catalog: dict[str, str], key: str, **kwargs: Any) -> str:
+    """ロケール catalog から文言を取得し、フォーマット失敗時も落とさない。"""
+    template = catalog.get(key, key)
+    try:
+        return template.format(**kwargs)
+    except Exception:
+        return template
+
+
+def _csv_headers(catalog: dict[str, str]) -> list[str]:
+    """CSV 1 行目のヘッダを locale から組み立てる。"""
+    return [
+        catalog.get('csv_header_timestamp', 'timestamp'),
+        catalog.get('csv_header_input_path', 'input_path'),
+        catalog.get('csv_header_output_path', 'output_path'),
+        catalog.get('csv_header_ext', 'ext'),
+        catalog.get('csv_header_action', 'action'),
+        catalog.get('csv_header_orig_size', 'orig_size'),
+        catalog.get('csv_header_out_size', 'out_size'),
+        catalog.get('csv_header_saved_bytes', 'saved_bytes'),
+        catalog.get('csv_header_saved_pct', 'saved_pct'),
+        catalog.get('csv_header_notes', 'notes'),
+    ]
+
+
+def _tool_detection_summary(catalog: dict[str, str]) -> str:
+    """起動時ログに出す外部ツール検出要約を返す。"""
+    report = detect_capabilities()
+    parts = [
+        catalog.get('capability_fitz_ok', 'PyMuPDF:OK') if report.fitz_available else catalog.get('capability_fitz_missing', 'PyMuPDF:なし'),
+        catalog.get('capability_pikepdf_ok', 'pikepdf:OK') if report.pikepdf_available else catalog.get('capability_pikepdf_missing', 'pikepdf:なし'),
+        f"{catalog.get('capability_ghostscript_label', 'Ghostscript=')}{catalog.get(f'tool_source.{report.ghostscript_source}', describe_tool_source(report.ghostscript_source))}",
+        f"{catalog.get('capability_pngquant_label', 'pngquant:')}{catalog.get(f'tool_source.{report.pngquant_source}', describe_tool_source(report.pngquant_source))}",
+    ]
+    return _format_message(catalog, 'log_dependency_detection_summary', parts=', '.join(parts))
+
+
 def run_compression_job(
     input_dir: str,
     output_dir: str,
@@ -124,6 +150,7 @@ def run_compression_job(
     zip_output_enabled: bool = False,
     debug_mode: bool = False,
     copy_non_target_files: bool = False,
+    log_language: str = 'ja',
 ) -> None:
     """入力フォルダ全体を走査し、圧縮ジョブを最後まで実行する。
 
@@ -140,8 +167,13 @@ def run_compression_job(
             処理結果を追跡しやすくする
     """
 
-    from backend.core.format_utils import human_readable
     from backend.core.worker_ops import process_single_file
+    from backend.core.format_utils import human_readable
+
+    catalog = load_locale_catalog(log_language)
+
+    def t(key: str, **kwargs: Any) -> str:
+        return _format_message(catalog, key, **kwargs)
 
     input_base = Path(input_dir)
     output_base = Path(output_dir)
@@ -249,8 +281,8 @@ def run_compression_job(
     if extract_zip:
         if zip_files:
             if zip_output_enabled:
-                log_func("ZIP出力モード有効: ZIP由来の出力は再生成ZIPへまとめます。")
-            log_func("ZIPファイルを展開してから圧縮を行います…")
+                log_func(t('log_zip_output_mode_enabled'))
+            log_func(t('log_zip_extract_start'))
             temp_extract_root = Path(tempfile.mkdtemp(prefix='pjp_zip_extract_'))
             temp_root = temp_extract_root
             extracted_cnt_total = 0
@@ -281,28 +313,28 @@ def run_compression_job(
                     append_task(extracted_file, outpath, csv_input, csv_output, csv_notes)
 
             if extracted_cnt_total == 0 and failed_cnt_total == 0:
-                log_func("ZIPファイルは検出されませんでした。")
+                log_func(t('log_zip_not_found'))
             elif failed_cnt_total > 0:
-                log_func(f"ZIP展開結果: 成功 {extracted_cnt_total} 件 / 失敗 {failed_cnt_total} 件")
+                log_func(t('log_zip_extract_result_partial', extracted=extracted_cnt_total, failed=failed_cnt_total))
             else:
-                log_func(f"ZIP展開結果: {extracted_cnt_total} 件の ZIP を展開しました。")
+                log_func(t('log_zip_extract_result_success', extracted=extracted_cnt_total))
         else:
-            log_func("ZIPファイルは検出されませんでした。")
+            log_func(t('log_zip_not_found'))
 
     # 進捗は「圧縮対象」と「mirror 用 ZIP コピー」の両方を 1 件として数える。
     total_len = len(tasks) + len(zip_output_copies)
     if total_len == 0:
-        log_func("入力フォルダにファイルが見つかりませんでした。")
-        log_func("完了！")
+        log_func(t('log_empty_input'))
+        log_func(t('log_complete'))
         progress_func(1, 1)
         stats_func(0, 0, 0, 0.0)
         if temp_extract_root:
             shutil.rmtree(temp_extract_root, ignore_errors=True)
         return
 
-    log_func(_tool_detection_summary())
+    log_func(_tool_detection_summary(catalog))
     max_workers = max(4, multiprocessing.cpu_count())
-    log_func(f"並列処理開始（ワーカー数: {max_workers}、ファイル数: {total_len}）")
+    log_func(t('log_parallel_start', max_workers=max_workers, total_len=total_len))
 
     csv_file = None
     csv_writer = None
@@ -318,14 +350,11 @@ def run_compression_job(
             csv_path_obj.parent.mkdir(parents=True, exist_ok=True)
             csv_file = open(csv_path_obj, 'w', newline='', encoding='utf-8')
             csv_writer = csv.writer(csv_file)
-            csv_writer.writerow([
-                'timestamp', 'input_path', 'output_path', 'ext', 'action',
-                'orig_size', 'out_size', 'saved_bytes', 'saved_pct', 'notes',
-            ])
+            csv_writer.writerow(_csv_headers(catalog))
             # 先頭にヘッダを書いておくことで、途中失敗時も解析しやすい CSV を維持する。
-            log_func(f"CSVログ出力: {csv_path_obj}")
+            log_func(t('log_csv_output', path=csv_path_obj))
         except Exception as exc:
-            log_func(f"CSVログの作成に失敗しました: {exc}")
+            log_func(t('log_csv_create_failed', exc=exc))
             csv_file = None
             csv_writer = None
 
@@ -340,7 +369,7 @@ def run_compression_job(
         try:
             out_zip.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(in_zip, out_zip)
-            log_func(f"ZIPコピー: {_safe_rel(in_zip, input_base)}")
+            log_func(f"{t('log_zip_copy')}: {_safe_rel(in_zip, input_base)}")
             if csv_writer:
                 timestamp = datetime.now().isoformat()
                 size_val = in_zip.stat().st_size
@@ -349,15 +378,15 @@ def run_compression_job(
                     csv_input,
                     csv_output,
                     'zip',
-                    'ZIPコピー',
+                    t('csv_action_zip_copy'),
                     size_val,
                     size_val,
                     0,
                     '0.0',
-                    '',
+                    t('csv_note_zip_archive', archive_rel=csv_output),
                 ])
         except Exception as copy_exc:
-            log_func(f"ZIPコピー失敗: {_safe_rel(in_zip, input_base)} ({copy_exc})")
+            log_func(f"{t('log_zip_copy_failed')}: {_safe_rel(in_zip, input_base)} ({copy_exc})")
         cnt += 1
         progress_func(cnt, total_len)
 
@@ -387,11 +416,11 @@ def run_compression_job(
                             outpath_task.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(inpath_task, outpath_task)
                             if is_non_target:
-                                log_func(f"対象外コピー: {csv_input}")
+                                log_func(f"{t('log_non_target_copy')}: {csv_input}")
                             else:
-                                log_func(f"圧縮失敗のためフォールバックコピー: {csv_input}")
+                                log_func(f"{t('log_fallback_copy')}: {csv_input}")
                         except Exception as copy_exc:
-                            log_func(f"コピー失敗: {csv_input} ({copy_exc})")
+                            log_func(f"{t('log_copy_failed')}: {csv_input} ({copy_exc})")
 
                     cnt += 1
                     log_func(msg)
@@ -422,7 +451,7 @@ def run_compression_job(
                 except Exception as exc:
                     # 1 件の失敗で全体を止めるとバッチ処理として使いづらいため、ログへ落として
                     # 残りファイルの処理を継続する。
-                    log_func(f"処理中にエラー発生: {exc}")
+                    log_func(f"{t('log_processing_error')}: {exc}")
                     cnt += 1
                     progress_func(cnt, total_len)
 
@@ -433,12 +462,14 @@ def run_compression_job(
             try:
                 archived_file_count = zip_directory(plan.folder_output_root, plan.archive_output_path)
                 shutil.rmtree(plan.folder_output_root, ignore_errors=True)
-                log_func(
-                    f"ZIP再生成: {_safe_rel(plan.folder_output_root, output_base)} -> "
-                    f"{_safe_rel(plan.archive_output_path, output_base)} ({archived_file_count}件)"
-                )
+                log_func(t(
+                    'log_zip_regenerated',
+                    input_path=_safe_rel(plan.folder_output_root, output_base),
+                    output_path=_safe_rel(plan.archive_output_path, output_base),
+                    archived_file_count=archived_file_count,
+                ))
             except Exception as exc:
-                log_func(f"ZIP再生成失敗: {_safe_rel(plan.folder_output_root, output_base)} ({exc})")
+                log_func(t('log_zip_regeneration_failed', path=_safe_rel(plan.folder_output_root, output_base), exc=exc))
 
     if temp_extract_root:
         shutil.rmtree(temp_extract_root, ignore_errors=True)
@@ -451,13 +482,15 @@ def run_compression_job(
 
     saved = orig_total - out_total
     saved_pct = (saved / orig_total * 100) if orig_total > 0 else 0.0
-    log_func("完了！")
-    log_func(
-        f"統計（圧縮対象 {processed_files} 件）: "
-        f"元合計={human_readable(orig_total)}, "
-        f"出力合計={human_readable(out_total)}, "
-        f"削減={human_readable(saved)} ({saved_pct:.1f}%)"
-    )
+    log_func(t('log_complete'))
+    log_func(t(
+        'log_stats_summary',
+        processed_files=processed_files,
+        orig_total=human_readable(orig_total),
+        out_total=human_readable(out_total),
+        saved=human_readable(saved),
+        saved_pct=saved_pct,
+    ))
     stats_func(orig_total, out_total, saved, saved_pct)
 
 
@@ -516,6 +549,7 @@ def run_compression_request(
             zip_output_enabled=request.zip_output_enabled,
             debug_mode=request.debug_mode,
             copy_non_target_files=request.copy_non_target_files,
+            log_language=request.log_language,
         )
     except Exception as exc:
-        event_callback(ProgressEvent(kind='error', message=f"処理中にエラー発生: {exc}"))
+        event_callback(ProgressEvent(kind='error', message=f"{locale_translate(request.log_language, 'log_processing_error')}: {exc}"))
