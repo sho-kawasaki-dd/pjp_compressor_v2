@@ -117,3 +117,29 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
     except Exception as exc:
         log(f"ZIP展開処理全体でエラー: {exc}")
     return extracted_total, failed_total
+
+
+def zip_directory(source_dir: Path, archive_path: Path) -> int:
+    """ディレクトリ配下を相対パス維持で ZIP 化する。"""
+    source_dir = Path(source_dir)
+    archive_path = Path(archive_path)
+    if not source_dir.is_dir():
+        raise NotADirectoryError(f'ZIP 化対象のディレクトリが見つかりません: {source_dir}')
+
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    archived_file_count = 0
+
+    def sort_key(path: Path) -> tuple[int, str]:
+        rel = path.relative_to(source_dir).as_posix()
+        return (0 if path.is_dir() else 1, rel)
+
+    entries = sorted(source_dir.rglob('*'), key=sort_key)
+    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        for entry in entries:
+            relative_entry = entry.relative_to(source_dir).as_posix()
+            if entry.is_dir():
+                archive.writestr(relative_entry.rstrip('/') + '/', b'')
+                continue
+            archive.write(entry, arcname=relative_entry)
+            archived_file_count += 1
+    return archived_file_count

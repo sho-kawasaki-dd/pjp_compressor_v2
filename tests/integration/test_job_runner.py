@@ -258,6 +258,51 @@ def test_run_compression_job_extracts_zip_without_mutating_input(sample_paths, j
     assert snapshot_tree(sample_paths.input_dir) == before
 
 
+def test_run_compression_job_rearchives_zip_outputs_when_enabled(sample_paths, jpeg_bytes: bytes) -> None:
+    archive_path = sample_paths.input_dir / 'packs' / 'bundle.zip'
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(archive_path, 'w', compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr('img/photo.jpg', jpeg_bytes)
+        archive.writestr('docs/readme.txt', 'zip-text')
+
+    before = snapshot_tree(sample_paths.input_dir)
+
+    logs: list[str] = []
+    job_runner.run_compression_job(
+        input_dir=str(sample_paths.input_dir),
+        output_dir=str(sample_paths.output_dir),
+        jpg_quality=60,
+        png_quality=60,
+        use_pngquant=False,
+        log_func=logs.append,
+        progress_func=lambda _current, _total: None,
+        stats_func=lambda _orig, _out, _saved, _pct: None,
+        csv_enable=True,
+        csv_path=str(sample_paths.csv_path),
+        extract_zip=True,
+        zip_output_enabled=True,
+        copy_non_target_files=True,
+    )
+
+    zipped_output = sample_paths.output_dir / 'packs' / 'bundle.zip'
+    folder_output = sample_paths.output_dir / 'packs' / 'bundle'
+    assert zipped_output.exists()
+    assert not folder_output.exists()
+    with zipfile.ZipFile(zipped_output, 'r') as archive:
+        assert 'img/photo.jpg' in archive.namelist()
+        assert 'docs/readme.txt' in archive.namelist()
+    assert any('ZIP再生成' in message for message in logs)
+    assert any('ZIP出力モード有効' in message for message in logs)
+    assert sample_paths.csv_path.exists()
+    with sample_paths.csv_path.open('r', encoding='utf-8', newline='') as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert len(rows) == 2
+    assert all(row['output_path'].startswith('packs/bundle/') for row in rows)
+    assert {row['notes'] for row in rows} == {'zip_archive=packs/bundle.zip'}
+    assert snapshot_tree(sample_paths.input_dir) == before
+
+
 def test_run_compression_job_copies_failed_compressible_file_in_mirror_mode(
     monkeypatch: pytest.MonkeyPatch,
     sample_paths,

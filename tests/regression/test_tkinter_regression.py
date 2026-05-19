@@ -126,6 +126,20 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
     assert (output_dir / 'subpack' / 'myzip.zip').exists()
     assert not (output_dir / 'subpack' / 'myzip').exists()
 
+    clear_output_dir(output_dir)
+    # ZIP出力 + mirror: 非圧縮対象も再ZIPへ含め、展開フォルダは残さない。
+    request = replace(base_request, extract_zip=True, copy_non_target_files=True, zip_output_enabled=True)
+    captured: list[object] = []
+    run_compression_request(request=request, event_callback=captured.append)
+    assert any(getattr(event, 'kind', '') == 'progress' for event in captured), 'progress event missing in zip output case'
+    assert any(getattr(event, 'kind', '') == 'stats' for event in captured), 'stats event missing in zip output case'
+    zipped_output = output_dir / 'subpack' / 'myzip.zip'
+    assert zipped_output.exists()
+    assert not (output_dir / 'subpack' / 'myzip').exists()
+    with zipfile.ZipFile(zipped_output, 'r') as archive:
+        assert 'img/photo.jpg' in archive.namelist()
+        assert 'docs/readme.txt' in archive.namelist()
+
     input_after = snapshot_input_tree(input_dir)
     assert input_before == input_after
     assert zip_path.exists()

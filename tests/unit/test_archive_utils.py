@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.core.archive_utils import extract_zip_archives
+from backend.core.archive_utils import extract_zip_archives, zip_directory
 
 
 pytestmark = pytest.mark.unit
@@ -84,3 +84,21 @@ def test_extract_zip_archives_rejects_symlink_member(tmp_path: Path) -> None:
     assert extracted_total == 0
     assert failed_total == 1
     assert any('symlink' in message for message in logs)
+
+
+def test_zip_directory_preserves_relative_paths_and_empty_dirs(tmp_path: Path) -> None:
+    source_dir = tmp_path / 'source'
+    nested_dir = source_dir / 'nested'
+    empty_dir = source_dir / 'empty'
+    nested_dir.mkdir(parents=True, exist_ok=True)
+    empty_dir.mkdir(parents=True, exist_ok=True)
+    payload = nested_dir / 'photo.txt'
+    payload.write_text('hello', encoding='utf-8')
+
+    archive_path = tmp_path / 'archive.zip'
+    archived_file_count = zip_directory(source_dir, archive_path)
+
+    assert archived_file_count == 1
+    with zipfile.ZipFile(archive_path, 'r') as archive:
+        assert sorted(archive.namelist()) == ['empty/', 'nested/', 'nested/photo.txt']
+        assert archive.read('nested/photo.txt') == b'hello'

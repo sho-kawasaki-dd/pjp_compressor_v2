@@ -30,6 +30,7 @@ from backend.settings import (
 
 from backend.capabilities import detect_capabilities
 from backend.services.archive_service import extract_zip_archives
+from backend.core.archive_utils import zip_directory
 from backend.contracts import CompressionRequest, ProgressEvent
 from shared.runtime_paths import describe_tool_source
 
@@ -74,6 +75,14 @@ class ZipOutputPlan:
     def csv_output_path_for(self, rel_inside_zip: Path) -> str:
         """CSV に残す最終出力側パス表現を返す。"""
         return str((self.relative_zip_path.parent / self.folder_output_root.name / rel_inside_zip).as_posix())
+
+    def csv_notes_for(self, output_base: Path) -> str:
+        """CSV の notes 列へ残す ZIP 再生成先を返す。"""
+        try:
+            archive_rel = self.archive_output_path.relative_to(output_base).as_posix()
+        except Exception:
+            archive_rel = self.archive_output_path.as_posix()
+        return f'zip_archive={archive_rel}'
 
 
 def _build_zip_output_plan(input_base: Path, output_base: Path, zip_path: Path) -> ZipOutputPlan:
@@ -149,7 +158,8 @@ def run_compression_job(
     ]
     zip_output_copies: list[tuple[Path, Path, str, str]] = []
     temp_extract_root: Path | None = None
-    if copy_non_target_files:
+    if copy_non_target_files and not zip_output_enabled:
+        # ZIP を最終的に再生成する場合は、元 ZIP の別コピーは残さず 1 つの成果物にまとめる。
         for plan in zip_output_plans:
             zip_output_copies.append((
                 plan.input_zip_path,
@@ -166,11 +176,17 @@ def run_compression_job(
     #   pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_quality,
     #   pdf_lossless_options, gs_preset, gs_custom_dpi,
     #   jpg_quality, png_quality, use_pngquant, resize_cfg, debug_mode,
-    #   csv_input_path, csv_output_path,
+    #   csv_input_path, csv_output_path, csv_notes,
     # )
     tasks: list[tuple[Any, ...]] = []
 
-    def append_task(inpath: Path, outpath: Path, csv_input_path: str, csv_output_path: str) -> None:
+    def append_task(
+        inpath: Path,
+        outpath: Path,
+        csv_input_path: str,
+        csv_output_path: str,
+        csv_notes: str = '',
+    ) -> None:
         """ワーカーへ渡すタスク 1 件を構築する。
 
         orchestrator が CSV 用パス規約と UI 起点の設定値をここで吸収することで、
@@ -218,6 +234,7 @@ def run_compression_job(
             debug_mode,
             csv_input_path,
             csv_output_path,
+            csv_notes,
         ))
 
     # ZIP は展開有無で扱いが変わるため、通常走査からは除外して別フェーズへ回す。
@@ -231,6 +248,8 @@ def run_compression_job(
     # ZIP extraction: done in temporary workspace so input directory remains unchanged.
     if extract_zip:
         if zip_files:
+            if zip_output_enabled:
+                log_func("ZIP出力モード有効: ZIP由来の出力は再生成ZIPへまとめます。")
             log_func("ZIPファイルを展開してから圧縮を行います…")
             temp_extract_root = Path(tempfile.mkdtemp(prefix='pjp_zip_extract_'))
             temp_root = temp_extract_root
@@ -258,7 +277,8 @@ def run_compression_job(
                     outpath = plan.folder_output_root / rel_inside_zip
                     csv_input = plan.csv_input_path_for(rel_inside_zip)
                     csv_output = plan.csv_output_path_for(rel_inside_zip)
-                    append_task(extracted_file, outpath, csv_input, csv_output)
+                    csv_notes = plan.csv_notes_for(output_base) if zip_output_enabled else ''
+                    append_task(extracted_file, outpath, csv_input, csv_output, csv_notes)
 
             if extracted_cnt_total == 0 and failed_cnt_total == 0:
                 log_func("ZIPファイルは検出されませんでした。")
@@ -354,6 +374,7 @@ def run_compression_job(
                     ext_task = task[2]
                     csv_input = task[16]
                     csv_output = task[17]
+                    csv_notes = task[18] if len(task) > 18 else ''
 
                     if processed_flag:
                         orig_total += orig_size
@@ -392,7 +413,7 @@ def run_compression_job(
                                 out_size,
                                 saved,
                                 f"{saved_pct:.1f}",
-                                '',
+                                csv_notes,
                             ])
                     except Exception:
                         pass
@@ -405,6 +426,23 @@ def run_compression_job(
                     cnt += 1
                     progress_func(cnt, total_len)
 
+    if extract_zip and zip_output_enabled:
+        for plan in zip_output_plans:
+            if not plan.folder_output_root.exists():
+                continue
+            try:
+                archived_file_count = zip_directory(plan.folder_output_root, plan.archive_output_path)
+                shutil.rmtree(plan.folder_output_root, ignore_errors=True)
+                log_func(
+                    f"ZIP再生成: {_safe_rel(plan.folder_output_root, output_base)} -> "
+                    f"{_safe_rel(plan.archive_output_path, output_base)} ({archived_file_count}件)"
+                )
+            except Exception as exc:
+                log_func(f"ZIP再生成失敗: {_safe_rel(plan.folder_output_root, output_base)} ({exc})")
+
+    if temp_extract_root:
+        shutil.rmtree(temp_extract_root, ignore_errors=True)
+
     try:
         if csv_file:
             csv_file.close()
@@ -413,8 +451,6 @@ def run_compression_job(
 
     saved = orig_total - out_total
     saved_pct = (saved / orig_total * 100) if orig_total > 0 else 0.0
-    if temp_extract_root:
-        shutil.rmtree(temp_extract_root, ignore_errors=True)
     log_func("完了！")
     log_func(
         f"統計（圧縮対象 {processed_files} 件）: "
