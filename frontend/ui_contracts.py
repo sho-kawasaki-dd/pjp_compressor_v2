@@ -49,6 +49,7 @@ class CompressionRequestAppProtocol(Protocol):
     copy_non_target_files: tk.BooleanVar
     play_startup_sound: tk.BooleanVar
     play_cleanup_sound: tk.BooleanVar
+    ui_language: tk.StringVar
 
 
 class DropEventProtocol(Protocol):

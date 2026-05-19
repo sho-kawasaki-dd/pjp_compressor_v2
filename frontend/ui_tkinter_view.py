@@ -58,6 +58,7 @@ class TkUiViewMixin:
     auto_switch_log_tab: tk.BooleanVar
     play_startup_sound: tk.BooleanVar
     play_cleanup_sound: tk.BooleanVar
+    ui_language: tk.StringVar
     status_var: tk.StringVar
     pdf_ll_linearize: tk.BooleanVar
     pdf_ll_object_streams: tk.BooleanVar
@@ -297,6 +298,32 @@ class TkUiViewMixin:
             text=t('app_settings_cleanup_sound_note'),
             foreground='gray',
         ).pack(side='left', padx=(8, 0))
+
+        language_outer = ttk.LabelFrame(app_container, text=t('section_language_settings'))
+        language_outer.pack(fill='x', padx=5, pady=(8, 4))
+
+        language_row = ttk.Frame(language_outer)
+        language_row.pack(fill='x', padx=8, pady=6)
+        ttk.Radiobutton(
+            language_row,
+            text=t('language_option_ja'),
+            variable=self.ui_language,
+            value='ja',
+            command=self._save_app_settings,
+        ).pack(side='left', padx=(0, 12))
+        ttk.Radiobutton(
+            language_row,
+            text=t('language_option_en'),
+            variable=self.ui_language,
+            value='en',
+            command=self._save_app_settings,
+        ).pack(side='left')
+
+        ttk.Label(
+            language_outer,
+            text=t('language_restart_note'),
+            foreground='gray',
+        ).pack(fill='x', padx=10, pady=(0, 6))
 
     def _build_settings_tab(self):
         """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
