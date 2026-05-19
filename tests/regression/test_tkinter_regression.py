@@ -94,12 +94,17 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
 
     def execute_case(extract_zip: bool, mirror_mode: bool, zip_output_mode: bool = False) -> None:
         app.extract_zip.set(extract_zip)
+        app._update_zip_output_controls()
         app.copy_non_target_files.set(mirror_mode)
         app.zip_output_enabled.set(zip_output_mode)
+        app._update_zip_output_controls()
+        expected_zip_output_mode = extract_zip and zip_output_mode
         request = build_compression_request(app).request
         assert request.extract_zip is extract_zip
         assert request.copy_non_target_files is mirror_mode
-        assert request.zip_output_enabled is zip_output_mode
+        assert app.zip_output_enabled.get() is expected_zip_output_mode
+        assert app.zip_output_check.instate(('disabled',)) is (not extract_zip)
+        assert request.zip_output_enabled is expected_zip_output_mode
         captured: list[object] = []
         run_compression_request(request=request, event_callback=captured.append)
         assert any(getattr(event, 'kind', '') == 'progress' for event in captured), 'progress event missing in zip case'

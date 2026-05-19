@@ -158,6 +158,17 @@ def test_build_compression_request_propagates_zip_output_toggle() -> None:
     assert result.request.zip_output_enabled is True
 
 
+def test_build_compression_request_clears_zip_output_when_extract_zip_off() -> None:
+    app = DummyApp()
+    app.extract_zip.set(False)
+    app.zip_output_enabled.set(True)
+
+    result = build_compression_request(app)
+
+    assert result.request.extract_zip is False
+    assert result.request.zip_output_enabled is False
+
+
 def test_build_compression_request_clamps_custom_gs_dpi() -> None:
     app = DummyApp()
     app.gs_preset.set('custom')

@@ -181,6 +181,9 @@ class ControllerHost(TkUiControllerMixin):
         self.resize_mode_manual_rb = DummyWidget()
         self.resize_mode_long_rb = DummyWidget()
         self.long_edge_combo = DummyWidget()
+        self.extract_zip = DummyVar(True)
+        self.zip_output_enabled = DummyVar(False)
+        self.zip_output_check = DummyWidget()
 
     def after(self, _ms, func=None, *args):
         if func is not None:
@@ -299,6 +302,26 @@ def test_update_png_engine_labels_tracks_pngquant_checkbox(tmp_path: Path) -> No
     host.use_pngquant.set(False)
     host._update_png_engine_labels()
     assert host.png_engine_note_label.text == 'PNG圧縮エンジン: Pillow (pngquant:system)'
+
+
+def test_update_zip_output_controls_disables_and_clears_toggle_when_extract_zip_off(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.extract_zip.set(False)
+    host.zip_output_enabled.set(True)
+
+    host._update_zip_output_controls()
+
+    assert host.zip_output_enabled.get() is False
+    assert host.zip_output_check.state == 'disabled'
+
+
+def test_update_zip_output_controls_enables_toggle_when_extract_zip_on(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.extract_zip.set(True)
+
+    host._update_zip_output_controls()
+
+    assert host.zip_output_check.state == 'normal'
 
 
 def test_refresh_pdf_engine_status_shows_tool_sources(tmp_path: Path) -> None:

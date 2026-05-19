@@ -133,6 +133,7 @@ class App(
         self._update_pdf_controls()
         self._update_png_engine_labels()
         self._update_resize_controls()
+        self._update_zip_output_controls()
 
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
 

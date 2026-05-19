@@ -97,6 +97,7 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     resize_mode_manual_rb: ttk.Radiobutton
     resize_mode_long_rb: ttk.Radiobutton
     long_edge_combo: ttk.Combobox
+    zip_output_check: ttk.Checkbutton
     progress: ttk.Progressbar
     log_text: tk.Text
     tk: Any

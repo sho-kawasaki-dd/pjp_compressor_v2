@@ -186,6 +186,20 @@ class TkUiControllerMixin:
         self._set_widget_state(host.resize_mode_long_rb, 'normal' if enabled else 'disabled')
         self._set_widget_state(host.long_edge_combo, 'normal' if is_long_edge else 'disabled')
 
+    def _update_zip_output_controls(self) -> None:
+        """ZIP 展開トグルに従って ZIP 出力トグルを同期する。
+
+        ZIP 出力は展開後成果物にしか意味を持たないため、展開 OFF では UI を無効化し、
+        残留していた ON 状態もここで落として request 値とのズレを防ぐ。
+        """
+        host = self._controller_host()
+        extract_zip_enabled = host.extract_zip.get()
+
+        if not extract_zip_enabled and host.zip_output_enabled.get():
+            host.zip_output_enabled.set(False)
+
+        self._set_widget_state(host.zip_output_check, 'normal' if extract_zip_enabled else 'disabled')
+
     def choose_input(self) -> None:
         """入力フォルダ選択ダイアログを開き、選択後に衝突チェックまで行う。"""
         host = self._controller_host()

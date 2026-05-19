@@ -76,6 +76,7 @@ class TkUiViewMixin:
     _on_drop_input: Callable[[object], None]
     _update_pdf_controls: Callable[[], None]
     _update_resize_controls: Callable[[], None]
+    _update_zip_output_controls: Callable[[], None]
     _save_app_settings: Callable[[], bool]
     _choose_csv_path: Callable[[], None]
     start_compress: Callable[[], None]
@@ -126,6 +127,7 @@ class TkUiViewMixin:
     resize_keep_aspect_chk: ttk.Checkbutton
     resize_mode_long_rb: ttk.Radiobutton
     long_edge_combo: ttk.Combobox
+    zip_output_check: ttk.Checkbutton
     stats_var: tk.StringVar
     progress: ttk.Progressbar
     log_text: tk.Text
@@ -668,15 +670,21 @@ class TkUiViewMixin:
 
         zip_row = ttk.Frame(out_lf)
         zip_row.pack(fill='x', padx=5, pady=2)
-        ttk.Checkbutton(zip_row, text='ZIP 展開してから圧縮', variable=self.extract_zip).pack(side='left')
+        ttk.Checkbutton(
+            zip_row,
+            text='ZIP 展開してから圧縮',
+            variable=self.extract_zip,
+            command=self._update_zip_output_controls,
+        ).pack(side='left')
 
         zip_output_row = ttk.Frame(out_lf)
         zip_output_row.pack(fill='x', padx=5, pady=2)
-        ttk.Checkbutton(
+        self.zip_output_check = ttk.Checkbutton(
             zip_output_row,
             text='展開した ZIP の出力を ZIP に戻す',
             variable=self.zip_output_enabled,
-        ).pack(side='left')
+        )
+        self.zip_output_check.pack(side='left')
 
         debug_row = ttk.Frame(out_lf)
         debug_row.pack(fill='x', padx=5, pady=2)

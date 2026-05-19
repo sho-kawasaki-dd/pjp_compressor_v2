@@ -130,6 +130,9 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         gs_custom_dpi = max(PDF_LOSSY_DPI_RANGE[0], min(PDF_LOSSY_DPI_RANGE[1], int(app.gs_custom_dpi.get())))
     # カスタム以外のプリセットでは DPI を使わないため、不要な値は None に揃える。
 
+    extract_zip = app.extract_zip.get()
+    zip_output_enabled = extract_zip and app.zip_output_enabled.get()
+
     request = CompressionRequest(
         input_dir=app.input_dir.get(),
         output_dir=app.output_dir.get(),
@@ -149,8 +152,8 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         resize_height=resize_height,
         csv_enable=app.csv_enable.get(),
         csv_path=app.csv_path.get().strip() or None,
-        extract_zip=app.extract_zip.get(),
-        zip_output_enabled=app.zip_output_enabled.get(),
+        extract_zip=extract_zip,
+        zip_output_enabled=zip_output_enabled,
         debug_mode=app.debug_mode.get(),
         copy_non_target_files=app.copy_non_target_files.get(),
     )
