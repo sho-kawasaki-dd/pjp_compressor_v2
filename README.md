@@ -35,6 +35,14 @@
 - Graceful degradation — app remains functional even when Ghostscript or pngquant is absent.
   Ghostscript / pngquant が未導入でもアプリは起動を継続し、該当機能のみ無効化されます。
 
+**UI Localization / UI 多言語対応**
+- Japanese / English UI localization is built in. All visible labels, dialogs, logs, and startup text are routed through locale files under `frontend/config_data/locales/`.
+  日本語 / English の UI 多言語対応を組み込み済みです。表示ラベル、ダイアログ、ログ、起動時メッセージは `frontend/config_data/locales/` 配下のロケールファイルで管理されます。
+- The language can be selected in the App Settings tab and is saved to `ui_catalogs.json` (`app_settings.language`), then applied on the next launch.
+  言語はアプリ設定タブで選択でき、`ui_catalogs.json` の `app_settings.language` に保存されて、次回起動時に反映されます。
+- Default folders and the desktop folder creation flow also follow the selected UI language.
+  既定フォルダ名やデスクトップフォルダ作成の確認文も、選択した UI 言語に追従します。
+
 ---
 
 ## Requirements / 動作環境
