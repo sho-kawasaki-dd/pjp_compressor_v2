@@ -105,6 +105,11 @@ def init_from_settings(resource_path: Path | None = None) -> str:
     return _current_language
 
 
+def get_current_language() -> str:
+    """現在のロケールコードを返す。"""
+    return _current_language
+
+
 def t(key: str, **kwargs: Any) -> str:
     """現在言語の文言を返す。"""
     template = _current.get(key, key)

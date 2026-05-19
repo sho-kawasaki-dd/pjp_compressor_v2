@@ -21,12 +21,13 @@ from frontend.settings import (
     COPY_NON_TARGET_FILES_DEFAULT,
     DEBUG_MODE_DEFAULT,
 )
+from frontend.i18n import get_current_language, t
 
 
 class TkUiStateMixin:
     default_input_dir: str
     default_output_dir: str
-    app_settings: dict[str, bool]
+    app_settings: dict[str, bool | str]
 
     def initialize_ui_state(self) -> None:
         """画面全体で共有する Tk 変数を用途別に初期化する。
@@ -83,6 +84,7 @@ class TkUiStateMixin:
         self.auto_switch_log_tab: tk.BooleanVar = tk.BooleanVar(value=True)
         self.play_startup_sound: tk.BooleanVar = tk.BooleanVar(value=app_settings['play_startup_sound'])
         self.play_cleanup_sound: tk.BooleanVar = tk.BooleanVar(value=app_settings['play_cleanup_sound'])
+        self.ui_language: tk.StringVar = tk.StringVar(value=app_settings['language'] or get_current_language())
 
         # 画面下部の状態表示。
-        self.status_var: tk.StringVar = tk.StringVar(value='待機中')
+        self.status_var: tk.StringVar = tk.StringVar(value=t('status_idle'))

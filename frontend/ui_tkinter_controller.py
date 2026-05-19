@@ -18,10 +18,10 @@ from backend.contracts import ProgressEvent
 from backend.orchestrator.job_runner import run_compression_request
 from frontend.settings import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
 from frontend.settings import save_app_settings
+from frontend.i18n import t
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
-from shared.runtime_paths import describe_tool_source
 
 
 class TkUiControllerMixin:
@@ -49,18 +49,18 @@ class TkUiControllerMixin:
     def _pdf_png_engine_label_text(self) -> str:
         """PDF 内 PNG 再圧縮で使う量子化エンジン表記を返す。"""
         host = self._controller_host()
-        source_label = describe_tool_source(host.capabilities.pngquant_source)
+        source_label = t(f'tool_source.{host.capabilities.pngquant_source}')
         if host.capabilities.pngquant_available:
-            return f'PNG圧縮エンジン: pngquant ({source_label})'
-        return f'PNG圧縮エンジン: Pillow 256色固定 (pngquant:{source_label})'
+            return t('pdf_png_engine.pngquant', source=source_label)
+        return t('pdf_png_engine.pillow', source=source_label)
 
     def _image_png_engine_label_text(self) -> str:
         """通常 PNG 圧縮で使うエンジン表記を返す。"""
         host = self._controller_host()
-        source_label = describe_tool_source(host.capabilities.pngquant_source)
+        source_label = t(f'tool_source.{host.capabilities.pngquant_source}')
         if host.use_pngquant.get() and host.capabilities.pngquant_available:
-            return f'PNG圧縮エンジン: pngquant ({source_label})'
-        return f'PNG圧縮エンジン: Pillow (pngquant:{source_label})'
+            return t('image_png_engine.pngquant', source=source_label)
+        return t('image_png_engine.pillow', source=source_label)
 
     def _update_png_engine_labels(self) -> None:
         """PNG 圧縮エンジン注記ラベルの文言を現在状態へ同期する。"""
@@ -72,6 +72,7 @@ class TkUiControllerMixin:
         """アプリ設定タブのトグル状態を JSON へ永続化する。"""
         host = self._controller_host()
         return save_app_settings(
+            language=host.ui_language.get(),
             play_startup_sound=host.play_startup_sound.get(),
             play_cleanup_sound=host.play_cleanup_sound.get(),
         )
@@ -151,10 +152,10 @@ class TkUiControllerMixin:
         host = self._controller_host()
         report = host.capabilities
         parts = [
-            'PyMuPDF:OK' if report.fitz_available else 'PyMuPDF:なし',
-            'pikepdf:OK' if report.pikepdf_available else 'pikepdf:なし',
-            f'GS:{describe_tool_source(report.ghostscript_source)}',
-            f'pngquant:{describe_tool_source(report.pngquant_source)}',
+            t('capability_fitz_ok') if report.fitz_available else t('capability_fitz_missing'),
+            t('capability_pikepdf_ok') if report.pikepdf_available else t('capability_pikepdf_missing'),
+            f"GS:{t(f'tool_source.{report.ghostscript_source}')}",
+            f"pngquant:{t(f'tool_source.{report.pngquant_source}')}",
         ]
 
         if not report.ghostscript_available:
@@ -165,7 +166,7 @@ class TkUiControllerMixin:
         if not report.native_pdf_available:
             self._set_widget_state(host.native_rb, 'disabled')
 
-        host.pdf_engine_status_var.set(f"（{', '.join(parts)}）")
+        host.pdf_engine_status_var.set(t('pdf_engine_status', parts=', '.join(parts)))
 
     def _update_resize_controls(self) -> None:
         """リサイズ設定の入力欄を現在のモードに合わせて切り替える。
@@ -234,12 +235,12 @@ class TkUiControllerMixin:
             dropped = Path(normalized)
             if dropped.is_dir():
                 host.input_dir.set(normalized)
-                self.log(f'D&D で入力フォルダ設定: {normalized}')
+                self.log(t('log_dnd_folder_set', path=normalized))
                 break
             if dropped.is_file():
                 input_dir = dropped.parent
                 host.input_dir.set(str(input_dir))
-                self.log(f'D&D で入力フォルダ設定: {input_dir}')
+                self.log(t('log_dnd_folder_set', path=input_dir))
                 break
 
     def _validate_and_fix_dirs(self) -> None:
@@ -253,8 +254,8 @@ class TkUiControllerMixin:
         if conflict:
             host.input_dir.set(new_input)
             host.output_dir.set(new_output)
-            self.log(f'入出力フォルダ重なり → リセット 入力:{new_input} 出力:{new_output}')
-            messagebox.showwarning('入出力フォルダの重なり', '入力/出力フォルダが同一または内包関係にあるためデフォルトに戻しました。')
+            self.log(t('log_folders_overlap_reset', input=new_input, output=new_output))
+            messagebox.showwarning(t('dlg_folder_overlap_title'), t('dlg_folder_overlap_message'))
 
     def _paths_overlap(self, a: str, b: str) -> bool:
         """同一または内包関係のパスかを判定する。"""
@@ -278,7 +279,7 @@ class TkUiControllerMixin:
         path = filedialog.asksaveasfilename(
             initialdir=host.output_dir.get() or str(Path.cwd()),
             defaultextension='.csv',
-            filetypes=[('CSV files', '*.csv'), ('All files', '*.*')],
+            filetypes=[(t('filetype_csv_files'), '*.csv'), (t('filetype_all_files'), '*.*')],
         )
         if path:
             host.csv_path.set(path)
@@ -304,9 +305,9 @@ class TkUiControllerMixin:
 
         if '完了！' in msg:
             current = int(float(host.progress['value']))
-            host.status_var.set(f'完了（進捗 {current}%）')
+            host.status_var.set(t('status_completed_progress', pct=current))
         elif '処理中にエラー発生' in msg:
-            host.status_var.set('失敗（詳細はログ）')
+            host.status_var.set(t('status_failed_see_log'))
 
     def log(self, msg: str) -> None:
         """どのスレッドからでも安全にログを追記する。"""
@@ -320,7 +321,7 @@ class TkUiControllerMixin:
         host = self._controller_host()
         pct = 100 if total <= 0 else int(current / total * 100)
         host.progress['value'] = pct
-        host.status_var.set(f'処理中 {pct}% ({current}/{total})')
+        host.status_var.set(t('status_processing', pct=pct, current=current, total=total))
         host.update_idletasks()
 
     def update_progress(self, current: int, total: int) -> None:
@@ -334,11 +335,16 @@ class TkUiControllerMixin:
         """最終統計表示を画面へ反映する。"""
         host = self._controller_host()
         host.stats_var.set(
-            f'統計: 元合計={human_readable(orig_total)}, '
-            f'出力合計={human_readable(out_total)}, '
-            f'削減={human_readable(saved)} ({saved_pct:.1f}%)'
+            t(
+                'stats_summary',
+                summary=(
+                    f'元合計={human_readable(orig_total)}, '
+                    f'出力合計={human_readable(out_total)}, '
+                    f'削減={human_readable(saved)} ({saved_pct:.1f}%)'
+                ),
+            )
         )
-        host.status_var.set(f'完了（削減率 {saved_pct:.1f}%）')
+        host.status_var.set(t('status_completed_reduction', rate=saved_pct))
 
     def update_stats(self, orig_total: int, out_total: int, saved: int, saved_pct: float) -> None:
         """統計更新をメインスレッドへ中継する。"""
@@ -368,7 +374,7 @@ class TkUiControllerMixin:
             return
         if event.kind == 'error' and event.message is not None:
             self.log(event.message)
-            self._set_status('失敗（詳細はログ）')
+            self._set_status(t('status_failed_see_log'))
 
     def start_compress(self) -> None:
         """入力検証後、圧縮ジョブをバックグラウンドスレッドで開始する。
@@ -389,19 +395,19 @@ class TkUiControllerMixin:
             host.input_dir.set(fixed_input)
             host.output_dir.set(fixed_output)
             input_dir, output_dir = fixed_input, fixed_output
-            self.log(f'入出力フォルダ重なり → リセット 入力:{fixed_input} 出力:{fixed_output}')
+            self.log(t('log_folders_overlap_reset', input=fixed_input, output=fixed_output))
             messagebox.showwarning(
-                '入出力フォルダの重なり',
-                f'デフォルトに戻しました。\n入力: {host.default_input_dir}\n出力: {host.default_output_dir}',
+                t('dlg_folder_overlap_title'),
+                t('dlg_folder_overlap_message') + f'\n入力: {host.default_input_dir}\n出力: {host.default_output_dir}',
             )
 
         if not input_dir or not output_dir:
-            self._set_status('失敗（入力/出力フォルダ未指定）')
-            messagebox.showerror('エラー', '両方のフォルダを選択してください')
+            self._set_status(t('status_failed_folders_unset'))
+            messagebox.showerror(t('dlg_error_title'), t('dlg_folders_not_selected'))
             return
         if not Path(input_dir).is_dir():
-            self._set_status('失敗（入力フォルダを確認）')
-            messagebox.showerror('エラー', '入力フォルダが存在しません')
+            self._set_status(t('status_failed_check_input'))
+            messagebox.showerror(t('dlg_error_title'), t('dlg_input_folder_missing'))
             return
         Path(output_dir).mkdir(parents=True, exist_ok=True)
 
@@ -412,47 +418,66 @@ class TkUiControllerMixin:
         # 前回実行の表示を残すと新しいジョブ結果と混ざるため、開始時に UI 状態を初期化する。
         host.log_text.delete(1.0, 'end')
         host.progress['value'] = 0
-        host.stats_var.set('統計: 処理中...')
-        host.status_var.set('圧縮開始準備中…')
+        host.stats_var.set(t('stats_processing'))
+        host.status_var.set(t('status_compression_starting'))
 
         result = build_compression_request(host)
         request = result.request
 
-        self.log(f'圧縮開始: 入力={input_dir}')
-        self.log(f'出力先: {output_dir}')
+        self.log(t('log_compression_started', path=input_dir))
+        self.log(t('log_output_location', path=output_dir))
 
         if request.pdf_engine == 'native':
+            source_label = t(f'tool_source.{host.capabilities.pngquant_source}')
             pdf_png_method = (
-                f"pngquant({describe_tool_source(host.capabilities.pngquant_source)})"
+                t('pdf_png_engine.pngquant', source=source_label)
                 if host.capabilities.pngquant_available
-                else f"Pillow 256色固定 (pngquant:{describe_tool_source(host.capabilities.pngquant_source)})"
+                else t('pdf_png_engine.pillow', source=source_label)
             )
             self.log(
-                f'PDF: ネイティブ モード={request.pdf_mode}, DPI={request.pdf_dpi}, '
-                f'JPEG品質={request.pdf_jpeg_quality}, PNG品質={request.pdf_png_quality}, '
-                f'PNG量子化={pdf_png_method}'
+                t(
+                    'log_pdf_native_mode',
+                    mode=request.pdf_mode,
+                    dpi=request.pdf_dpi,
+                    quality=request.pdf_jpeg_quality,
+                    png_quality=request.pdf_png_quality,
+                    method=pdf_png_method,
+                )
             )
         else:
-            gs_source = describe_tool_source(host.capabilities.ghostscript_source)
+            gs_source = t(f'tool_source.{host.capabilities.ghostscript_source}')
             if request.gs_preset == 'custom':
                 self.log(
-                    f'PDF: Ghostscript[{gs_source}] カスタムDPI={request.gs_custom_dpi}, '
-                    f'pikepdf併用={host.gs_use_lossless.get()}'
+                    t(
+                        'log_pdf_ghostscript_custom',
+                        source=gs_source,
+                        dpi=request.gs_custom_dpi,
+                        use_ll=host.gs_use_lossless.get(),
+                    )
                 )
             else:
                 self.log(
-                    f'PDF: Ghostscript[{gs_source}] プリセット={request.gs_preset}, '
-                    f'pikepdf併用={host.gs_use_lossless.get()}'
+                    t(
+                        'log_pdf_ghostscript_preset',
+                        source=gs_source,
+                        preset=request.gs_preset,
+                        use_ll=host.gs_use_lossless.get(),
+                    )
                 )
 
         self.log(
-            f'画像: JPG={request.jpg_quality}, PNG={request.png_quality}, '
-            f'pngquant={request.use_pngquant} ({describe_tool_source(host.capabilities.pngquant_source)})'
+            t(
+                'log_image_settings',
+                jpg_q=request.jpg_quality,
+                png_q=request.png_quality,
+                use_pq=request.use_pngquant,
+                pngquant_source=t(f'tool_source.{host.capabilities.pngquant_source}'),
+            )
         )
         if host.resize_enabled.get():
-            self.log(f'リサイズ: {result.resize_config}')
+            self.log(t('log_resize_settings', config=result.resize_config))
 
-        self._set_status('処理中 0% (0/0)')
+        self._set_status(t('status_processing', pct=0, current=0, total=0))
 
         # backend は同期処理なので、UI を止めないよう専用スレッドへ逃がす。
         thread = threading.Thread(
@@ -472,7 +497,7 @@ class TkUiControllerMixin:
         host = self._controller_host()
         input_dir = host.input_dir.get()
         if not input_dir or not Path(input_dir).exists():
-            messagebox.showerror('エラー', '入力フォルダが未指定、または存在しません')
+            messagebox.showerror(t('dlg_error_title'), t('dlg_input_folder_not_set'))
             return
 
         count = count_target_files(input_dir, INPUT_DIR_CLEANUP_EXTENSIONS)
@@ -480,17 +505,17 @@ class TkUiControllerMixin:
         if host.play_cleanup_sound.get():
             play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
-            'クリーンアップ確認',
-            f'入力フォルダ内の対象ファイルを削除しますか？\n\n'
-            f'【対象拡張子】\n{exts}\n\n'
-            f'【削除対象ファイル数】\n約 {count} ファイル\n\n'
-            'サブフォルダ含め削除されます。取り消し不可。',
+            t('dlg_cleanup_confirm_title'),
+            t('dlg_cleanup_input_confirm') + '\n\n'
+            + t('dlg_cleanup_extensions_label') + f'\n{exts}\n\n'
+            + t('dlg_cleanup_file_count_label') + f'\n{t("dlg_cleanup_file_count_text", count=count)}\n\n'
+            + t('dlg_cleanup_warning_subfolders'),
         ):
-            self.log(f'入力フォルダクリーンアップ開始（{exts}）…')
+            self.log(t('log_input_cleanup_started', exts=exts))
             # 削除処理も I/O 待ちがあるため、UI 凍結を避けて別スレッド化する。
             thread = threading.Thread(
                 target=cleanup_folder,
-                args=(input_dir, self.log, '入力フォルダ', INPUT_DIR_CLEANUP_EXTENSIONS),
+                args=(input_dir, self.log, t('cleanup_target_input'), INPUT_DIR_CLEANUP_EXTENSIONS),
                 daemon=True,
             )
             host.threads.append(thread)
@@ -504,7 +529,7 @@ class TkUiControllerMixin:
         host = self._controller_host()
         output_dir = host.output_dir.get()
         if not output_dir or not Path(output_dir).exists():
-            messagebox.showerror('エラー', '出力フォルダが未指定、または存在しません')
+            messagebox.showerror(t('dlg_error_title'), t('dlg_output_folder_missing'))
             return
 
         count = count_target_files(output_dir, OUTPUT_DIR_CLEANUP_EXTENSIONS)
@@ -512,16 +537,16 @@ class TkUiControllerMixin:
         if host.play_cleanup_sound.get():
             play_sound(SOUNDS_DIR / 'warning.wav')
         if messagebox.askyesno(
-            'クリーンアップ確認',
-            f'出力フォルダ内の対象ファイルを削除しますか？\n\n'
-            f'【対象拡張子】\n{exts}\n\n'
-            f'【削除対象ファイル数】\n約 {count} ファイル\n\n'
-            'サブフォルダ含め削除されます。取り消し不可。',
+            t('dlg_cleanup_confirm_title'),
+            t('dlg_cleanup_output_confirm') + '\n\n'
+            + t('dlg_cleanup_extensions_label') + f'\n{exts}\n\n'
+            + t('dlg_cleanup_file_count_label') + f'\n{t("dlg_cleanup_file_count_text", count=count)}\n\n'
+            + t('dlg_cleanup_warning_subfolders'),
         ):
-            self.log(f'出力フォルダクリーンアップ開始（{exts}）…')
+            self.log(t('log_output_cleanup_started', exts=exts))
             thread = threading.Thread(
                 target=cleanup_folder,
-                args=(output_dir, self.log, '出力フォルダ', OUTPUT_DIR_CLEANUP_EXTENSIONS),
+                args=(output_dir, self.log, t('cleanup_target_output'), OUTPUT_DIR_CLEANUP_EXTENSIONS),
                 daemon=True,
             )
             host.threads.append(thread)
@@ -535,6 +560,6 @@ class TkUiControllerMixin:
         """
         host = self._controller_host()
         if any(thread.is_alive() for thread in host.threads):
-            if not messagebox.askyesno('終了確認', '処理中のスレッドがあります。終了しますか？'):
+            if not messagebox.askyesno(t('dlg_exit_confirm_title'), t('dlg_exit_confirm_message')):
                 return
         host.destroy()

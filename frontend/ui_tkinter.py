@@ -28,6 +28,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 
 from frontend.sound_utils import init_mixer, play_sound
 from backend.capabilities import detect_capabilities
+from frontend.i18n import t
 from frontend.ui_tkinter_controller import TkUiControllerMixin
 from frontend.settings import (
     APP_DEFAULT_INPUT_DIR,
@@ -60,23 +61,23 @@ def get_default_dirs():
         return str(default_input), str(default_output)
 
     desktop = Path.home() / 'Desktop'
-    input_dir = desktop / 'これから圧縮'
-    output_dir = desktop / '圧縮済みファイル'
+    input_dir = desktop / t('desktop_input_folder')
+    output_dir = desktop / t('desktop_output_folder')
 
     missing_targets = []
     if not input_dir.exists():
-        missing_targets.append(('これから圧縮', input_dir))
+        missing_targets.append((t('desktop_input_folder'), input_dir))
     if not output_dir.exists():
-        missing_targets.append(('圧縮済みファイル', output_dir))
+        missing_targets.append((t('desktop_output_folder'), output_dir))
 
     if missing_targets:
         app_settings = load_app_settings()
-        missing_names = '」「'.join(name for name, _ in missing_targets)
+        missing_names = ' / '.join(name for name, _ in missing_targets)
         if app_settings['play_startup_sound']:
             play_sound(SOUNDS_DIR / 'notice.wav')
         if messagebox.askquestion(
-            "Desktopフォルダ作成",
-            f"デスクトップに「{missing_names}」フォルダを作成してよいですか？"
+            t('dlg_desktop_folder_create_title'),
+            t('dlg_desktop_folder_create_message', names=missing_names),
         ) == 'yes':
             # ユーザーが意図しない場所へ出力しないよう、自動作成前に必ず確認する。
             for _, path in missing_targets:
@@ -115,7 +116,7 @@ class App(
     def __init__(self):
         super().__init__()
         self._set_window_icon()
-        self.title("PDF&JPEG&PNG 圧縮アプリ（フォルダ一括） v2")
+        self.title(t('app_title'))
         self.geometry(self._expanded_window_size(APP_DEFAULT_WINDOW_SIZE, 60, 140))
 
         self.threads: list[threading.Thread] = []
@@ -158,7 +159,7 @@ class App(
         APP_DEFAULT_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         if not mixer_ok and mixer_message:
             try:
-                messagebox.showwarning("警告", mixer_message)
+                messagebox.showwarning(t('dlg_warning_title'), mixer_message)
             except Exception:
                 pass
 

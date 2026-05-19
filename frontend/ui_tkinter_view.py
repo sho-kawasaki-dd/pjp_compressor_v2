@@ -12,12 +12,8 @@ from tkinter import ttk
 from typing import Callable, Protocol, cast
 
 from backend.contracts import CapabilityReport
-from frontend.settings import (
-    GS_PRESETS,
-    LONG_EDGE_PRESETS,
-    PDF_COMPRESS_MODES,
-    PDF_LOSSY_DPI_RANGE,
-)
+from frontend.i18n import t
+from frontend.settings import LONG_EDGE_PRESETS, PDF_LOSSY_DPI_RANGE
 
 
 class _DndEntryProtocol(Protocol):
@@ -223,26 +219,26 @@ class TkUiViewMixin:
 
         row_in = ttk.Frame(folder_frame)
         row_in.pack(fill='x', pady=4)
-        ttk.Label(row_in, text='入力フォルダ:').pack(side='left')
+        ttk.Label(row_in, text=t('label_input_folder')).pack(side='left')
         self.input_entry = ttk.Entry(row_in, textvariable=self.input_dir, width=45)
         self.input_entry.pack(side='left', padx=8)
-        ttk.Button(row_in, text='選択', command=self.choose_input).pack(side='left', padx=4)
-        tk.Button(row_in, text='クリーンアップ', command=self.cleanup_input, bg='#d0f6ff').pack(side='left', padx=4)
+        ttk.Button(row_in, text=t('btn_select'), command=self.choose_input).pack(side='left', padx=4)
+        tk.Button(row_in, text=t('btn_cleanup'), command=self.cleanup_input, bg='#d0f6ff').pack(side='left', padx=4)
 
         if self.dnd_available:
             dnd_input_entry = cast(_DndEntryProtocol, self.input_entry)
             dnd_input_entry.drop_target_register(self.DND_FILES)
             dnd_input_entry.dnd_bind('<<Drop>>', self._on_drop_input)
-            ttk.Label(row_in, text='（D&D可）', foreground='gray').pack(side='left', padx=6)
+            ttk.Label(row_in, text=t('folder_dnd_available'), foreground='gray').pack(side='left', padx=6)
         else:
-            ttk.Label(row_in, text='（D&D無効: tkinterdnd2 未インストール）', foreground='gray').pack(side='left', padx=6)
+            ttk.Label(row_in, text=t('folder_dnd_unavailable'), foreground='gray').pack(side='left', padx=6)
 
         row_out = ttk.Frame(folder_frame)
         row_out.pack(fill='x', pady=4)
-        ttk.Label(row_out, text='出力フォルダ:').pack(side='left')
+        ttk.Label(row_out, text=t('label_output_folder')).pack(side='left')
         ttk.Entry(row_out, textvariable=self.output_dir, width=45).pack(side='left', padx=8)
-        ttk.Button(row_out, text='選択', command=self.choose_output).pack(side='left', padx=4)
-        tk.Button(row_out, text='クリーンアップ', command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
+        ttk.Button(row_out, text=t('btn_select'), command=self.choose_output).pack(side='left', padx=4)
+        tk.Button(row_out, text=t('btn_cleanup'), command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
 
     def _build_notebook(self):
         """設定タブ、アプリ設定タブ、ログタブを作成する。"""
@@ -252,9 +248,9 @@ class TkUiViewMixin:
         self.settings_tab = ttk.Frame(self.notebook)
         self.app_settings_tab = ttk.Frame(self.notebook)
         self.log_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.settings_tab, text=' 圧縮設定 ')
-        self.notebook.add(self.app_settings_tab, text=' アプリ設定 ')
-        self.notebook.add(self.log_tab, text=' ログ ')
+        self.notebook.add(self.settings_tab, text=f' {t("tab_compression")} ')
+        self.notebook.add(self.app_settings_tab, text=f' {t("tab_settings")} ')
+        self.notebook.add(self.log_tab, text=f' {t("tab_log")} ')
 
         self._build_settings_tab()
         self._build_app_settings_tab()
@@ -264,7 +260,7 @@ class TkUiViewMixin:
         """アプリ全体の動作設定を構築する。"""
         app_outer = tk.LabelFrame(
             self.app_settings_tab,
-            text=' アプリ設定 ',
+            text=f' {t("section_app_settings")} ',
             bg='#f8f7ef',
             fg='black',
             bd=1,
@@ -278,13 +274,13 @@ class TkUiViewMixin:
         startup_row.pack(fill='x', padx=5, pady=4)
         ttk.Checkbutton(
             startup_row,
-            text='起動時に効果音を鳴らす',
+            text=t('app_settings_startup_sound'),
             variable=self.play_startup_sound,
             command=self._save_app_settings,
         ).pack(side='left')
         ttk.Label(
             startup_row,
-            text='open_window.wav とデスクトップ作成確認前の notice.wav が対象',
+            text=t('app_settings_startup_sound_note'),
             foreground='gray',
         ).pack(side='left', padx=(8, 0))
 
@@ -292,13 +288,13 @@ class TkUiViewMixin:
         cleanup_row.pack(fill='x', padx=5, pady=4)
         ttk.Checkbutton(
             cleanup_row,
-            text='クリーンアップ確認時に効果音を鳴らす',
+            text=t('app_settings_cleanup_sound'),
             variable=self.play_cleanup_sound,
             command=self._save_app_settings,
         ).pack(side='left')
         ttk.Label(
             cleanup_row,
-            text='入力/出力フォルダのクリーンアップ確認前の warning.wav が対象',
+            text=t('app_settings_cleanup_sound_note'),
             foreground='gray',
         ).pack(side='left', padx=(8, 0))
 
@@ -306,7 +302,7 @@ class TkUiViewMixin:
         """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
         pdf_outer = tk.LabelFrame(
             self.settings_tab,
-            text=' PDF圧縮設定（Pythonライブラリ / Ghostscript） ',
+            text=f' {t("section_pdf_settings")} ',
             bg='#fff1f1',
             fg='black',
             bd=1,
@@ -319,7 +315,7 @@ class TkUiViewMixin:
 
         image_outer = tk.LabelFrame(
             self.settings_tab,
-            text=' 画像ファイル圧縮設定（JPEG/PNG 圧縮・リサイズ） ',
+            text=f' {t("section_image_settings")} ',
             bg='#f1f6ff',
             fg='black',
             bd=1,
@@ -341,10 +337,10 @@ class TkUiViewMixin:
         engine_frame = ttk.Frame(parent)
         engine_frame.pack(fill='x', padx=8, pady=(6, 4))
 
-        ttk.Label(engine_frame, text='エンジン:').pack(side='left')
+        ttk.Label(engine_frame, text=t('label_engine')).pack(side='left')
         self.native_rb = ttk.Radiobutton(
             engine_frame,
-            text='ネイティブ (PyMuPDF + pikepdf)',
+            text=t('engine_native'),
             variable=self.pdf_engine,
             value='native',
             command=self._update_pdf_controls,
@@ -352,14 +348,14 @@ class TkUiViewMixin:
         self.native_rb.pack(side='left', padx=(10, 5))
         self.gs_rb = ttk.Radiobutton(
             engine_frame,
-            text='Ghostscript',
+            text=t('engine_ghostscript'),
             variable=self.pdf_engine,
             value='gs',
             command=self._update_pdf_controls,
         )
         self.gs_rb.pack(side='left', padx=5)
 
-        self.pdf_engine_status_var = tk.StringVar(value='判定中…')
+        self.pdf_engine_status_var = tk.StringVar(value=t('engine_detecting'))
         ttk.Label(engine_frame, textvariable=self.pdf_engine_status_var, foreground='purple').pack(side='left', padx=(10, 0))
 
         self.native_frame = ttk.Frame(parent)
@@ -376,24 +372,24 @@ class TkUiViewMixin:
         """
         mode_frame = ttk.Frame(parent)
         mode_frame.pack(fill='x', padx=5, pady=2)
-        ttk.Label(mode_frame, text='モード:').pack(side='left')
-        for value, label in PDF_COMPRESS_MODES.items():
+        ttk.Label(mode_frame, text=t('label_mode')).pack(side='left')
+        for value in ('lossy', 'lossless', 'both'):
             ttk.Radiobutton(
                 mode_frame,
-                text=label,
+                text=t(f'pdf_mode.{value}'),
                 variable=self.pdf_mode,
                 value=value,
                 command=self._update_pdf_controls,
             ).pack(side='left', padx=(10, 3))
 
-        self.lossy_lf = ttk.LabelFrame(parent, text='非可逆オプション')
+        self.lossy_lf = ttk.LabelFrame(parent, text=t('section_pdf_lossy_options'))
         self.lossy_lf.pack(fill='x', padx=8, pady=4)
         self._native_lossy_widgets = []
         self._native_png_quality_widgets = []
 
         dpi_row = ttk.Frame(self.lossy_lf)
         dpi_row.pack(fill='x', padx=5, pady=2)
-        dpi_label = ttk.Label(dpi_row, text='DPI:')
+        dpi_label = ttk.Label(dpi_row, text=t('label_dpi'))
         dpi_label.pack(side='left')
         self._native_lossy_widgets.append(dpi_label)
         self.dpi_val_label = ttk.Label(dpi_row, text=str(self.pdf_dpi.get()), width=4)
@@ -415,7 +411,7 @@ class TkUiViewMixin:
 
         jpeg_row = ttk.Frame(self.lossy_lf)
         jpeg_row.pack(fill='x', padx=5, pady=2)
-        jpeg_label = ttk.Label(jpeg_row, text='JPEG品質:')
+        jpeg_label = ttk.Label(jpeg_row, text=t('label_jpeg_quality'))
         jpeg_label.pack(side='left')
         self._native_lossy_widgets.append(jpeg_label)
         self.jpeg_q_val_label = ttk.Label(jpeg_row, text=str(self.pdf_jpeg_quality.get()), width=4)
@@ -435,11 +431,11 @@ class TkUiViewMixin:
         self.jpeg_q_scale.pack(side='left', padx=5)
         self._native_lossy_widgets.append(self.jpeg_q_scale)
 
-        self.jpeg_note_label = ttk.Label(jpeg_row, text='※JPEG元画像にのみ適用', foreground='gray')
+        self.jpeg_note_label = ttk.Label(jpeg_row, text=t('note_jpeg_only'), foreground='gray')
 
         png_row = ttk.Frame(self.lossy_lf)
         png_row.pack(fill='x', padx=5, pady=2)
-        pdf_png_label = ttk.Label(png_row, text='PNG品質:')
+        pdf_png_label = ttk.Label(png_row, text=t('label_png_quality'))
         pdf_png_label.pack(side='left')
         self._native_lossy_widgets.append(pdf_png_label)
         self._native_png_quality_widgets.append(pdf_png_label)
@@ -462,19 +458,20 @@ class TkUiViewMixin:
         self._native_lossy_widgets.append(self.pdf_png_q_scale)
         self._native_png_quality_widgets.append(self.pdf_png_q_scale)
 
+        source_label = t(f'tool_source.{self.capabilities.pngquant_source}')
         self.pdf_png_method_label = ttk.Label(
             png_row,
-            text='PNG圧縮エンジン: pngquant',
+            text=t('pdf_png_engine.pngquant', source=source_label) if self.capabilities.pngquant_available else t('pdf_png_engine.pillow', source=source_label),
             foreground='gray',
         )
 
         self.pdf_png_fallback_note_label = ttk.Label(
             png_row,
-            text='※pngquant 未検出時は Pillow の 256 色固定減色へフォールバックするため無効',
+            text=t('note_pngquant_fallback'),
             foreground='gray',
         )
 
-        self.native_lossless_lf = ttk.LabelFrame(parent, text='可逆オプション')
+        self.native_lossless_lf = ttk.LabelFrame(parent, text=t('section_pdf_lossless_options'))
         self.native_lossless_lf.pack(fill='x', padx=8, pady=4)
         self._native_ll_frame, self._native_lossless_widgets = self._create_lossless_controls(self.native_lossless_lf)
         self._native_ll_frame.pack(fill='x')
@@ -485,13 +482,13 @@ class TkUiViewMixin:
         GS 本体の設定と、後段で任意に足す pikepdf 可逆最適化を同じ画面に置くが、意味が
         異なるため controller 側で個別に有効/無効を切り替えられる構造にしている。
         """
-        preset_lf = ttk.LabelFrame(parent, text='プリセット')
+        preset_lf = ttk.LabelFrame(parent, text=t('label_preset'))
         preset_lf.pack(fill='x', padx=8, pady=4)
         self._gs_preset_widgets = []
 
         preset_grid = ttk.Frame(preset_lf)
         preset_grid.pack(fill='x', padx=5, pady=2)
-        all_presets = list(GS_PRESETS.items()) + [('custom', 'カスタム')]
+        all_presets = [(key, t(f'gs_preset.{key}')) for key in ('screen', 'ebook', 'printer', 'prepress', 'default')] + [('custom', t('gs_preset.custom'))]
         for idx, (key, label) in enumerate(all_presets):
             display = f'{label}' if key == 'custom' else f'{key}: {label}'
             radio = ttk.Radiobutton(
@@ -507,7 +504,7 @@ class TkUiViewMixin:
 
         custom_row = ttk.Frame(parent)
         custom_row.pack(fill='x', padx=12, pady=4)
-        custom_label = ttk.Label(custom_row, text='カスタム DPI:')
+        custom_label = ttk.Label(custom_row, text=t('label_custom_dpi'))
         custom_label.pack(side='left')
         self.gs_dpi_val_label = ttk.Label(custom_row, text=str(self.gs_custom_dpi.get()), width=4)
         self.gs_dpi_val_label.pack(side='left', padx=5)
@@ -529,13 +526,13 @@ class TkUiViewMixin:
         ll_check_row.pack(fill='x', padx=12, pady=4)
         self.gs_use_lossless_cb = ttk.Checkbutton(
             ll_check_row,
-            text='pikepdf 構造最適化も適用',
+            text=t('checkbox_pikepdf_lossless'),
             variable=self.gs_use_lossless,
             command=self._update_pdf_controls,
         )
         self.gs_use_lossless_cb.pack(side='left')
 
-        self.gs_lossless_lf = ttk.LabelFrame(parent, text='可逆オプション（pikepdf）')
+        self.gs_lossless_lf = ttk.LabelFrame(parent, text=f'{t("section_pdf_lossless_options")}（pikepdf）')
         self.gs_lossless_lf.pack(fill='x', padx=8, pady=4)
         self._gs_ll_frame, self._gs_lossless_widgets = self._create_lossless_controls(self.gs_lossless_lf)
         self._gs_ll_frame.pack(fill='x')
@@ -546,12 +543,12 @@ class TkUiViewMixin:
         画像圧縮の設定は PDF 設定と独立しているため、別セクションに分けて「通常画像」と
         「PDF 内画像」の品質ノブを混同しないようにする。
         """
-        img_lf = ttk.LabelFrame(parent, text=' 画像圧縮 ')
+        img_lf = ttk.LabelFrame(parent, text=f' {t("label_image_compression")} ')
         img_lf.pack(fill='x', padx=8, pady=5)
 
         jpg_row = ttk.Frame(img_lf)
         jpg_row.pack(fill='x', padx=5, pady=2)
-        ttk.Label(jpg_row, text='JPG 品質 (0-100):').pack(side='left')
+        ttk.Label(jpg_row, text=t('label_jpg_quality')).pack(side='left')
         self.jpg_quality_label = ttk.Label(jpg_row, text=str(self.jpg_quality.get()), width=4)
         self.jpg_quality_label.pack(side='left', padx=5)
         tk.Scale(
@@ -567,7 +564,7 @@ class TkUiViewMixin:
 
         png_row = ttk.Frame(img_lf)
         png_row.pack(fill='x', padx=5, pady=2)
-        ttk.Label(png_row, text='PNG 品質 (0-100):').pack(side='left')
+        ttk.Label(png_row, text=t('label_png_quality')).pack(side='left')
         self.png_quality_label = ttk.Label(png_row, text=str(self.png_quality.get()), width=4)
         self.png_quality_label.pack(side='left', padx=5)
         tk.Scale(
@@ -582,7 +579,7 @@ class TkUiViewMixin:
         ).pack(side='left')
         self.png_engine_note_label = ttk.Label(
             png_row,
-            text='PNG圧縮エンジン: pngquant',
+            text=t('image_png_engine.pngquant', source=t(f'tool_source.{self.capabilities.pngquant_source}')) if self.use_pngquant.get() and self.capabilities.pngquant_available else t('image_png_engine.pillow', source=t(f'tool_source.{self.capabilities.pngquant_source}')),
             foreground='gray',
         )
         self.png_engine_note_label.pack(side='left', padx=(8, 0))
@@ -591,7 +588,7 @@ class TkUiViewMixin:
         pq_row.pack(fill='x', padx=5, pady=2)
         self.pngquant_check = ttk.Checkbutton(
             pq_row,
-            text='pngquant 使用（パレット量子化・不可逆）',
+            text=t('checkbox_pngquant'),
             variable=self.use_pngquant,
             command=self._update_png_engine_labels,
         )
@@ -599,7 +596,7 @@ class TkUiViewMixin:
         if not self.capabilities.pngquant_available:
             # 未検出時に UI からも無効化しておくと、実行時フォールバックの理由が分かりやすい。
             self.pngquant_check.config(state='disabled')
-            ttk.Label(pq_row, text='（pngquant 未検出のため無効）', foreground='gray').pack(side='left', padx=10)
+            ttk.Label(pq_row, text=t('note_pngquant_unavailable'), foreground='gray').pack(side='left', padx=10)
 
     def _build_resize_section(self, parent):
         """画像リサイズ設定を手動指定と長辺指定の両方で提供する。
@@ -607,14 +604,14 @@ class TkUiViewMixin:
         同じリサイズ機能でも利用者の考え方が異なるため、ピクセル指定と長辺指定の両方を
         並べ、controller 側で今有効な入力だけを残す。
         """
-        resize_lf = ttk.LabelFrame(parent, text=' リサイズ ')
+        resize_lf = ttk.LabelFrame(parent, text=f' {t("section_resize_settings")} ')
         resize_lf.pack(fill='x', padx=8, pady=5)
 
         enable_row = ttk.Frame(resize_lf)
         enable_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(
             enable_row,
-            text='画像を一括リサイズする',
+            text=t('checkbox_enable_resize'),
             variable=self.resize_enabled,
             command=self._update_resize_controls,
         ).pack(side='left')
@@ -623,32 +620,32 @@ class TkUiViewMixin:
         ctrl_row.pack(fill='x', padx=5, pady=2)
         self.resize_mode_manual_rb = ttk.Radiobutton(
             ctrl_row,
-            text='手動',
+            text=t('resize_mode.manual'),
             variable=self.resize_mode,
             value='manual',
             command=self._update_resize_controls,
         )
         self.resize_mode_manual_rb.pack(side='left')
-        ttk.Label(ctrl_row, text='幅:').pack(side='left', padx=(10, 2))
+        ttk.Label(ctrl_row, text=t('label_width')).pack(side='left', padx=(10, 2))
         self.resize_width_entry = ttk.Entry(ctrl_row, textvariable=self.resize_width, width=6)
         self.resize_width_entry.pack(side='left')
-        ttk.Label(ctrl_row, text='高さ:').pack(side='left', padx=(10, 2))
+        ttk.Label(ctrl_row, text=t('label_height')).pack(side='left', padx=(10, 2))
         self.resize_height_entry = ttk.Entry(ctrl_row, textvariable=self.resize_height, width=6)
         self.resize_height_entry.pack(side='left')
-        self.resize_keep_aspect_chk = ttk.Checkbutton(ctrl_row, text='アスペクト比保持', variable=self.resize_keep_aspect)
+        self.resize_keep_aspect_chk = ttk.Checkbutton(ctrl_row, text=t('checkbox_keep_aspect'), variable=self.resize_keep_aspect)
         self.resize_keep_aspect_chk.pack(side='left', padx=(12, 0))
 
         long_row = ttk.Frame(resize_lf)
         long_row.pack(fill='x', padx=5, pady=2)
         self.resize_mode_long_rb = ttk.Radiobutton(
             long_row,
-            text='長辺指定',
+            text=t('resize_mode.long_edge'),
             variable=self.resize_mode,
             value='long_edge',
             command=self._update_resize_controls,
         )
         self.resize_mode_long_rb.pack(side='left')
-        ttk.Label(long_row, text='長辺(px):').pack(side='left', padx=(10, 2))
+        ttk.Label(long_row, text=t('label_long_edge')).pack(side='left', padx=(10, 2))
         self.long_edge_combo = ttk.Combobox(long_row, textvariable=self.long_edge_value_str, values=LONG_EDGE_PRESETS, width=8)
         self.long_edge_combo.pack(side='left')
 
@@ -658,21 +655,21 @@ class TkUiViewMixin:
         これらは圧縮アルゴリズムではなくジョブ全体のふるまいを変える設定なので、
         出力設定として別枠にまとめている。
         """
-        out_lf = ttk.LabelFrame(parent, text=' 出力設定 ')
+        out_lf = ttk.LabelFrame(parent, text=f' {t("section_output_settings")} ')
         out_lf.pack(fill='x', padx=8, pady=5)
 
         csv_row = ttk.Frame(out_lf)
         csv_row.pack(fill='x', padx=5, pady=2)
-        ttk.Checkbutton(csv_row, text='CSV ログを出力する', variable=self.csv_enable).pack(side='left')
-        ttk.Label(csv_row, text='保存先(任意):').pack(side='left', padx=(10, 2))
+        ttk.Checkbutton(csv_row, text=t('checkbox_csv_output'), variable=self.csv_enable).pack(side='left')
+        ttk.Label(csv_row, text=t('label_csv_path')).pack(side='left', padx=(10, 2))
         ttk.Entry(csv_row, textvariable=self.csv_path, width=35).pack(side='left', padx=5)
-        ttk.Button(csv_row, text='参照', command=self._choose_csv_path).pack(side='left', padx=2)
+        ttk.Button(csv_row, text=t('btn_browse'), command=self._choose_csv_path).pack(side='left', padx=2)
 
         zip_row = ttk.Frame(out_lf)
         zip_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(
             zip_row,
-            text='ZIP 展開してから圧縮',
+            text=t('checkbox_extract_zip'),
             variable=self.extract_zip,
             command=self._update_zip_output_controls,
         ).pack(side='left')
@@ -681,26 +678,26 @@ class TkUiViewMixin:
         zip_output_row.pack(fill='x', padx=5, pady=2)
         self.zip_output_check = ttk.Checkbutton(
             zip_output_row,
-            text='展開した ZIP の出力を ZIP に戻す',
+            text=t('checkbox_zip_repack'),
             variable=self.zip_output_enabled,
         )
         self.zip_output_check.pack(side='left')
 
         debug_row = ttk.Frame(out_lf)
         debug_row.pack(fill='x', padx=5, pady=2)
-        ttk.Checkbutton(debug_row, text='デバッグモードで出力', variable=self.debug_mode).pack(side='left')
+        ttk.Checkbutton(debug_row, text=t('checkbox_debug_output'), variable=self.debug_mode).pack(side='left')
 
         copy_row = ttk.Frame(out_lf)
         copy_row.pack(fill='x', padx=5, pady=2)
         ttk.Checkbutton(
             copy_row,
-            text='圧縮対象外のファイルを出力フォルダへコピー（ミラー圧縮）',
+            text=t('checkbox_mirror_copy'),
             variable=self.copy_non_target_files,
         ).pack(side='left')
 
         log_row = ttk.Frame(out_lf)
         log_row.pack(fill='x', padx=5, pady=2)
-        ttk.Checkbutton(log_row, text='圧縮開始時にログタブへ自動切替', variable=self.auto_switch_log_tab).pack(side='left')
+        ttk.Checkbutton(log_row, text=t('checkbox_auto_switch_log_tab'), variable=self.auto_switch_log_tab).pack(side='left')
 
     def _build_log_tab(self):
         """進捗バー、統計、ログテキストを備えたログ表示タブを構築する。
@@ -710,15 +707,15 @@ class TkUiViewMixin:
         """
         stats_frame = ttk.Frame(self.log_tab)
         stats_frame.pack(fill='x', padx=14, pady=(12, 8))
-        self.stats_var = tk.StringVar(value='統計: 処理前')
+        self.stats_var = tk.StringVar(value=t('stats_initial'))
         ttk.Label(stats_frame, textvariable=self.stats_var, foreground='blue', font=('Arial', 10, 'bold')).pack(side='left')
 
-        progress_lf = ttk.LabelFrame(self.log_tab, text=' 進捗 ')
+        progress_lf = ttk.LabelFrame(self.log_tab, text=f' {t("progress_label")} ')
         progress_lf.pack(fill='x', padx=14, pady=(0, 8))
 
         status_row = ttk.Frame(progress_lf)
         status_row.pack(fill='x', padx=10, pady=(8, 4))
-        ttk.Label(status_row, text='状態:').pack(side='left')
+        ttk.Label(status_row, text=t('status_label')).pack(side='left')
         ttk.Label(status_row, textvariable=self.status_var, foreground='purple').pack(side='left', padx=(8, 0))
 
         self.progress = ttk.Progressbar(progress_lf, maximum=100, mode='determinate')
@@ -738,8 +735,8 @@ class TkUiViewMixin:
         frame.pack(fill='x', padx=14, pady=(6, 12))
         inner = ttk.Frame(frame)
         inner.pack(anchor='center')
-        tk.Button(inner, text='圧縮開始', command=self.start_compress, width=16, bg='#ccffcc').pack(side='left', padx=14)
-        tk.Button(inner, text='終了', command=self.on_exit, width=12, bg='#e6e6e6').pack(side='left', padx=14)
+        tk.Button(inner, text=t('btn_start_compress'), command=self.start_compress, width=16, bg='#ccffcc').pack(side='left', padx=14)
+        tk.Button(inner, text=t('btn_exit'), command=self.on_exit, width=12, bg='#e6e6e6').pack(side='left', padx=14)
 
     def _create_lossless_controls(self, parent):
         """pikepdf 可逆最適化オプションのチェックボックス群を共通生成する。

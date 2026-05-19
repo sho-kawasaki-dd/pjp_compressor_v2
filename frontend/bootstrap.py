@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from tkinter import Label, PhotoImage, TclError, Toplevel
 
+from frontend.i18n import init_from_settings
 from frontend.settings import IMAGES_DIR, SOUNDS_DIR
 
 
@@ -65,6 +66,7 @@ def run_tkinter_app() -> int:
     from frontend.sound_utils import play_sound
     from frontend.ui_tkinter import App
 
+    init_from_settings()
     app = App()
 
     splash = _build_startup_splash(app)
