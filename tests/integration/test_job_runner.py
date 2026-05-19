@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from backend.contracts import CompressionRequest, ProgressEvent
+from backend.core import compressor_utils
 from backend.orchestrator import job_runner
 from frontend.settings import PDF_LOSSY_DPI_RANGE
 from frontend.ui_tkinter_mapper import build_compression_request
@@ -145,6 +146,29 @@ def test_run_compression_request_forwards_clamped_ui_values(monkeypatch: pytest.
     assert captured['resize_height'] == 65535
     assert captured['zip_output_enabled'] is False
     assert events == []
+
+
+def test_compat_compress_folder_forwards_zip_output_enabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run_compression_job(**kwargs):
+        captured.update(kwargs)
+
+    monkeypatch.setattr(job_runner, 'run_compression_job', fake_run_compression_job)
+
+    compressor_utils.compress_folder(
+        input_dir='input',
+        output_dir='output',
+        jpg_quality=70,
+        png_quality=60,
+        use_pngquant=True,
+        log_func=lambda _message: None,
+        progress_func=lambda _current, _total: None,
+        stats_func=lambda _orig, _out, _saved, _pct: None,
+        zip_output_enabled=True,
+    )
+
+    assert captured['zip_output_enabled'] is True
 
 
 def test_run_compression_job_handles_empty_input(sample_paths) -> None:

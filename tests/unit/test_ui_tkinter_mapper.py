@@ -148,6 +148,16 @@ def test_build_compression_request_includes_debug_mode_and_trimmed_csv() -> None
     }
 
 
+def test_build_compression_request_propagates_zip_output_toggle() -> None:
+    app = DummyApp()
+    app.zip_output_enabled.set(True)
+
+    result = build_compression_request(app)
+
+    assert result.request.extract_zip is True
+    assert result.request.zip_output_enabled is True
+
+
 def test_build_compression_request_clamps_custom_gs_dpi() -> None:
     app = DummyApp()
     app.gs_preset.set('custom')

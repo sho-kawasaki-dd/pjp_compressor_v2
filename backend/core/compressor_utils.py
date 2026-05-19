@@ -74,6 +74,7 @@ def compress_folder(
     csv_enable=True,
     csv_path=None,
     extract_zip=False,
+    zip_output_enabled=False,
 ):
     """フォルダ全体を並列処理で圧縮する互換 API。
 
@@ -107,4 +108,5 @@ def compress_folder(
         csv_enable=csv_enable,
         csv_path=csv_path,
         extract_zip=extract_zip,
+        zip_output_enabled=zip_output_enabled,
     )

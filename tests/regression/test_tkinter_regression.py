@@ -91,10 +91,15 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
 
     zip_path, _, _ = create_zip_fixture(input_dir)
     input_before = snapshot_input_tree(input_dir)
-    base_request = build_compression_request(app).request
 
-    def execute_case(extract_zip: bool, mirror_mode: bool) -> None:
-        request = replace(base_request, extract_zip=extract_zip, copy_non_target_files=mirror_mode)
+    def execute_case(extract_zip: bool, mirror_mode: bool, zip_output_mode: bool = False) -> None:
+        app.extract_zip.set(extract_zip)
+        app.copy_non_target_files.set(mirror_mode)
+        app.zip_output_enabled.set(zip_output_mode)
+        request = build_compression_request(app).request
+        assert request.extract_zip is extract_zip
+        assert request.copy_non_target_files is mirror_mode
+        assert request.zip_output_enabled is zip_output_mode
         captured: list[object] = []
         run_compression_request(request=request, event_callback=captured.append)
         assert any(getattr(event, 'kind', '') == 'progress' for event in captured), 'progress event missing in zip case'
@@ -128,11 +133,7 @@ def run_zip_matrix_tests(app, input_dir: Path, output_dir: Path) -> None:
 
     clear_output_dir(output_dir)
     # ZIP出力 + mirror: 非圧縮対象も再ZIPへ含め、展開フォルダは残さない。
-    request = replace(base_request, extract_zip=True, copy_non_target_files=True, zip_output_enabled=True)
-    captured: list[object] = []
-    run_compression_request(request=request, event_callback=captured.append)
-    assert any(getattr(event, 'kind', '') == 'progress' for event in captured), 'progress event missing in zip output case'
-    assert any(getattr(event, 'kind', '') == 'stats' for event in captured), 'stats event missing in zip output case'
+    execute_case(extract_zip=True, mirror_mode=True, zip_output_mode=True)
     zipped_output = output_dir / 'subpack' / 'myzip.zip'
     assert zipped_output.exists()
     assert not (output_dir / 'subpack' / 'myzip').exists()
