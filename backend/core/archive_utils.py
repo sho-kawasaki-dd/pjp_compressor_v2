@@ -12,6 +12,8 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path, PurePosixPath
 
+from shared.locale_catalog import translate
+
 
 MAX_ZIP_MEMBER_COUNT = 10000
 MAX_ZIP_TOTAL_UNCOMPRESSED_SIZE = 1_000_000_000
@@ -65,7 +67,7 @@ def _collect_safe_zip_members(zip_ref: zipfile.ZipFile) -> list[zipfile.ZipInfo]
     return safe_members
 
 
-def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
+def extract_zip_archives(target_dir, log_func=None, max_cycles=25, log_language: str = 'ja'):
     """入力フォルダ配下の ZIP を再帰的に展開する。無限ループ防止のため複数対策を実施する。
 
     ZIP の中にさらに ZIP があるケースを扱うため再帰的に探索するが、同じ ZIP の再処理
@@ -77,6 +79,9 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
     if not base_dir.is_dir():
         return 0, 0
     log = log_func if callable(log_func) else (lambda *_: None)
+    def t(key: str, **kwargs):
+        return translate(log_language, key, **kwargs)
+
     processed = set()
     extracted_total = 0
     failed_total = 0
@@ -105,17 +110,17 @@ def extract_zip_archives(target_dir, log_func=None, max_cycles=25):
                         zip_ref.extractall(zip_path.parent, members=safe_members)
                     extracted_total += 1
                     new_zip_handled = True
-                    log(f"ZIP展開: {rel_zip}（展開ファイル数: {member_count}、サイクル: {cycle}）")
+                    log(t('archive_zip_extract_success', rel_zip=rel_zip, member_count=member_count, cycle=cycle))
                 except Exception as exc:
                     failed_total += 1
-                    log(f"ZIP展開失敗: {rel_zip} ({exc})")
+                    log(t('archive_zip_extract_failed', rel_zip=rel_zip, exc=exc))
             if not new_zip_handled:
                 # 新規 ZIP が無くなった時点で完了とみなし、不要な探索を打ち切る。
                 break
         else:
-            log(f"ZIP展開サイクルが上限({max_cycles})に到達しました。循環参照の可能性があります。")
+            log(t('archive_zip_extract_cycle_limit', max_cycles=max_cycles))
     except Exception as exc:
-        log(f"ZIP展開処理全体でエラー: {exc}")
+        log(t('archive_zip_extract_overall_error', exc=exc))
     return extracted_total, failed_total
 
 

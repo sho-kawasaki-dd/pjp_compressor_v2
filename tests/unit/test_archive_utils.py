@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from backend.core.archive_utils import extract_zip_archives, zip_directory
+from shared.locale_catalog import translate as tlog
 
 
 pytestmark = pytest.mark.unit
@@ -23,13 +24,14 @@ def test_extract_zip_archives_recurses_nested_zips(tmp_path: Path, jpeg_bytes: b
     zip_factory(outer_zip, {'inner.zip': inner_zip.read_bytes()})
 
     logs: list[str] = []
-    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append)
+    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append, log_language='ja')
 
     assert extracted_total == 2
     assert failed_total == 0
     assert (target_dir / 'inner.zip').exists()
     assert (target_dir / 'nested' / 'photo.jpg').exists()
-    assert any('outer.zip' in message for message in logs)
+    prefix = tlog('ja', 'archive_zip_extract_success', rel_zip='', member_count=0, cycle=0).split('（')[0]
+    assert any(message.startswith(prefix) for message in logs)
     assert any('inner.zip' in message for message in logs)
 
 
@@ -46,11 +48,25 @@ def test_extract_zip_archives_logs_failures_for_corrupt_zip(tmp_path: Path) -> N
     bad_zip.write_bytes(b'not-a-zip')
 
     logs: list[str] = []
-    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append)
+    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append, log_language='ja')
 
     assert extracted_total == 0
     assert failed_total == 1
-    assert any('ZIP展開失敗' in message for message in logs)
+    assert any(tlog('ja', 'archive_zip_extract_failed', rel_zip='broken.zip', exc='')[:6] in message for message in logs)
+
+
+def test_extract_zip_archives_logs_english_failures(tmp_path: Path) -> None:
+    target_dir = tmp_path / 'archives'
+    target_dir.mkdir()
+    bad_zip = target_dir / 'broken.zip'
+    bad_zip.write_bytes(b'not-a-zip')
+
+    logs: list[str] = []
+    extracted_total, failed_total = extract_zip_archives(target_dir, logs.append, log_language='en')
+
+    assert extracted_total == 0
+    assert failed_total == 1
+    assert any(message.startswith('ZIP extraction failed:') for message in logs)
 
 
 def test_extract_zip_archives_rejects_path_traversal_member(tmp_path: Path, jpeg_bytes: bytes, zip_factory) -> None:

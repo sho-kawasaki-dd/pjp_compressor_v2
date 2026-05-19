@@ -308,7 +308,7 @@ def run_compression_job(
                 staged_zip = staged_root / plan.input_zip_path.name
                 shutil.copy2(plan.input_zip_path, staged_zip)
 
-                extracted_cnt, failed_cnt = extract_zip_archives(staged_root, log_func)
+                extracted_cnt, failed_cnt = extract_zip_archives(staged_root, log_func, log_language=log_language)
                 extracted_cnt_total += extracted_cnt
                 failed_cnt_total += failed_cnt
 

@@ -516,6 +516,7 @@ class TkUiControllerMixin:
             thread = threading.Thread(
                 target=cleanup_folder,
                 args=(input_dir, self.log, t('cleanup_target_input'), INPUT_DIR_CLEANUP_EXTENSIONS),
+                kwargs={'log_language': host.ui_language.get()},
                 daemon=True,
             )
             host.threads.append(thread)
@@ -547,6 +548,7 @@ class TkUiControllerMixin:
             thread = threading.Thread(
                 target=cleanup_folder,
                 args=(output_dir, self.log, t('cleanup_target_output'), OUTPUT_DIR_CLEANUP_EXTENSIONS),
+                kwargs={'log_language': host.ui_language.get()},
                 daemon=True,
             )
             host.threads.append(thread)

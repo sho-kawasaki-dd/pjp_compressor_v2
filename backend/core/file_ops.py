@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from shared.locale_catalog import translate
+
 
 def count_target_files(target_dir, target_extensions):
     """指定拡張子に一致するファイル数を数える。フォルダが無い場合は 0。"""
@@ -28,20 +30,23 @@ def count_target_files(target_dir, target_extensions):
     return count
 
 
-def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_extensions=None):
+def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_extensions=None, log_language: str = 'ja'):
     """指定フォルダ配下の対象拡張子ファイルを削除し、空フォルダも除去する。
 
     対象外ファイルを残す設計にしているのは、ユーザーが同じフォルダに置いた成果物や
     補助ファイルまで一括削除しないためである。クリーンアップは便宜機能であり、
     積極的な掃除より安全側を優先する。
     """
+    def t(key: str, **kwargs):
+        return translate(log_language, key, **kwargs)
+
     if not target_dir:
-        log_func(f"{folder_type}が未指定、または存在しません")
+        log_func(t('cleanup_folder_missing', folder_type=folder_type))
         return
 
     base_dir = Path(target_dir)
     if not base_dir.exists():
-        log_func(f"{folder_type}が未指定、または存在しません")
+        log_func(t('cleanup_folder_missing', folder_type=folder_type))
         return
     if target_extensions is None:
         target_extensions = set()
@@ -64,9 +69,9 @@ def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_exte
                 try:
                     file_path.unlink()
                     deleted_count += 1
-                    log_func(f"削除: {_rel(file_path)}")
+                    log_func(t('cleanup_deleted', path=_rel(file_path)))
                 except Exception as e:
-                    log_func(f"削除失敗: {_rel(file_path)} - {e}")
+                    log_func(t('cleanup_delete_failed', path=_rel(file_path), exc=e))
             else:
                 # 対象外ファイルは残しておき、ユーザーの成果物を誤って消さないようにする。
                 skipped_count += 1
@@ -78,14 +83,14 @@ def cleanup_folder(target_dir, log_func, folder_type="フォルダ", target_exte
             try:
                 if not any(dir_path.iterdir()):
                     dir_path.rmdir()
-                    log_func(f"空フォルダ削除: {_rel(dir_path)}")
+                    log_func(t('cleanup_empty_dir_deleted', path=_rel(dir_path)))
             except Exception:
                 pass
 
         if target_extensions:
             exts_str = ', '.join(sorted(target_extensions))
-            log_func(f"{folder_type}のクリーンアップが完了しました（削除: {deleted_count}ファイル、スキップ: {skipped_count}ファイル、対象拡張子: {exts_str}）")
+            log_func(t('cleanup_complete_with_extensions', folder_type=folder_type, deleted_count=deleted_count, skipped_count=skipped_count, exts=exts_str))
         else:
-            log_func(f"{folder_type}のクリーンアップが完了しました（削除: {deleted_count}ファイル）")
+            log_func(t('cleanup_complete_without_extensions', folder_type=folder_type, deleted_count=deleted_count))
     except Exception as e:
-        log_func(f"{folder_type}クリーンアップ失敗: {e}")
+        log_func(t('cleanup_failed', folder_type=folder_type, exc=e))
