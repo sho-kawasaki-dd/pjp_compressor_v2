@@ -52,8 +52,8 @@
 
 ### Installer (recommended) / インストーラー（推奨）
 
-1. Download the latest installer (`.exe`) from the [Releases](../../releases) page.
-   [Releases](../../releases) ページから最新のインストーラー（`.exe`）をダウンロードします。
+1. Download the latest installer (`.exe`) from the [Releases](https://github.com/sho-kawasaki-dd/pjp_compressor_v2/releases/tag/v2.6.1) page.
+   [Releases](https://github.com/sho-kawasaki-dd/pjp_compressor_v2/releases/tag/v2.6.1) ページから最新のインストーラー（`.exe`）をダウンロードします。
 2. Run the installer and follow the on-screen instructions.
    インストーラーを実行し、画面の指示に従います。
 3. Launch **PDF JPG PNG Compressor** from the Start menu or desktop shortcut.
