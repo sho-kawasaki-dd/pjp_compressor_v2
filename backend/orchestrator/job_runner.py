@@ -221,7 +221,7 @@ def run_compression_job(
     #   pdf_engine, pdf_mode, pdf_dpi, pdf_jpeg_quality, pdf_png_quality,
     #   pdf_lossless_options, gs_preset, gs_custom_dpi,
     #   jpg_quality, png_quality, use_pngquant, resize_cfg, debug_mode,
-    #   csv_input_path, csv_output_path, csv_notes,
+    #   csv_input_path, csv_output_path, csv_notes, log_language,
     # )
     tasks: list[tuple[Any, ...]] = []
 
@@ -280,6 +280,7 @@ def run_compression_job(
             csv_input_path,
             csv_output_path,
             csv_notes,
+            log_language,
         ))
 
     # ZIP は展開有無で扱いが変わるため、通常走査からは除外して別フェーズへ回す。
@@ -409,7 +410,7 @@ def run_compression_job(
             futures = {executor.submit(process_single_file, task): task for task in tasks}
             for future in as_completed(futures):
                 try:
-                    msg, orig_size, out_size, processed_flag = future.result()
+                    raw_result = future.result()
                     task = futures[future]
                     inpath_task = Path(task[0])
                     outpath_task = Path(task[1])
@@ -417,6 +418,16 @@ def run_compression_job(
                     csv_input = task[16]
                     csv_output = task[17]
                     csv_notes = task[18] if len(task) > 18 else ''
+                    if hasattr(raw_result, 'action_key'):
+                        result = raw_result
+                        action_key = result.action_key
+                        msg = result.message
+                        orig_size = result.orig_size
+                        out_size = result.out_size
+                        processed_flag = result.processed
+                    else:
+                        msg, orig_size, out_size, processed_flag = raw_result
+                        action_key = _csv_action_label(catalog, ext_task, processed=processed_flag)
 
                     if processed_flag:
                         orig_total += orig_size
@@ -440,7 +451,7 @@ def run_compression_job(
 
                     try:
                         if csv_writer:
-                            action = _csv_action_label(catalog, ext_task, processed=processed_flag)
+                            action = t(action_key)
                             if not processed_flag:
                                 if copy_non_target_files:
                                     action = t('csv_action_non_target_copy') if is_non_target else t('csv_action_fallback_copy')

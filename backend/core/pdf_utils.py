@@ -28,6 +28,7 @@ from backend.settings import (
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
 )
+from shared.locale_catalog import translate
 from shared.runtime_paths import describe_tool_source, resolve_ghostscript_executable, resolve_pngquant_executable
 
 
@@ -77,18 +78,22 @@ def _sanitize_subprocess_error(message: str, *paths: Path) -> str:
     return sanitized[:240]
 
 
+def _t(log_language: str, key: str, **kwargs: Any) -> str:
+    return translate(log_language, key, **kwargs)
+
+
 def _preserve_original_pdf(input_file: Path, output_file: Path) -> None:
     """Ghostscript skip 時に元 PDF を出力側へ維持する。"""
     output_file.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(str(input_file), str(output_file))
 
 
-def _pngquant_quantizer_label(png_metadata: dict[str, Any]) -> str:
+def _pngquant_quantizer_label(png_metadata: dict[str, Any], log_language: str) -> str:
     """PDF 内 PNG 量子化のログ表示名を返す。"""
     quantizer = str(png_metadata['quantizer'])
     if quantizer == 'pngquant':
         source = cast(str, png_metadata.get('quantizer_source') or 'unavailable')
-        return f'pngquant({describe_tool_source(source)})'
+        return f"pngquant({_t(log_language, f'tool_source.{source}')})"
     return quantizer
 
 
@@ -128,7 +133,7 @@ def _convert_cmyk_to_rgb(pil_img: Image.Image) -> tuple[Image.Image, bool]:
             # 埋め込み ICC がある場合は、Pillow 任せの単純変換より色再現を優先する。
             src_profile = ImageCms.ImageCmsProfile(io.BytesIO(icc_profile))
             dst_profile = ImageCms.createProfile('sRGB')
-            converted = ImageCms.profileToProfile(pil_img, src_profile, dst_profile, outputMode='RGB')
+            converted = cast(Image.Image, ImageCms.profileToProfile(pil_img, src_profile, dst_profile, outputMode='RGB'))
             converted.load()
             return converted, True
         except Exception:
@@ -165,7 +170,7 @@ def _pdf_image_has_transparency(pil_img: Image.Image) -> bool:
     """Pillow 画像に実効的な透過画素が含まれるかを返す。"""
     if 'A' in pil_img.getbands():
         try:
-            alpha_min, _alpha_max = pil_img.getchannel('A').getextrema()
+            alpha_min, _alpha_max = cast(tuple[int, int], pil_img.getchannel('A').getextrema())
             return alpha_min < 255
         except Exception:
             return True
@@ -237,7 +242,7 @@ def _load_pdf_raster_image_with_soft_mask(doc, base_image: dict[str, Any]) -> tu
     try:
         mask_img = _open_pdf_raster_image(cast(bytes, soft_mask['image']))
         alpha_mask = _normalize_pdf_soft_mask(mask_img, pil_img.size)
-        transparency_present = alpha_mask.getextrema()[0] < 255
+        transparency_present = cast(tuple[int, int], alpha_mask.getextrema())[0] < 255
         # Pillow 側で alpha を保持できる形に寄せてから soft mask を合成する。
         if pil_img.mode != 'RGBA':
             pil_img = pil_img.convert('RGBA')
@@ -282,7 +287,7 @@ def _compress_pdf_png_with_pillow(pil_img: Image.Image) -> bytes:
     return buffer.getvalue()
 
 
-def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> tuple[bytes | None, dict[str, Any]]:
+def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int, log_language: str = 'ja') -> tuple[bytes | None, dict[str, Any]]:
     """pngquant を使って PDF 内 PNG 系画像を量子化する。
 
     pngquant はファイルベースの CLI なので、一時 PNG を経由して実行する。
@@ -345,14 +350,14 @@ def _compress_pdf_png_with_pngquant(pil_img: Image.Image, png_quality: int) -> t
             }
 
 
-def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int) -> tuple[bytes, dict[str, Any]]:
+def _compress_pdf_png_image(pil_img: Image.Image, png_quality: int, log_language: str = 'ja') -> tuple[bytes, dict[str, Any]]:
     """PDF 内 PNG 系画像を pngquant 優先、Pillow 256 色固定フォールバックで再圧縮する。
 
     ここでは「品質ノブが効く理想経路」と「依存未導入でも落とさない安全経路」を
     1 箇所へ閉じ込める。呼び出し側は量子化手段の違いを気にせず、返却メタ情報だけ
     見れば UI/ログ/デバッグ出力へ理由を流せる。
     """
-    quantized_bytes, pngquant_meta = _compress_pdf_png_with_pngquant(pil_img, png_quality)
+    quantized_bytes, pngquant_meta = _compress_pdf_png_with_pngquant(pil_img, png_quality, log_language)
     if quantized_bytes is not None:
         return quantized_bytes, {
             'quantizer': 'pngquant',
@@ -376,6 +381,7 @@ def compress_pdf_lossy(
     jpeg_quality=PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     debug=False,
+    log_language: str = 'ja',
 ):
     """PyMuPDF で PDF 内の実描画画像を走査し、リサンプル＆再圧縮する（非可逆）。
 
@@ -386,9 +392,12 @@ def compress_pdf_lossy(
     input_file = Path(input_path)
     output_file = Path(output_path)
 
+    def t(key: str, **kwargs: Any) -> str:
+        return _t(log_language, key, **kwargs)
+
     fitz_module, fitz_error = _import_fitz()
     if fitz_module is None:
-        return False, f"PDF非可逆圧縮失敗: {input_file.name} (PyMuPDF(fitz)が利用できません: {fitz_error})"
+        return False, t('pdf_lossy_missing_fitz', name=input_file.name, error=fitz_error)
 
     try:
         doc = fitz_module.open(str(input_file))
@@ -574,9 +583,9 @@ def compress_pdf_lossy(
                 if preserve_as_png:
                     # PNG 系画像は JPEG へ逃がさず、常に量子化済み PNG として再保存する。
                     # soft mask で表現された透過もここで保ったまま再保存する。
-                    new_bytes, png_metadata = _compress_pdf_png_image(pil_img, png_quality)
+                    new_bytes, png_metadata = _compress_pdf_png_image(pil_img, png_quality, log_language)
                     output_format = 'PNG'
-                    png_quantizers_used.add(_pngquant_quantizer_label(png_metadata))
+                    png_quantizers_used.add(_pngquant_quantizer_label(png_metadata, log_language))
                     if png_metadata['quantizer'] == 'pngquant':
                         debug_stats['pngquant_used'] += 1
                     else:
@@ -664,27 +673,30 @@ def compress_pdf_lossy(
         doc.close()
 
         total_images = replaced_count + skipped_count
-        detail = f"一意の画像{total_images}個中{replaced_count}個を再圧縮"
+        detail = t('pdf_lossy_detail_summary', total_images=total_images, replaced_count=replaced_count)
         if png_quantizers_used:
-            detail += f", PNG量子化={', '.join(sorted(png_quantizers_used))}"
+            detail += t('pdf_lossy_detail_png_quantizer', quantizers=', '.join(sorted(png_quantizers_used)))
         if png_fallback_reasons_used:
-            detail += f", PNGフォールバック理由={', '.join(sorted(png_fallback_reasons_used))}"
-        return True, f"PDF非可逆圧縮(PyMuPDF): {input_file.name} → OK ({detail}, DPI={target_dpi}, JPEG品質={jpeg_quality})"
+            detail += t('pdf_lossy_detail_png_fallback', reasons=', '.join(sorted(png_fallback_reasons_used)))
+        return True, t('pdf_lossy_success', name=input_file.name, detail=detail, dpi=target_dpi, jpeg_quality=jpeg_quality)
     except Exception as e:
-        return False, f"PDF非可逆圧縮失敗: {input_file.name} ({e})"
+        return False, t('pdf_lossy_failure', name=input_file.name, exc=e)
 
 
-def compress_pdf_lossless(input_path, output_path, options=None):
+def compress_pdf_lossless(input_path, output_path, options=None, log_language: str = 'ja'):
     """pikepdf を用いた PDF の構造最適化（可逆）。"""
     input_file = Path(input_path)
     output_file = Path(output_path)
+
+    def t(key: str, **kwargs: Any) -> str:
+        return _t(log_language, key, **kwargs)
 
     if options is None:
         options = dict(PDF_LOSSLESS_OPTIONS_DEFAULT)
 
     pikepdf_module, pikepdf_error = _import_pikepdf()
     if pikepdf_module is None:
-        return False, f"PDF可逆圧縮失敗: {input_file.name} (pikepdfが利用できません: {pikepdf_error})"
+        return False, t('pdf_lossless_missing_pikepdf', name=input_file.name, error=pikepdf_error)
 
     try:
         with pikepdf_module.open(str(input_file)) as pdf:
@@ -727,10 +739,10 @@ def compress_pdf_lossless(input_path, output_path, options=None):
             applied.append('Flate再圧縮')
         if options.get('remove_unreferenced'):
             applied.append('孤立リソース削除')
-        opts_str = ', '.join(applied) if applied else 'なし'
-        return True, f"PDF可逆圧縮(pikepdf): {input_file.name} → OK ({opts_str})"
+        opts_str = ', '.join(applied) if applied else t('pdf_lossless_no_options')
+        return True, t('pdf_lossless_success', name=input_file.name, opts_str=opts_str)
     except Exception as e:
-        return False, f"PDF可逆圧縮失敗: {input_file.name} ({e})"
+        return False, t('pdf_lossless_failure', name=input_file.name, exc=e)
 
 
 def get_ghostscript_resolution():
@@ -743,16 +755,16 @@ def get_ghostscript_path():
     return get_ghostscript_resolution().path
 
 
-def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom_dpi=None) -> GhostscriptRunResult:
+def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom_dpi=None, log_language: str = 'ja') -> GhostscriptRunResult:
     """Ghostscript 実行結果を skip 情報付きで返す。"""
     resolution = get_ghostscript_resolution()
-    source_label = describe_tool_source(resolution.source)
+    source_label = _t(log_language, f'tool_source.{resolution.source}')
 
     if not resolution.available:
         _preserve_original_pdf(input_file, output_file)
         return GhostscriptRunResult(
             ok=True,
-            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript未検出, 元ファイルを維持)',
+            message=_t(log_language, 'pdf_gs_skip_unavailable', source=source_label, name=input_file.name),
             skipped=True,
         )
 
@@ -808,20 +820,20 @@ def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom
                 _preserve_original_pdf(input_file, output_file)
                 return GhostscriptRunResult(
                     ok=True,
-                    message=f'PDF圧縮(GS:{source_label}): {input_file.name} → 圧縮効果なし（元ファイルを維持）',
+                    message=_t(log_language, 'pdf_gs_no_gain', source=source_label, name=input_file.name),
                 )
 
             mode_str = f'custom_dpi={safe_custom_dpi}' if preset == 'custom' and safe_custom_dpi else f'preset={preset}'
             return GhostscriptRunResult(
                 ok=True,
-                message=f'PDF圧縮(GS:{source_label}): {input_file.name} → OK ({mode_str})',
+                message=_t(log_language, 'pdf_gs_success', source=source_label, name=input_file.name, mode_str=mode_str),
             )
 
         detail = _sanitize_subprocess_error(result.stderr, input_file, output_file) or f'gs_exit_{result.returncode}'
         _preserve_original_pdf(input_file, output_file)
         return GhostscriptRunResult(
             ok=True,
-            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript失敗: {detail}, 元ファイルを維持)',
+            message=_t(log_language, 'pdf_gs_skip_failed', source=source_label, name=input_file.name, detail=detail),
             skipped=True,
         )
 
@@ -829,7 +841,7 @@ def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom
         _preserve_original_pdf(input_file, output_file)
         return GhostscriptRunResult(
             ok=True,
-            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscriptタイムアウト, 元ファイルを維持)',
+            message=_t(log_language, 'pdf_gs_skip_timeout', source=source_label, name=input_file.name),
             skipped=True,
         )
 
@@ -837,12 +849,12 @@ def _run_ghostscript(input_file: Path, output_file: Path, preset='ebook', custom
         _preserve_original_pdf(input_file, output_file)
         return GhostscriptRunResult(
             ok=True,
-            message=f'PDF圧縮(GS:{source_label}): {input_file.name} → スキップ (Ghostscript実行失敗: {e}, 元ファイルを維持)',
+            message=_t(log_language, 'pdf_gs_skip_exception', source=source_label, name=input_file.name, exc=e),
             skipped=True,
         )
 
 
-def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None):
+def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi=None, log_language: str = 'ja'):
     """Ghostscriptを利用してPDFを再蒸留・圧縮する。
 
     Ghostscript は PDF 全体を描き直す系の圧縮なので、個別画像差し替えより強く効く
@@ -851,7 +863,7 @@ def compress_pdf_ghostscript(input_path, output_path, preset='ebook', custom_dpi
     """
     input_file = Path(input_path)
     output_file = Path(output_path)
-    result = _run_ghostscript(input_file, output_file, preset, custom_dpi)
+    result = _run_ghostscript(input_file, output_file, preset, custom_dpi, log_language)
     return result.ok, result.message
 
 
@@ -864,6 +876,7 @@ def compress_pdf_native(
     png_quality=PDF_LOSSY_PNG_QUALITY_DEFAULT,
     lossless_options=None,
     debug=False,
+    log_language: str = 'ja',
 ):
     """ネイティブ（PyMuPDF + pikepdf）PDF 圧縮の統合関数。
 
@@ -878,23 +891,23 @@ def compress_pdf_native(
         mode = 'both'
 
     if mode == 'lossy':
-        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_quality, debug)
+        return compress_pdf_lossy(str(input_file), str(output_file), target_dpi, jpeg_quality, png_quality, debug, log_language)
     if mode == 'lossless':
-        return compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
+        return compress_pdf_lossless(str(input_file), str(output_file), lossless_options, log_language)
 
     # `both` は一旦非可逆で画像を落としてから、最終 PDF 全体を可逆最適化する。
     tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_lossy.pdf')
     try:
-        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_quality, debug)
+        ok_lossy, msg_lossy = compress_pdf_lossy(str(input_file), str(tmp_path), target_dpi, jpeg_quality, png_quality, debug, log_language)
         if not ok_lossy:
-            ok_ll, msg_ll = compress_pdf_lossless(str(input_file), str(output_file), lossless_options)
-            return ok_ll, f"{msg_lossy} / {msg_ll}"
+            ok_ll, msg_ll = compress_pdf_lossless(str(input_file), str(output_file), lossless_options, log_language)
+            return ok_ll, _t(log_language, 'pdf_native_fallback_lossless_failed', lossy=msg_lossy, lossless=msg_ll)
 
-        ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
+        ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options, log_language)
         if not ok_ll:
             # 段階後半だけ失敗しても、前段の成果物を捨てるよりは結果を残す方を優先する。
             shutil.copy2(str(tmp_path), str(output_file))
-            return True, f"{msg_lossy} / {msg_ll}（可逆段失敗、非可逆結果を採用）"
+            return True, _t(log_language, 'pdf_native_lossless_failed', lossy=msg_lossy, lossless=msg_ll)
 
         return True, f"{msg_lossy} / {msg_ll}"
     finally:
@@ -905,7 +918,7 @@ def compress_pdf_native(
             pass
 
 
-def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dpi=None, lossless_options=None):
+def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dpi=None, lossless_options=None, log_language: str = 'ja'):
     """Ghostscript による PDF 再蒸留 + オプションで pikepdf 構造最適化。
 
     Ghostscript 系でも lossless 段を分離しておくことで、再蒸留が成功した後に
@@ -918,18 +931,18 @@ def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dp
     if lossless_options:
         tmp_path = output_file.with_suffix(output_file.suffix + '.tmp_gs.pdf')
         try:
-            gs_result = _run_ghostscript(input_file, tmp_path, preset, custom_dpi)
+            gs_result = _run_ghostscript(input_file, tmp_path, preset, custom_dpi, log_language)
             if not gs_result.ok:
                 return False, gs_result.message
             if gs_result.skipped:
                 shutil.copy2(str(tmp_path), str(output_file))
                 return True, gs_result.message
 
-            ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options)
+            ok_ll, msg_ll = compress_pdf_lossless(str(tmp_path), str(output_file), lossless_options, log_language)
             if not ok_ll:
                 # GS 結果が得られている場合は、可逆段の失敗だけで全体を失敗扱いにしない。
                 shutil.copy2(str(tmp_path), str(output_file))
-                return True, f"{gs_result.message} / {msg_ll}（可逆段失敗、GS結果を採用）"
+                return True, _t(log_language, 'pdf_gs_lossless_failed', gs=gs_result.message, lossless=msg_ll)
 
             return True, f"{gs_result.message} / {msg_ll}"
         finally:
@@ -938,4 +951,4 @@ def compress_pdf_gs(input_path, output_path, preset=GS_DEFAULT_PRESET, custom_dp
                     tmp_path.unlink()
             except Exception:
                 pass
-    return compress_pdf_ghostscript(str(input_file), str(output_file), preset, custom_dpi)
+    return compress_pdf_ghostscript(str(input_file), str(output_file), preset, custom_dpi, log_language)

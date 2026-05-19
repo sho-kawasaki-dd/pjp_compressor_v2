@@ -12,16 +12,17 @@ import subprocess
 from pathlib import Path
 
 from PIL import Image, ImageCms
-from shared.runtime_paths import describe_tool_source, resolve_pngquant_executable
+from shared.locale_catalog import translate
+from shared.runtime_paths import resolve_pngquant_executable
 
 
 MAX_IMAGE_QUALITY = 100
 PNGQUANT_TIMEOUT_SECONDS = 300
 
 
-def _append_pngquant_fallback_details(message: str, *, source: str, reason: str) -> str:
+def _append_pngquant_fallback_details(message: str, *, source: str, reason: str, log_language: str) -> str:
     """Pillow フォールバック時の pngquant 状態をログ文言へ補足する。"""
-    return f'{message} [pngquant={describe_tool_source(source)}, fallback={reason}]'
+    return f"{message} [pngquant={translate(log_language, f'tool_source.{source}')}, fallback={reason}]"
 
 
 def _clamp_quality(value, default=MAX_IMAGE_QUALITY):
@@ -65,7 +66,7 @@ def _convert_cmyk_to_rgb(img: Image.Image) -> tuple[Image.Image, bool]:
     return converted, True
 
 
-def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
+def compress_image_pillow(input_path, output_path, quality, resize_cfg=None, log_language: str = 'ja'):
     """Pillow を用いて JPEG/PNG を品質指定で保存。必要に応じてリサイズも行う。
 
     ここは pngquant の有無に関係なく常に使える基準経路であり、リサイズ戦略も
@@ -75,6 +76,9 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
     input_file = Path(input_path)
     output_file = Path(output_path)
     safe_quality = _clamp_quality(quality)
+
+    def t(key: str, **kwargs):
+        return translate(log_language, key, **kwargs)
 
     try:
         img = Image.open(str(input_file))
@@ -122,12 +126,12 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None):
         msg_extra = ""
         if resize_cfg and resize_cfg.get('enabled'):
             msg_extra = f", resize={img.size[0]}x{img.size[1]}"
-        return True, f"画像圧縮(Pillow): {input_file.name} → OK (quality={safe_quality}{msg_extra})"
+        return True, t('image_pillow_success', name=input_file.name, quality=safe_quality, msg_extra=msg_extra)
     except Exception as e:
-        return False, f"画像失敗: {input_file.name} ({e})"
+        return False, t('image_pillow_failure', name=input_file.name, exc=e)
 
 
-def compress_png_pngquant(input_path, output_path, quality_min, quality_max, speed=3, resize_cfg=None):
+def compress_png_pngquant(input_path, output_path, quality_min, quality_max, speed=3, resize_cfg=None, log_language: str = 'ja'):
     """pngquant が利用可能ならパレット量子化で高圧縮、無ければ Pillow にフォールバック。
 
     pngquant は PNG 専用の高圧縮経路だが、任意依存かつ CLI 実行のため失敗要因が多い。
@@ -141,11 +145,15 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
     safe_quality_min = min(_clamp_quality(quality_min, default=safe_quality_max), safe_quality_max)
     safe_speed = max(1, min(11, int(speed)))
 
+    def t(key: str, **kwargs):
+        return translate(log_language, key, **kwargs)
+
     resolution = resolve_pngquant_executable()
     if not resolution.available:
         # pngquant は任意依存のため、未導入でも PNG 圧縮処理自体は継続させる。
-        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
-        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason='pngquant_unavailable')
+        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg, log_language=log_language)
+        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason='pngquant_unavailable', log_language=log_language)
+
     pngquant_exe = resolution.path
     tmp_path = None
     try:
@@ -220,17 +228,18 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
             timeout=PNGQUANT_TIMEOUT_SECONDS,
         )
         if result.returncode == 0 and output_file.exists():
-            msg = f"PNG圧縮(pngquant:{describe_tool_source(resolution.source)}): {input_file.name} → OK (quality={qarg})"
+            msg = t('image_pngquant_success', source=translate(log_language, f'tool_source.{resolution.source}'), name=input_file.name, qarg=qarg)
             if resized_wh and resize_cfg and resize_cfg.get('enabled'):
                 msg += f", resize={resized_wh[0]}x{resized_wh[1]}"
             return True, msg
+
         # CLI が失敗した場合でも呼び出し側の制御を増やさないため、そのまま Pillow へ退避する。
-        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
+        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg, log_language=log_language)
         fallback_reason = (result.stderr or '').strip() or f'pngquant_exit_{result.returncode}'
-        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason=fallback_reason)
+        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason=fallback_reason, log_language=log_language)
     except Exception as exc:
-        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg)
-        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason=f'pngquant_exception:{exc}')
+        ok, message = compress_image_pillow(str(input_file), str(output_file), safe_quality_max, resize_cfg=resize_cfg, log_language=log_language)
+        return ok, _append_pngquant_fallback_details(message, source=resolution.source, reason=f'pngquant_exception:{exc}', log_language=log_language)
     finally:
         try:
             if tmp_path and tmp_path.exists():

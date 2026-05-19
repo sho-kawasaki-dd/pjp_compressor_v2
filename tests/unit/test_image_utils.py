@@ -50,7 +50,7 @@ def test_compress_png_pngquant_falls_back_to_pillow(monkeypatch: pytest.MonkeyPa
     monkeypatch.setattr(
         image_utils,
         'compress_image_pillow',
-        lambda inpath, outpath, quality, resize_cfg=None: calls.append((inpath, outpath, quality, resize_cfg)) or expected,
+        lambda inpath, outpath, quality, resize_cfg=None, log_language=None, **_kwargs: calls.append((inpath, outpath, quality, resize_cfg)) or expected,
     )
 
     result = image_utils.compress_png_pngquant(tmp_path / 'in.png', tmp_path / 'out.png', 30, 60, resize_cfg={'enabled': True})
