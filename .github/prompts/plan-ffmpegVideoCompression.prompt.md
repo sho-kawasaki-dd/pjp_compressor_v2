@@ -10,11 +10,11 @@
 
 ### Phase 1: 外部ツール解決とデータ契約・設定の拡張
 
-1. [ ] **[shared/runtime_paths.py](../../shared/runtime_paths.py)** — `resolve_ffmpeg_executable()` / `resolve_ffprobe_executable()` の追加
+1. [x] **[shared/runtime_paths.py](../../shared/runtime_paths.py)** — `resolve_ffmpeg_executable()` / `resolve_ffprobe_executable()` の追加
    - `resolve_external_tool()` を使用し、`system_candidates=('ffmpeg',)`、`bundled_relative_candidates=('ffmpeg-windows/bin/ffmpeg.exe', 'ffmpeg-windows/ffmpeg.exe')` で解決する。
    - `ffprobe` も同様に、`system_candidates=('ffprobe',)`、`bundled_relative_candidates=('ffmpeg-windows/bin/ffprobe.exe', 'ffmpeg-windows/ffprobe.exe')` で解決する。
 
-2. [ ] **[backend/contracts.py](../../backend/contracts.py)** — データ契約の拡張
+2. [x] **[backend/contracts.py](../../backend/contracts.py)** — データ契約の拡張
    - `VideoCompressionConfig`（`frozen=True`）dataclass を新設する。backend は **`crf` のみを正** とし、UI の品質値（0〜100）は保持しない:
      - `enabled: bool = True`
      - `codec: Literal['libx264', 'libx265'] = 'libx264'`
@@ -46,13 +46,13 @@
      - executor / 子プロセスの停止待ちはロック外で行う。`JobControl` を `CompressionRequest` の設定値には含めない。
    - `CompressionRequest` に `video_config: VideoCompressionConfig | None = None` を追加し、`to_legacy_kwargs()` にも `'video_config': self.video_config` を含める。
 
-3. [ ] **[backend/capabilities.py](../../backend/capabilities.py)** — `ffmpeg` / `ffprobe` 可用性・エンコーダ検出の追加
+3. [x] **[backend/capabilities.py](../../backend/capabilities.py)** — `ffmpeg` / `ffprobe` 可用性・エンコーダ検出の追加
    - `_detect_ffmpeg()` を追加し、解決できた場合は `ffmpeg -hide_banner -encoders` を1回実行（`CREATE_NO_WINDOW`、`timeout=10`）して `libx264` / `libx265` / `aac` の有無を収集する。
    - `_detect_ffprobe()` は解決後に `ffprobe -version` を実行して起動可否を確認する（`timeout=10`）。未検出と検出コマンドの失敗を区別し、失敗理由をUI・ログへ通知できるよう検出結果に保持する。ffmpeg の検出失敗も、理由なしで空集合へ置き換えない。
    - `detect_capabilities()` はジョブ開始ごとにも呼ばれるため、動画ツールの検出結果は `functools.lru_cache(maxsize=1)` でアプリ起動中キャッシュする。PATHやビルド変更の反映には再起動が必要と明記し、テストでは `cache_clear()` で初期化する。
    - `detect_capabilities()` の返却値に `ffmpeg_path` / `ffmpeg_source` / `ffmpeg_encoders` / `ffprobe_path` / `ffprobe_source` を含める。ジョブ開始時のレポートをワーカーへ渡し、ファイルごとに別の実行パスを再解決しない。
 
-4. [ ] **[backend/settings.py](../../backend/settings.py) & [frontend/settings.py](../../frontend/settings.py)** — 既定値と対象拡張子の定義
+4. [x] **[backend/settings.py](../../backend/settings.py) & [frontend/settings.py](../../frontend/settings.py)** — 既定値と対象拡張子の定義
    - `backend/settings.py` に動画既定値を追加する（**拡張子定義の正はここ**）:
      - `VIDEO_EXTENSIONS = frozenset({'mp4', 'mov', 'avi', 'mkv', 'webm', 'wmv', 'm4v'})`
      - `VIDEO_ENABLED_DEFAULT = True`

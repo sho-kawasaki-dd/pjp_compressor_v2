@@ -33,3 +33,37 @@ def test_shared_configs_reexports_split_settings() -> None:
     assert not hasattr(legacy_configs, 'PDF_COMPRESS_MODES')
     assert not hasattr(legacy_configs, 'GS_PRESETS')
     assert legacy_configs.INPUT_DIR_CLEANUP_EXTENSIONS == frontend_settings.INPUT_DIR_CLEANUP_EXTENSIONS
+
+
+def test_video_cleanup_extensions_derive_from_backend() -> None:
+    assert frontend_settings.VIDEO_CLEANUP_EXTENSIONS == {f'.{ext}' for ext in backend_settings.VIDEO_EXTENSIONS}
+    assert frontend_settings.VIDEO_CLEANUP_EXTENSIONS <= frontend_settings.INPUT_DIR_CLEANUP_EXTENSIONS
+    assert frontend_settings.VIDEO_CLEANUP_EXTENSIONS <= frontend_settings.OUTPUT_DIR_CLEANUP_EXTENSIONS
+
+
+def test_aac_bitrate_for_channels() -> None:
+    assert backend_settings.aac_bitrate_for_channels(1) == '96k'
+    assert backend_settings.aac_bitrate_for_channels(2) == '128k'
+    assert backend_settings.aac_bitrate_for_channels(6) == '384k'
+    assert backend_settings.aac_bitrate_for_channels(8) == '512k'
+    assert backend_settings.aac_bitrate_for_channels(10) is None
+    assert backend_settings.aac_bitrate_for_channels(None) is None
+    assert backend_settings.aac_bitrate_for_channels(10, '192k') == '192k'
+
+
+def test_ffmpeg_ffprobe_resolution_order(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    for relative in ('ffmpeg-windows/bin/ffmpeg.exe', 'ffmpeg-windows/ffprobe.exe'):
+        target = tmp_path / 'vendor' / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text('stub', encoding='utf-8')
+    monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path)
+    monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path)
+
+    monkeypatch.setattr(runtime_paths.shutil, 'which', lambda name: 'C:/sys/ffmpeg.exe' if name == 'ffmpeg' else None)
+    assert runtime_paths.resolve_ffmpeg_executable().source == 'system'
+    ffprobe = runtime_paths.resolve_ffprobe_executable()
+    assert ffprobe.source == 'bundled' and ffprobe.path.endswith('ffprobe.exe')
+
+    monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path / 'missing')
+    monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path / 'missing')
+    assert runtime_paths.resolve_ffprobe_executable().source == 'unavailable'

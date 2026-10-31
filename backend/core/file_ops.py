@@ -9,7 +9,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from backend.settings import APP_WORK_DIR_NAME
 from shared.locale_catalog import translate
+
+
+def _in_app_work_dir(path_obj: Path, base_dir: Path) -> bool:
+    """アプリ専用作業フォルダ（ロック・動画一時領域）配下かを返す。"""
+    try:
+        return APP_WORK_DIR_NAME in path_obj.relative_to(base_dir).parts
+    except ValueError:
+        return False
 
 
 def count_target_files(target_dir, target_extensions):
@@ -22,6 +31,8 @@ def count_target_files(target_dir, target_extensions):
         return 0
     try:
         for file_path in base_dir.rglob('*'):
+            if _in_app_work_dir(file_path, base_dir):
+                continue
             # 呼び出し側で集計対象拡張子を切り替えられるよう、判定はここで完結させる。
             if file_path.is_file() and file_path.suffix.lower() in target_extensions:
                 count += 1
@@ -63,6 +74,8 @@ def cleanup_folder(target_dir, log_func, folder_type_key="cleanup_target_input",
         deleted_count = 0
         skipped_count = 0
         for file_path in base_dir.rglob('*'):
+            if _in_app_work_dir(file_path, base_dir):
+                continue
             if not file_path.is_file():
                 continue
 
@@ -79,7 +92,7 @@ def cleanup_folder(target_dir, log_func, folder_type_key="cleanup_target_input",
                 skipped_count += 1
 
         # 子ディレクトリから順に消さないと、空になった親を取りこぼすため深い順に処理する。
-        dirs = [p for p in base_dir.rglob('*') if p.is_dir()]
+        dirs = [p for p in base_dir.rglob('*') if p.is_dir() and not _in_app_work_dir(p, base_dir)]
         dirs.sort(key=lambda p: len(p.parts), reverse=True)
         for dir_path in dirs:
             try:

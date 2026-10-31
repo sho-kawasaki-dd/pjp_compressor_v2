@@ -19,6 +19,17 @@ from PIL import Image
 from backend.contracts import CapabilityReport
 
 
+@pytest.fixture(autouse=True)
+def _reset_video_tool_cache():
+    """動画ツール検出のアプリ起動中キャッシュがテスト間で漏れないよう初期化する。"""
+
+    from backend import capabilities
+
+    capabilities.clear_video_tool_cache()
+    yield
+    capabilities.clear_video_tool_cache()
+
+
 @dataclass
 class SamplePaths:
     """一時 input/output/CSV パスを束ねる軽量コンテナ。"""

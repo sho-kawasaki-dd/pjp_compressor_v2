@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from shared.runtime_paths import APP_BASE_DIR, RESOURCE_BASE_DIR
+from backend.settings import VIDEO_EXTENSIONS
 
 
 UI_CATALOGS_PATH = RESOURCE_BASE_DIR / 'frontend' / 'config_data' / 'ui_catalogs.json'
@@ -117,8 +118,11 @@ LONG_EDGE_PRESETS = _load_ui_catalogs()
 # DPI 範囲は UI スライダーと mapper の clamp 基準を揃えるため frontend 側で共有する。
 PDF_LOSSY_DPI_RANGE = (36, 600)
 
-INPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.zip'}
-OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv', '.zip'}
+# 動画拡張子は backend を正とし、二重定義によるズレを防ぐ。
+VIDEO_CLEANUP_EXTENSIONS = {f'.{ext}' for ext in VIDEO_EXTENSIONS}
+
+INPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.zip'} | VIDEO_CLEANUP_EXTENSIONS
+OUTPUT_DIR_CLEANUP_EXTENSIONS = {'.pdf', '.jpg', '.jpeg', '.png', '.csv', '.zip'} | VIDEO_CLEANUP_EXTENSIONS
 
 APP_DEFAULT_INPUT_DIR = APP_BASE_DIR / 'input_files'
 APP_DEFAULT_OUTPUT_DIR = APP_BASE_DIR / 'output_files'
