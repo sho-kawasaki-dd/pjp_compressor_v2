@@ -14,18 +14,33 @@ from typing import Any, Callable, cast
 from tkinter import filedialog, messagebox
 
 from backend.core.compressor_utils import cleanup_folder, count_target_files, human_readable
-from backend.contracts import ProgressEvent
+from backend.core.video_utils import terminate_active_video_processes, tool_unavailable_reason
+from backend.contracts import JobControl, ProgressEvent, VideoCompressionConfig
+from backend.orchestrator.job_lock import OutputLockError, acquire_output_lock
 from backend.orchestrator.job_runner import run_compression_request
 from frontend.settings import INPUT_DIR_CLEANUP_EXTENSIONS, OUTPUT_DIR_CLEANUP_EXTENSIONS, SOUNDS_DIR
 from frontend.settings import save_app_settings
-from frontend.i18n import t
+from frontend.i18n import get_current_language, t
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
-from frontend.ui_tkinter_mapper import build_compression_request
+from frontend.ui_tkinter_mapper import build_compression_request, quality_to_crf
 from frontend.sound_utils import play_sound
 from shared.path_utils import paths_overlap
 
 
 class TkUiControllerMixin:
+    # 実行状態は mixin 側で既定値を持ち、host の初期化順序に依存しないようにする。
+    _job_running: bool = False
+    _job_control: JobControl | None = None
+    _stopping: bool = False
+    _exit_requested: bool = False
+    _cleanup_running: bool = False
+    _stop_thread: threading.Thread | None = None
+    _stop_error: str | None = None
+    # (動画名, 進捗%)。% が None の間は割合不明として名前だけを表示する。
+    _video_progress: tuple[str, int | None] | None = None
+    # 画像・PDF を含む全体の (完了件数, 総件数)。動画イベントでも再描画に使う。
+    _overall_progress: tuple[int, int] = (0, 0)
+
     def _controller_host(self) -> TkUiControllerHostProtocol:
         """mixin から `App` 実体を型付きで参照する。"""
         return cast(TkUiControllerHostProtocol, self)
@@ -202,6 +217,92 @@ class TkUiControllerMixin:
 
         self._set_widget_state(host.zip_output_check, 'normal' if extract_zip_enabled else 'disabled')
 
+    def _refresh_video_engine_status(self) -> None:
+        """ffmpeg / ffprobe の供給元・H.265 可否・利用不可の理由を表示する。"""
+        host = self._controller_host()
+        report = host.capabilities
+        parts = [
+            f"{t('capability_ffmpeg_label')}{t(f'tool_source.{report.ffmpeg_source}')}",
+            f"{t('capability_ffprobe_label')}{t(f'tool_source.{report.ffprobe_source}')}",
+        ]
+        if report.ffmpeg_available:
+            parts.append(t('video_engine_hevc_ok' if report.ffmpeg_hevc_available else 'video_engine_hevc_ng'))
+
+        text = t('video_engine_status', parts=', '.join(parts))
+        if not report.video_available:
+            reason = tool_unavailable_reason(report, VideoCompressionConfig(), get_current_language())
+            if reason:
+                text += ' ' + t('video_tool_unavailable', reason=reason)
+        host.video_engine_status_var.set(text)
+
+    def _update_video_controls(self) -> None:
+        """検出結果と有効トグルに合わせて動画セクションの活性状態を切り替える。
+
+        ffmpeg / ffprobe が使えない環境では起動直後からセクション全体を無効化し、H.265 だけ
+        使えない環境では H.265 のみを無効化する。無効化した選択肢が選ばれたままにならないよう
+        コーデックも H.264 へ戻す。
+        """
+        host = self._controller_host()
+        report = host.capabilities
+
+        if not report.video_available:
+            self._set_widget_state(host.video_enable_check, 'disabled')
+            for widget in host._video_widgets:
+                self._set_widget_state(widget, 'disabled')
+            self._set_widget_state(host.video_h265_rb, 'disabled')
+            for combo in host._video_combo_widgets:
+                self._set_widget_state(combo, 'disabled')
+            return
+
+        hevc_available = report.ffmpeg_hevc_available
+        if not hevc_available:
+            if host.video_codec.get() == 'libx265':
+                host.video_codec.set('libx264')
+            host.video_h265_note_label.pack(side='left', padx=(10, 0))
+        else:
+            host.video_h265_note_label.pack_forget()
+
+        enabled = host.video_enabled.get()
+        self._set_widget_state(host.video_enable_check, 'normal')
+        for widget in host._video_widgets:
+            self._set_widget_state(widget, 'normal' if enabled else 'disabled')
+        self._set_widget_state(host.video_h265_rb, 'normal' if enabled and hevc_available else 'disabled')
+        for combo in host._video_combo_widgets:
+            self._set_widget_state(combo, 'readonly' if enabled else 'disabled')
+        host.video_quality_value_label.config(
+            text=t(
+                'video_quality_value',
+                quality=int(host.video_quality.get()),
+                crf=quality_to_crf(int(host.video_quality.get()), host.video_codec.get()),
+            )
+        )
+
+    def _set_optional_widget_state(self, name: str, state: str) -> None:
+        """ボタンなど、host によっては存在しない widget の state を安全に切り替える。"""
+        widget = getattr(self, name, None)
+        if widget is not None:
+            self._set_widget_state(widget, state)
+
+    def _update_action_states(self) -> None:
+        """実行中・クリーンアップ中・終了処理中の状態からボタン活性を一括で決める。
+
+        開始・停止・クリーンアップの活性条件を 1 箇所に集め、状態遷移の取りこぼしで
+        二重実行や削除と圧縮の競合が起きないようにする。
+        """
+        busy = self._job_running or self._cleanup_running or self._exit_requested
+        self._set_optional_widget_state('start_button', 'disabled' if busy else 'normal')
+        stop_enabled = self._job_running and not self._stopping and not self._exit_requested
+        self._set_optional_widget_state('stop_button', 'normal' if stop_enabled else 'disabled')
+        for name in ('cleanup_input_button', 'cleanup_output_button'):
+            self._set_optional_widget_state(name, 'disabled' if busy else 'normal')
+
+    def _reject_if_busy(self) -> bool:
+        """処理中なら通知して True を返す。圧縮開始・クリーンアップの入口で共有する。"""
+        if self._job_running or self._cleanup_running or self._exit_requested:
+            messagebox.showwarning(t('dlg_warning_title'), t('dlg_job_busy_message'))
+            return True
+        return False
+
     def choose_input(self) -> None:
         """入力フォルダ選択ダイアログを開き、選択後に衝突チェックまで行う。"""
         host = self._controller_host()
@@ -302,12 +403,42 @@ class TkUiControllerMixin:
             return
         self._schedule_on_ui_thread(lambda: self._append_log(msg))
 
+    def _compose_status_text(self, current: int, total: int, pct: int) -> str:
+        """全体進捗の文言に、処理中の動画名と割合を連結する。
+
+        動画イベントと全体進捗イベントは別々に届くため、両方の最新値からその都度組み立てて
+        どちらの更新でもステータスがちらつかないようにする。
+        """
+        text = t('status_processing', pct=pct, current=current, total=total)
+        video = self._video_progress
+        if video is not None:
+            name, video_pct = video
+            if video_pct is None:
+                text += t('status_video_suffix_nopct', name=name)
+            else:
+                text += t('status_video_suffix', name=name, pct=video_pct)
+        return text
+
     def _update_progress_ui(self, current: int, total: int) -> None:
         """進捗バーと状態文字列を同時に更新する。"""
         host = self._controller_host()
         pct = 100 if total <= 0 else int(current / total * 100)
+        self._overall_progress = (current, total)
         host.progress['value'] = pct
-        host.status_var.set(t('status_processing', pct=pct, current=current, total=total))
+        if self._stopping:
+            host.status_var.set(t('status_stopping'))
+        else:
+            host.status_var.set(self._compose_status_text(current, total, pct))
+        host.update_idletasks()
+
+    def _refresh_video_status(self) -> None:
+        """動画イベントによる表示更新。進捗バーは全体進捗のものを動かさない。"""
+        if self._stopping:
+            return
+        host = self._controller_host()
+        current, total = self._overall_progress
+        pct = int(current / total * 100) if total > 0 else 0
+        host.status_var.set(self._compose_status_text(current, total, pct))
         host.update_idletasks()
 
     def update_progress(self, current: int, total: int) -> None:
@@ -340,27 +471,99 @@ class TkUiControllerMixin:
         self._schedule_on_ui_thread(lambda: self._update_stats_ui(orig_total, out_total, saved, saved_pct))
 
     def _on_progress_event(self, event: ProgressEvent) -> None:
-        """backend から届いたイベント種別を UI 更新へ振り分ける。
+        """backend から届いたイベントをメインスレッドへ中継する。
 
         backend は UI widget を知らず、`ProgressEvent` という抽象イベントだけを返す。
-        controller はそのイベントをログ・進捗・統計・状態文言へ分配し、UI 層と backend 層の
-        依存方向を逆転させない接着点になる。
+        イベントの処理全体（動画状態・全体件数の変更と再描画を含む）をメインスレッドへ
+        寄せることで、状態の更新順序と描画が別スレッドと競合しないようにする。
         """
+        if threading.current_thread() is threading.main_thread():
+            self._handle_progress_event(event)
+            return
+        self._schedule_on_ui_thread(lambda: self._handle_progress_event(event))
+
+    def _handle_progress_event(self, event: ProgressEvent) -> None:
+        """イベント種別を UI 更新へ振り分ける。メインスレッドからだけ呼ぶ。
+
+        controller はこの振り分けでログ・進捗・統計・状態文言へ分配し、UI 層と backend 層の
+        依存方向を逆転させない接着点になる。終端イベント (stats / error / cancelled) では
+        動画状態を消し、開始・クリーンアップ操作を復帰させる。
+        """
+        host = self._controller_host()
         if event.kind == 'log' and event.message is not None:
             self.log(event.message)
             return
         if event.kind == 'progress':
             self.update_progress(event.current or 0, event.total or 0)
             return
+        if event.kind == 'video_progress':
+            # 'finished' だけが表示のクリア。current=None は割合不明の更新として扱う。
+            if event.video_phase == 'finished':
+                self._video_progress = None
+            elif event.video_phase in ('started', 'updated'):
+                self._video_progress = (event.message or '', event.current)
+            self._refresh_video_status()
+            return
         if event.kind == 'stats':
+            self._video_progress = None
             self.update_stats(event.orig_total or 0, event.out_total or 0, event.saved or 0, event.saved_pct or 0.0)
+            self._finish_job_ui()
             return
         if event.kind == 'status' and event.message is not None:
             self._set_status(event.message)
             return
         if event.kind == 'error' and event.message is not None:
+            self._video_progress = None
             self.log(event.message)
             self._set_status(t('status_failed_see_log'))
+            self._finish_job_ui()
+            return
+        if event.kind == 'cancelled':
+            self._video_progress = None
+            if event.message:
+                self.log(event.message)
+            self._update_stats_ui(
+                event.orig_total or 0,
+                event.out_total or 0,
+                event.saved or 0,
+                event.saved_pct or 0.0,
+            )
+            # 通常完了の文言ではなく、中断状態を最終表示にする。
+            host.status_var.set(t('status_cancelled'))
+            self._finish_job_ui()
+
+    def _finish_job_ui(self, control: JobControl | None = None) -> None:
+        """ジョブ終了後の状態と操作を復帰させる。何度呼んでも安全。
+
+        `control` を渡した場合は、それが現在のジョブでなければ何もしない（古いジョブの
+        後片付けが、すでに開始した新しいジョブの状態を壊さないため）。
+        """
+        if control is not None and control is not self._job_control:
+            return
+        self._job_running = False
+        self._job_control = None
+        self._stopping = False
+        self._video_progress = None
+        self._update_action_states()
+
+    def _run_compression_thread(
+        self,
+        request: Any,
+        event_callback: Callable[[ProgressEvent], None],
+        job_control: JobControl,
+    ) -> None:
+        """圧縮ジョブを実行し、終了時に必ず UI 側の状態を復帰させる。
+
+        終端イベントが届かない異常終了でも、開始ボタンが無効のまま残らないようにする。
+        """
+        try:
+            run_compression_request(request=request, event_callback=event_callback, job_control=job_control)
+        finally:
+            try:
+                self._schedule_on_ui_thread(lambda: self._finish_job_ui(job_control))
+            except Exception:
+                # ウィンドウ破棄後は after() が使えないため、通知先がなければ何もしない。
+                pass
 
     def start_compress(self) -> None:
         """入力検証後、圧縮ジョブをバックグラウンドスレッドで開始する。
@@ -373,6 +576,8 @@ class TkUiControllerMixin:
           スレッドへ逃がす
         """
         host = self._controller_host()
+        if self._reject_if_busy():
+            return
         input_dir = host.input_dir.get()
         output_dir = host.output_dir.get()
 
@@ -402,6 +607,8 @@ class TkUiControllerMixin:
             host.notebook.select(host.log_tab)
 
         # 前回実行の表示を残すと新しいジョブ結果と混ざるため、開始時に UI 状態を初期化する。
+        self._video_progress = None
+        self._overall_progress = (0, 0)
         host.log_text.delete(1.0, 'end')
         host.progress['value'] = 0
         host.stats_var.set(t('stats_processing'))
@@ -465,14 +672,95 @@ class TkUiControllerMixin:
 
         self._set_status(t('status_processing', pct=0, current=0, total=0))
 
+        video_config = getattr(request, 'video_config', None)
+        if video_config is not None:
+            edge = str(video_config.max_long_edge) if video_config.max_long_edge > 0 else t('video_long_edge_none')
+            self.log(
+                t(
+                    'log_video_settings',
+                    codec=t(f'video_codec.{video_config.codec}'),
+                    quality=host.video_quality.get(),
+                    crf=video_config.crf,
+                    preset=video_config.preset,
+                    audio=video_config.audio_mode,
+                    edge=edge,
+                    ffmpeg=t(f'tool_source.{host.capabilities.ffmpeg_source}'),
+                    ffprobe=t(f'tool_source.{host.capabilities.ffprobe_source}'),
+                )
+            )
+
+        # 実行中フラグと JobControl はスレッド開始前に確定させ、連打や停止要求と競合させない。
+        job_control = JobControl()
+        self._job_control = job_control
+        self._job_running = True
+        self._stopping = False
+        self._update_action_states()
+
         # backend は同期処理なので、UI を止めないよう専用スレッドへ逃がす。
-        thread = threading.Thread(
-            target=run_compression_request,
-            kwargs={'request': request, 'event_callback': self._on_progress_event},
-            daemon=True,
-        )
-        host.threads.append(thread)
+        try:
+            thread = threading.Thread(
+                target=self._run_compression_thread,
+                kwargs={
+                    'request': request,
+                    'event_callback': self._on_progress_event,
+                    'job_control': job_control,
+                },
+                daemon=True,
+            )
+            host.threads.append(thread)
+            thread.start()
+        except Exception:
+            self._finish_job_ui(job_control)
+            raise
+
+    def stop_compress(self) -> None:
+        """実行中の圧縮を停止する。停止ボタンと終了処理が共通の停止処理を使う。"""
+        if not self._job_running or self._stopping:
+            return
+        self.log(t('log_job_stop_requested'))
+        self._begin_stop()
+
+    def _begin_stop(self) -> None:
+        """停止要求を補助スレッドで実行する。メインスレッドは待たない。
+
+        プロセス停止は待機を伴うため、Tk のイベントループを止めないよう別スレッドへ逃がす。
+        """
+        control = self._job_control
+        if not self._job_running or self._stopping or control is None:
+            return
+        host = self._controller_host()
+        self._stopping = True
+        self._stop_error = None
+        self._update_action_states()
+        host.status_var.set(t('status_stopping'))
+
+        thread = threading.Thread(target=self._stop_worker, args=(control,), daemon=True)
+        self._stop_thread = thread
         thread.start()
+
+    def _stop_worker(self, control: JobControl) -> None:
+        """停止フラグの確定と、実行中 ffmpeg / ffprobe の停止・回収を行う。"""
+        try:
+            control.request_cancel()
+            terminate_active_video_processes(control, log_func=self.log, log_language=get_current_language())
+            remaining = [proc for proc in control.snapshot() if proc.poll() is None]
+            if remaining:
+                raise RuntimeError(f'{len(remaining)} process(es) still running')
+        except Exception as exc:
+            self._stop_error = str(exc)
+            self.log(t('log_stop_failed', detail=exc))
+            try:
+                self._schedule_on_ui_thread(self._on_stop_failed)
+            except Exception:
+                pass
+
+    def _on_stop_failed(self) -> None:
+        """停止ボタンでの停止に失敗した場合、再試行できるよう操作を戻す。"""
+        if self._exit_requested or not self._job_running:
+            return
+        self._stopping = False
+        self._update_action_states()
+        self._controller_host().status_var.set(t('status_failed_see_log'))
 
     def cleanup_input(self) -> None:
         """入力フォルダの対象拡張子を確認ダイアログ付きで削除する。
@@ -481,6 +769,8 @@ class TkUiControllerMixin:
         スレッドで実行する。圧縮と同じく、I/O で UI を固めないことを優先する。
         """
         host = self._controller_host()
+        if self._reject_if_busy():
+            return
         input_dir = host.input_dir.get()
         if not input_dir or not Path(input_dir).exists():
             messagebox.showerror(t('dlg_error_title'), t('dlg_input_folder_not_set'))
@@ -497,16 +787,76 @@ class TkUiControllerMixin:
             + t('dlg_cleanup_file_count_label') + f'\n{t("dlg_cleanup_file_count_text", count=count)}\n\n'
             + t('dlg_cleanup_warning_subfolders'),
         ):
+            if self._reject_if_busy():
+                return
             self.log(t('log_input_cleanup_started', exts=exts))
+            self._start_cleanup_thread(input_dir, 'cleanup_target_input', INPUT_DIR_CLEANUP_EXTENSIONS, lock_output=False)
+
+    def _start_cleanup_thread(
+        self,
+        target_dir: str,
+        folder_type_key: str,
+        target_extensions: set[str],
+        *,
+        lock_output: bool,
+    ) -> None:
+        """クリーンアップを別スレッドで開始する。実行中は圧縮開始を拒否する。"""
+        host = self._controller_host()
+        self._cleanup_running = True
+        self._update_action_states()
+        try:
             # 削除処理も I/O 待ちがあるため、UI 凍結を避けて別スレッド化する。
             thread = threading.Thread(
-                target=cleanup_folder,
-                args=(input_dir, self.log, 'cleanup_target_input', INPUT_DIR_CLEANUP_EXTENSIONS),
-                kwargs={'log_language': host.ui_language.get()},
+                target=self._run_cleanup_thread,
+                args=(target_dir, self.log, folder_type_key, target_extensions),
+                kwargs={'log_language': host.ui_language.get(), 'lock_output': lock_output},
                 daemon=True,
             )
             host.threads.append(thread)
             thread.start()
+        except Exception:
+            self._cleanup_running = False
+            self._update_action_states()
+            raise
+
+    def _run_cleanup_thread(
+        self,
+        target_dir: str,
+        log_func: Callable[[str], None],
+        folder_type_key: str,
+        target_extensions: set[str],
+        log_language: str = 'ja',
+        lock_output: bool = False,
+    ) -> None:
+        """クリーンアップ本体。出力側は backend と同じ排他を取得してから削除する。
+
+        別アプリインスタンスが同じ出力フォルダで圧縮中のときに、処理中の成果物や作業
+        ファイルを消さないための排他で、取得できなければ何も削除しない。
+        """
+        lock = None
+        try:
+            if lock_output:
+                try:
+                    lock = acquire_output_lock(target_dir)
+                except OutputLockError:
+                    log_func(t('log_output_in_use', path=target_dir))
+                    return
+                except OSError as exc:
+                    log_func(t('log_stop_failed', detail=exc))
+                    return
+            cleanup_folder(target_dir, log_func, folder_type_key, target_extensions, log_language=log_language)
+        finally:
+            if lock is not None:
+                lock.release()
+            try:
+                self._schedule_on_ui_thread(self._finish_cleanup_ui)
+            except Exception:
+                pass
+
+    def _finish_cleanup_ui(self) -> None:
+        """クリーンアップ終了後に操作を復帰させる。"""
+        self._cleanup_running = False
+        self._update_action_states()
 
     def cleanup_output(self) -> None:
         """出力フォルダの成果物とログを確認ダイアログ付きで削除する。
@@ -514,6 +864,8 @@ class TkUiControllerMixin:
         出力側は生成物と CSV が混在するため、入力側とは別の対象拡張子集合で確認する。
         """
         host = self._controller_host()
+        if self._reject_if_busy():
+            return
         output_dir = host.output_dir.get()
         if not output_dir or not Path(output_dir).exists():
             messagebox.showerror(t('dlg_error_title'), t('dlg_output_folder_missing'))
@@ -530,24 +882,56 @@ class TkUiControllerMixin:
             + t('dlg_cleanup_file_count_label') + f'\n{t("dlg_cleanup_file_count_text", count=count)}\n\n'
             + t('dlg_cleanup_warning_subfolders'),
         ):
+            if self._reject_if_busy():
+                return
             self.log(t('log_output_cleanup_started', exts=exts))
-            thread = threading.Thread(
-                target=cleanup_folder,
-                args=(output_dir, self.log, 'cleanup_target_output', OUTPUT_DIR_CLEANUP_EXTENSIONS),
-                kwargs={'log_language': host.ui_language.get()},
-                daemon=True,
-            )
-            host.threads.append(thread)
-            thread.start()
+            self._start_cleanup_thread(output_dir, 'cleanup_target_output', OUTPUT_DIR_CLEANUP_EXTENSIONS, lock_output=True)
 
     def on_exit(self) -> None:
-        """処理中スレッドの有無を確認してからアプリを終了する。
+        """確認後に、停止ボタンと同じ停止処理で実行中の処理を止めてから終了する。
 
-        daemon thread なので強制終了自体はできるが、ユーザーが長時間処理を誤って閉じない
-        よう確認を挟む。
+        停止待ちでメインスレッドをブロックすると Tk のイベント中継まで止まるため、停止は
+        補助スレッドで行い、`after()` で完了を監視する。全スレッドが終わってから
+        `destroy()` することで、ロックと一時領域の後片付けが済んだ状態で閉じる。
         """
         host = self._controller_host()
-        if any(thread.is_alive() for thread in host.threads):
+        if self._exit_requested:
+            return
+        if self._is_busy_for_exit():
             if not messagebox.askyesno(t('dlg_exit_confirm_title'), t('dlg_exit_confirm_message')):
                 return
+            self._exit_requested = True
+            self._update_action_states()
+            host.status_var.set(t('status_exiting'))
+            self._begin_stop()
+            self._poll_exit()
+            return
+        host.destroy()
+
+    def _is_busy_for_exit(self) -> bool:
+        """ワーカー・停止処理・クリーンアップのいずれかが残っているかを返す。"""
+        host = self._controller_host()
+        stop_thread = self._stop_thread
+        return (
+            self._job_running
+            or self._cleanup_running
+            or (stop_thread is not None and stop_thread.is_alive())
+            or any(thread.is_alive() for thread in host.threads)
+        )
+
+    def _poll_exit(self) -> None:
+        """終了待ちの監視。全処理の終了を確認できた時だけウィンドウを閉じる。"""
+        host = self._controller_host()
+        if self._stop_error is not None:
+            # 停止できなかった処理を残したまま閉じない。状態を戻して利用者へ通知する。
+            self._exit_requested = False
+            self._stopping = False
+            self._stop_error = None
+            self._update_action_states()
+            host.status_var.set(t('status_failed_see_log'))
+            messagebox.showerror(t('dlg_error_title'), t('dlg_exit_stop_failed_message'))
+            return
+        if self._is_busy_for_exit():
+            host.after(100, self._poll_exit)
+            return
         host.destroy()

@@ -50,6 +50,12 @@ class CompressionRequestAppProtocol(Protocol):
     play_startup_sound: tk.BooleanVar
     play_cleanup_sound: tk.BooleanVar
     ui_language: tk.StringVar
+    video_enabled: tk.BooleanVar
+    video_quality: tk.IntVar
+    video_codec: tk.StringVar
+    video_preset: tk.StringVar
+    video_audio_mode: tk.StringVar
+    video_max_long_edge: tk.StringVar
 
 
 class DropEventProtocol(Protocol):
@@ -73,9 +79,26 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     status_var: tk.StringVar
     stats_var: tk.StringVar
     pdf_engine_status_var: tk.StringVar
+    video_engine_status_var: tk.StringVar
     notebook: ttk.Notebook
     log_tab: ttk.Frame
     app_settings_tab: ttk.Frame
+    output_settings_tab: ttk.Frame
+    start_button: tk.Button
+    stop_button: tk.Button
+    cleanup_input_button: tk.Button
+    cleanup_output_button: tk.Button
+    video_enable_check: ttk.Checkbutton
+    video_quality_scale: tk.Scale
+    video_quality_value_label: ttk.Label
+    video_h264_rb: ttk.Radiobutton
+    video_h265_rb: ttk.Radiobutton
+    video_h265_note_label: ttk.Label
+    video_preset_combo: ttk.Combobox
+    video_audio_combo: ttk.Combobox
+    video_long_edge_combo: ttk.Combobox
+    _video_widgets: list[tk.Misc]
+    _video_combo_widgets: list[ttk.Combobox]
     native_rb: ttk.Radiobutton
     gs_rb: ttk.Radiobutton
     native_frame: ttk.Frame

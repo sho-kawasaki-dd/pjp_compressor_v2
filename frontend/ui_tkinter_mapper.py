@@ -9,13 +9,24 @@ controller は widget 操作、backend は request 契約に集中したいの�
 
 from dataclasses import dataclass
 
-from backend.contracts import CompressionRequest
+from backend.contracts import CompressionRequest, VideoCompressionConfig
+from backend.settings import VIDEO_ALLOWED_AUDIO_MODES, VIDEO_ALLOWED_CODECS, VIDEO_ALLOWED_PRESETS
 from frontend.i18n import get_current_language
 from frontend.settings import PDF_LOSSY_DPI_RANGE
 from frontend.ui_contracts import CompressionRequestAppProtocol
 
 
 MAX_RESIZE_DIMENSION = 65535
+
+# x265 は同じ CRF でも x264 より強く圧縮されるため、同じ品質値では +4 して見た目を揃える。
+_X265_CRF_OFFSET = 4
+_CRF_SPAN = 22
+
+
+def quality_to_crf(q: int, codec: str = 'libx264') -> int:
+    """UI の品質値 (0〜100) を CRF へ変換する。品質が高いほど CRF は小さい。"""
+    base = round(40 - (max(0, min(100, int(q))) / 100.0) * _CRF_SPAN)
+    return min(51, base + (_X265_CRF_OFFSET if codec == 'libx265' else 0))
 
 
 @dataclass(frozen=True)
@@ -114,6 +125,37 @@ def resolve_pdf_lossless_options(
     return base_options if mode in ('lossless', 'both') else None
 
 
+def build_video_config(app: CompressionRequestAppProtocol) -> VideoCompressionConfig | None:
+    """動画設定を CRF 確定済みの `VideoCompressionConfig` へ変換する。動画無効時は None。
+
+    Combobox の表示名は view 側で backend 値へ変換済みの変数に保持するが、想定外の値が
+    入っても backend の検証エラーにせず、安全な既定値へ寄せる。
+    """
+    if not app.video_enabled.get():
+        return None
+
+    codec = app.video_codec.get()
+    if codec not in VIDEO_ALLOWED_CODECS:
+        codec = 'libx264'
+    preset = app.video_preset.get()
+    if preset not in VIDEO_ALLOWED_PRESETS:
+        preset = 'medium'
+    audio_mode = app.video_audio_mode.get()
+    if audio_mode not in VIDEO_ALLOWED_AUDIO_MODES:
+        audio_mode = 'copy'
+
+    return VideoCompressionConfig(
+        enabled=True,
+        codec=codec,  # type: ignore[arg-type]
+        crf=quality_to_crf(app.video_quality.get(), codec),
+        preset=preset,
+        audio_mode=audio_mode,  # type: ignore[arg-type]
+        # 固定ビットレートは UI に出さず、チャンネル数に応じた自動値に任せる。
+        audio_bitrate=None,
+        max_long_edge=to_non_negative_int(app.video_max_long_edge.get(), max_value=MAX_RESIZE_DIMENSION),
+    )
+
+
 def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuildResult:
     """現在の UI 状態から `CompressionRequest` を構築する。
 
@@ -158,6 +200,7 @@ def build_compression_request(app: CompressionRequestAppProtocol) -> RequestBuil
         debug_mode=app.debug_mode.get(),
         copy_non_target_files=app.copy_non_target_files.get(),
         log_language=get_current_language(),
+        video_config=build_video_config(app),
     )
 
     return RequestBuildResult(

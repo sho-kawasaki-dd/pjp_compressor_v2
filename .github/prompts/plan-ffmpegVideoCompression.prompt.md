@@ -303,7 +303,7 @@
 
 ### Phase 4: Frontend（UI 4タブ化・動画設定セクション・品質→CRF変換・進捗合成）
 
-9. [ ] **[frontend/ui_tkinter_state.py](../../frontend/ui_tkinter_state.py) & [frontend/ui_contracts.py](../../frontend/ui_contracts.py)** — UI State と Protocol 定義
+9. [x] **[frontend/ui_tkinter_state.py](../../frontend/ui_tkinter_state.py) & [frontend/ui_contracts.py](../../frontend/ui_contracts.py)** — UI State と Protocol 定義
    - `initialize_ui_state()` に動画設定用の Tk 変数を追加する:
      - `video_enabled: tk.BooleanVar`（既定 `True`）
      - `video_quality: tk.IntVar`（既定 `75`）
@@ -314,7 +314,7 @@
    - `CompressionRequestAppProtocol` と `TkUiControllerHostProtocol`、view mixinの属性宣言に動画用 state 変数・ウィジェット・`output_settings_tab` を追加する。
    - controller は実行中 `JobControl`、ジョブ実行中フラグ、終了要求フラグを保持する。開始・停止・入力／出力クリーンアップボタンを属性として保持し（`start_button` / `stop_button` / `cleanup_input_button` / `cleanup_output_button`）、実行中の活性制御に使用する。
 
-10. [ ] **[frontend/ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)** — 品質（0〜100）から CRF への変換
+10. [x] **[frontend/ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)** — 品質（0〜100）から CRF への変換
     - `quality_to_crf(quality: int, codec: str = 'libx264') -> int` を実装する:
       ```python
       def quality_to_crf(q: int, codec: str = 'libx264') -> int:
@@ -332,7 +332,7 @@
     - 音声モードの表示名と backend 値は対応表で変換する。既定は `copy`、AACビットレートはUIに固定128kbpsとして表示せず `None`（チャンネル数に応じた自動値）を渡す。
     - `max_long_edge` は既存の `to_non_negative_int(..., max_value=MAX_RESIZE_DIMENSION)` で正規化する。
 
-11. [ ] **[frontend/ui_tkinter_view.py](../../frontend/ui_tkinter_view.py)** — 「出力設定」タブの分離と「動画圧縮設定」の構築
+11. [x] **[frontend/ui_tkinter_view.py](../../frontend/ui_tkinter_view.py)** — 「出力設定」タブの分離と「動画圧縮設定」の構築
     - `_build_notebook()` を4タブ構成に更新する:
       1. `圧縮設定` (`self.settings_tab`)
       2. `出力設定` (`self.output_settings_tab`) **← 新設**
@@ -352,7 +352,7 @@
       - Preset / 音声 / 長辺のComboboxは選択式 `readonly` とし、表示文言をbackend値として直接渡さない。
     - `_build_action_buttons()` に「停止」ボタン（`self.stop_button`、初期状態 `disabled`）を開始ボタンの隣に追加する。開始ボタンも `self.start_button` として保持する。
 
-12. [ ] **[frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py)** — 動画 UI 活性制御・進捗合成・終了処理
+12. [x] **[frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py)** — 動画 UI 活性制御・進捗合成・終了処理
     - `_update_video_controls()` を追加する:
       - `capabilities.video_available` が `False`（ffmpeg / ffprobe 未検出・検出失敗、または libx264 非対応）のときは動画セクション全体を `disabled` にして具体的な理由を表示する。
       - `ffmpeg_hevc_available` が `False` のときは H.265 Radiobutton のみ `disabled` にし注記を表示する（選択中なら `libx264` へ戻す）。

@@ -118,6 +118,10 @@ LONG_EDGE_PRESETS = _load_ui_catalogs()
 # DPI 範囲は UI スライダーと mapper の clamp 基準を揃えるため frontend 側で共有する。
 PDF_LOSSY_DPI_RANGE = (36, 600)
 
+# 動画設定の Combobox 選択肢。表示名ではなく backend 値を並べ、表示名は view 側で解決する。
+VIDEO_PRESET_CHOICES = ('ultrafast', 'fast', 'medium', 'slow')
+VIDEO_LONG_EDGE_CHOICES = ('3840', '1920', '1280', '854')
+
 # 動画拡張子は backend を正とし、二重定義によるズレを防ぐ。
 VIDEO_CLEANUP_EXTENSIONS = {f'.{ext}' for ext in VIDEO_EXTENSIONS}
 

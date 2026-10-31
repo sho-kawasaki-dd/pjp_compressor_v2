@@ -72,6 +72,12 @@ class DummyMapperApp:
         self.debug_mode = DummyVar(True)
         self.copy_non_target_files = DummyVar(False)
         self.ui_language = DummyVar('ja')
+        self.video_enabled = DummyVar(False)
+        self.video_quality = DummyVar(75)
+        self.video_codec = DummyVar('libx264')
+        self.video_preset = DummyVar('medium')
+        self.video_audio_mode = DummyVar('copy')
+        self.video_max_long_edge = DummyVar('0')
 
 
 def snapshot_tree(root: Path) -> dict[str, int]:

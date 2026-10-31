@@ -9,10 +9,11 @@ UI を束ねる。ユーザー操作、起動時副作用、既定値解決、�
 レイアウト構成:
 - メイン画面全体を縦スクロール可能なコンテナ
     - フォルダ選択行（D&D 対応）
-    - タブ（圧縮設定 / ログ）
-    - 圧縮設定: PDF操作エリア / 画像操作エリア（圧縮・リサイズ・出力）
+    - タブ（圧縮設定 / 出力設定 / アプリ設定 / ログ）
+    - 圧縮設定: PDF操作エリア / 画像操作エリア（圧縮・リサイズ）/ 動画操作エリア
+    - 出力設定: CSV・ZIP・ミラーコピーなどジョブ全体の出力設定
     - ログ: 統計 / 進捗 / ログテキスト
-    - アクションボタン行
+    - アクションボタン行（開始 / 停止 / 終了）
 
 設計ポイント:
 - 処理はスレッドで非同期化し、UI の応答性を保持。
@@ -135,6 +136,8 @@ class App(
         self._update_png_engine_labels()
         self._update_resize_controls()
         self._update_zip_output_controls()
+        self._refresh_video_engine_status()
+        self._update_video_controls()
 
         self.protocol("WM_DELETE_WINDOW", self.on_exit)
 

@@ -13,7 +13,13 @@ from typing import Callable, Protocol, cast
 
 from backend.contracts import CapabilityReport
 from frontend.i18n import t
-from frontend.settings import LONG_EDGE_PRESETS, PDF_LOSSY_DPI_RANGE
+from frontend.settings import (
+    LONG_EDGE_PRESETS,
+    PDF_LOSSY_DPI_RANGE,
+    VIDEO_LONG_EDGE_CHOICES,
+    VIDEO_PRESET_CHOICES,
+)
+from frontend.ui_tkinter_mapper import quality_to_crf
 
 
 class _DndEntryProtocol(Protocol):
@@ -65,6 +71,12 @@ class TkUiViewMixin:
     pdf_ll_clean_metadata: tk.BooleanVar
     pdf_ll_recompress_streams: tk.BooleanVar
     pdf_ll_remove_unreferenced: tk.BooleanVar
+    video_enabled: tk.BooleanVar
+    video_quality: tk.IntVar
+    video_codec: tk.StringVar
+    video_preset: tk.StringVar
+    video_audio_mode: tk.StringVar
+    video_max_long_edge: tk.StringVar
 
     choose_input: Callable[[], None]
     cleanup_input: Callable[[], None]
@@ -74,9 +86,11 @@ class TkUiViewMixin:
     _update_pdf_controls: Callable[[], None]
     _update_resize_controls: Callable[[], None]
     _update_zip_output_controls: Callable[[], None]
+    _update_video_controls: Callable[[], None]
     _save_app_settings: Callable[[], bool]
     _choose_csv_path: Callable[[], None]
     start_compress: Callable[[], None]
+    stop_compress: Callable[[], None]
     on_exit: Callable[[], None]
 
     main_canvas: tk.Canvas
@@ -86,8 +100,25 @@ class TkUiViewMixin:
     input_entry: ttk.Entry
     notebook: ttk.Notebook
     settings_tab: ttk.Frame
+    output_settings_tab: ttk.Frame
     log_tab: ttk.Frame
     app_settings_tab: ttk.Frame
+    start_button: tk.Button
+    stop_button: tk.Button
+    cleanup_input_button: tk.Button
+    cleanup_output_button: tk.Button
+    video_engine_status_var: tk.StringVar
+    video_enable_check: ttk.Checkbutton
+    video_quality_scale: tk.Scale
+    video_quality_value_label: ttk.Label
+    video_h264_rb: ttk.Radiobutton
+    video_h265_rb: ttk.Radiobutton
+    video_h265_note_label: ttk.Label
+    video_preset_combo: ttk.Combobox
+    video_audio_combo: ttk.Combobox
+    video_long_edge_combo: ttk.Combobox
+    _video_widgets: list[tk.Misc]
+    _video_combo_widgets: list[ttk.Combobox]
     native_rb: ttk.Radiobutton
     gs_rb: ttk.Radiobutton
     pdf_engine_status_var: tk.StringVar
@@ -224,7 +255,8 @@ class TkUiViewMixin:
         self.input_entry = ttk.Entry(row_in, textvariable=self.input_dir, width=45)
         self.input_entry.pack(side='left', padx=8)
         ttk.Button(row_in, text=t('btn_select'), command=self.choose_input).pack(side='left', padx=4)
-        tk.Button(row_in, text=t('btn_cleanup'), command=self.cleanup_input, bg='#d0f6ff').pack(side='left', padx=4)
+        self.cleanup_input_button = tk.Button(row_in, text=t('btn_cleanup'), command=self.cleanup_input, bg='#d0f6ff')
+        self.cleanup_input_button.pack(side='left', padx=4)
 
         if self.dnd_available:
             dnd_input_entry = cast(_DndEntryProtocol, self.input_entry)
@@ -239,21 +271,25 @@ class TkUiViewMixin:
         ttk.Label(row_out, text=t('label_output_folder')).pack(side='left')
         ttk.Entry(row_out, textvariable=self.output_dir, width=45).pack(side='left', padx=8)
         ttk.Button(row_out, text=t('btn_select'), command=self.choose_output).pack(side='left', padx=4)
-        tk.Button(row_out, text=t('btn_cleanup'), command=self.cleanup_output, bg='#ffcaca').pack(side='left', padx=4)
+        self.cleanup_output_button = tk.Button(row_out, text=t('btn_cleanup'), command=self.cleanup_output, bg='#ffcaca')
+        self.cleanup_output_button.pack(side='left', padx=4)
 
     def _build_notebook(self):
-        """設定タブ、アプリ設定タブ、ログタブを作成する。"""
+        """圧縮設定、出力設定、アプリ設定、ログの 4 タブを作成する。"""
         self.notebook = ttk.Notebook(self.main_container)
         self.notebook.pack(fill='both', expand=True, padx=14, pady=8)
 
         self.settings_tab = ttk.Frame(self.notebook)
+        self.output_settings_tab = ttk.Frame(self.notebook)
         self.app_settings_tab = ttk.Frame(self.notebook)
         self.log_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.settings_tab, text=f' {t("tab_compression")} ')
+        self.notebook.add(self.output_settings_tab, text=f' {t("tab_output")} ')
         self.notebook.add(self.app_settings_tab, text=f' {t("tab_settings")} ')
         self.notebook.add(self.log_tab, text=f' {t("tab_log")} ')
 
         self._build_settings_tab()
+        self._build_output_section(self.output_settings_tab)
         self._build_app_settings_tab()
         self._build_log_tab()
 
@@ -326,7 +362,7 @@ class TkUiViewMixin:
         ).pack(fill='x', padx=10, pady=(0, 6))
 
     def _build_settings_tab(self):
-        """設定タブ内に PDF・画像・出力設定の 3 セクションを並べる。"""
+        """設定タブ内に PDF・画像・動画の 3 セクションを並べる。"""
         pdf_outer = tk.LabelFrame(
             self.settings_tab,
             text=f' {t("section_pdf_settings")} ',
@@ -353,7 +389,167 @@ class TkUiViewMixin:
         image_container.pack(fill='x', padx=8, pady=(5, 8))
         self._build_image_section(image_container)
         self._build_resize_section(image_container)
-        self._build_output_section(self.settings_tab)
+
+        video_outer = tk.LabelFrame(
+            self.settings_tab,
+            text=f' {t("section_video_settings")} ',
+            bg='#f1fff4',
+            fg='black',
+            bd=1,
+            relief='solid',
+        )
+        video_outer.pack(fill='x', padx=8, pady=5)
+        video_container = ttk.Frame(video_outer)
+        video_container.pack(fill='x', padx=8, pady=(5, 8))
+        self._build_video_section(video_container)
+
+    @staticmethod
+    def _video_audio_labels() -> dict[str, str]:
+        """音声モードの backend 値と表示名の対応表。"""
+        return {mode: t(f'video_audio_mode.{mode}') for mode in ('copy', 'aac', 'none')}
+
+    def _video_long_edge_labels(self) -> dict[str, str]:
+        """長辺上限の backend 値（文字列）と表示名の対応表。'0' はリサイズなし。"""
+        labels = {'0': t('video_long_edge_none')}
+        labels.update({value: value for value in VIDEO_LONG_EDGE_CHOICES})
+        return labels
+
+    def _build_video_section(self, parent):
+        """動画圧縮（ffmpeg）の設定を構築する。
+
+        Combobox は表示名で選ばせるが、state 変数には backend 値だけを保持する。表示名を
+        そのまま request へ流さないよう、選択イベントで逆引きして書き戻す。
+        """
+        self._video_widgets = []
+        self._video_combo_widgets = []
+        self.video_engine_status_var = tk.StringVar(value='')
+
+        status_row = ttk.Frame(parent)
+        status_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(status_row, textvariable=self.video_engine_status_var, foreground='gray').pack(side='left')
+
+        enable_row = ttk.Frame(parent)
+        enable_row.pack(fill='x', padx=5, pady=2)
+        self.video_enable_check = ttk.Checkbutton(
+            enable_row,
+            text=t('checkbox_video_enable'),
+            variable=self.video_enabled,
+            command=self._update_video_controls,
+        )
+        self.video_enable_check.pack(side='left')
+
+        quality_row = ttk.Frame(parent)
+        quality_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(quality_row, text=t('label_video_quality')).pack(side='left')
+        self.video_quality_value_label = ttk.Label(quality_row, text='', width=14)
+        self.video_quality_value_label.pack(side='left', padx=5)
+        self.video_quality_scale = tk.Scale(
+            quality_row,
+            from_=0,
+            to=100,
+            orient='horizontal',
+            variable=self.video_quality,
+            command=lambda _v: self._update_video_quality_label(),
+            length=300,
+            showvalue=False,
+        )
+        self.video_quality_scale.pack(side='left')
+        self._video_widgets.append(self.video_quality_scale)
+
+        codec_row = ttk.Frame(parent)
+        codec_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(codec_row, text=t('label_video_codec')).pack(side='left')
+        self.video_h264_rb = ttk.Radiobutton(
+            codec_row,
+            text=t('video_codec.libx264'),
+            variable=self.video_codec,
+            value='libx264',
+            command=self._update_video_quality_label,
+        )
+        self.video_h264_rb.pack(side='left', padx=(8, 0))
+        self.video_h265_rb = ttk.Radiobutton(
+            codec_row,
+            text=t('video_codec.libx265'),
+            variable=self.video_codec,
+            value='libx265',
+            command=self._update_video_quality_label,
+        )
+        self.video_h265_rb.pack(side='left', padx=(8, 0))
+        self._video_widgets.append(self.video_h264_rb)
+        self.video_h265_note_label = ttk.Label(codec_row, text=t('note_video_h265_unavailable'), foreground='gray')
+        # H.265 非対応時だけ controller が pack する。
+
+        preset_row = ttk.Frame(parent)
+        preset_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(preset_row, text=t('label_video_preset')).pack(side='left')
+        self.video_preset_combo = ttk.Combobox(
+            preset_row,
+            textvariable=self.video_preset,
+            values=VIDEO_PRESET_CHOICES,
+            state='readonly',
+            width=12,
+        )
+        self.video_preset_combo.pack(side='left', padx=(8, 0))
+        self._video_combo_widgets.append(self.video_preset_combo)
+
+        audio_labels = self._video_audio_labels()
+        audio_display = tk.StringVar(value=audio_labels.get(self.video_audio_mode.get(), audio_labels['copy']))
+        self._video_audio_display_var = audio_display
+        audio_row = ttk.Frame(parent)
+        audio_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(audio_row, text=t('label_video_audio')).pack(side='left')
+        self.video_audio_combo = ttk.Combobox(
+            audio_row,
+            textvariable=audio_display,
+            values=list(audio_labels.values()),
+            state='readonly',
+            width=44,
+        )
+        self.video_audio_combo.pack(side='left', padx=(8, 0))
+        self.video_audio_combo.bind(
+            '<<ComboboxSelected>>',
+            lambda _e: self.video_audio_mode.set(
+                next((mode for mode, label in audio_labels.items() if label == audio_display.get()), 'copy')
+            ),
+        )
+        self._video_combo_widgets.append(self.video_audio_combo)
+
+        edge_labels = self._video_long_edge_labels()
+        edge_display = tk.StringVar(value=edge_labels.get(self.video_max_long_edge.get(), edge_labels['0']))
+        self._video_long_edge_display_var = edge_display
+        edge_row = ttk.Frame(parent)
+        edge_row.pack(fill='x', padx=5, pady=2)
+        ttk.Label(edge_row, text=t('label_video_long_edge')).pack(side='left')
+        self.video_long_edge_combo = ttk.Combobox(
+            edge_row,
+            textvariable=edge_display,
+            values=list(edge_labels.values()),
+            state='readonly',
+            width=12,
+        )
+        self.video_long_edge_combo.pack(side='left', padx=(8, 0))
+        self.video_long_edge_combo.bind(
+            '<<ComboboxSelected>>',
+            lambda _e: self.video_max_long_edge.set(
+                next((value for value, label in edge_labels.items() if label == edge_display.get()), '0')
+            ),
+        )
+        self._video_combo_widgets.append(self.video_long_edge_combo)
+
+        ttk.Label(parent, text=t('note_video_retention'), foreground='gray', wraplength=760, justify='left').pack(
+            fill='x', padx=5, pady=(4, 0)
+        )
+        ttk.Label(parent, text=t('note_video_limits'), foreground='gray', wraplength=760, justify='left').pack(
+            fill='x', padx=5, pady=(0, 2)
+        )
+
+        self._update_video_quality_label()
+
+    def _update_video_quality_label(self) -> None:
+        """現在の品質値とコーデックから CRF の目安を表示する。"""
+        quality = int(self.video_quality.get())
+        crf = quality_to_crf(quality, self.video_codec.get())
+        self.video_quality_value_label.config(text=t('video_quality_value', quality=quality, crf=crf))
 
     def _build_pdf_section(self, parent):
         """PDF エンジン選択とエンジン別詳細設定を構築する。
@@ -762,7 +958,10 @@ class TkUiViewMixin:
         frame.pack(fill='x', padx=14, pady=(6, 12))
         inner = ttk.Frame(frame)
         inner.pack(anchor='center')
-        tk.Button(inner, text=t('btn_start_compress'), command=self.start_compress, width=16, bg='#ccffcc').pack(side='left', padx=14)
+        self.start_button = tk.Button(inner, text=t('btn_start_compress'), command=self.start_compress, width=16, bg='#ccffcc')
+        self.start_button.pack(side='left', padx=14)
+        self.stop_button = tk.Button(inner, text=t('btn_stop'), command=self.stop_compress, width=12, bg='#ffe0b3', state='disabled')
+        self.stop_button.pack(side='left', padx=14)
         tk.Button(inner, text=t('btn_exit'), command=self.on_exit, width=12, bg='#e6e6e6').pack(side='left', padx=14)
 
     def _create_lossless_controls(self, parent):

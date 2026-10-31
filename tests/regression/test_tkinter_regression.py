@@ -34,6 +34,8 @@ def wait_threads(app, timeout: float = 15.0) -> None:
         app.update_idletasks()
         alive = [thread for thread in app.threads if thread.is_alive()]
         if not alive:
+            # 終了直前に中継された UI コールバック（実行状態の復帰など）を処理しきる。
+            app.update()
             return
         time.sleep(0.05)
     raise TimeoutError('worker thread timeout')
@@ -218,21 +220,28 @@ def test_start_compress_cleanup_output_and_overlap_guard(tk_regression_app, monk
 
     original_runner = controller_module.run_compression_request
     try:
-        def fake_runner(request, event_callback):
+        def fake_runner(request, event_callback, job_control=None):
             event_callback(SimpleNamespace(kind='log', message='dummy'))
             event_callback(SimpleNamespace(kind='progress', current=1, total=1))
             event_callback(SimpleNamespace(kind='stats', orig_total=1, out_total=1, saved=0, saved_pct=0.0))
 
+        pending_ui_callbacks: list = []
         controller_module.run_compression_request = fake_runner
         app.log = lambda msg: None
         app.update_progress = lambda current, total: None
         app.update_stats = lambda orig_total, out_total, saved, saved_pct: None
         app._set_status = lambda text: None
+        # mainloop 外のワーカーからは after() を使えないため、UI 中継は手動で回す。
+        app._schedule_on_ui_thread = pending_ui_callbacks.append
 
         app.start_compress()
         wait_threads(app)
+        for callback in pending_ui_callbacks:
+            callback()
+        assert app._job_running is False
     finally:
         controller_module.run_compression_request = original_runner
+        del app._schedule_on_ui_thread
 
     shutil.copy2(input_dir / 'sample.jpg', output_dir / 'sample.jpg')
     shutil.copy2(input_dir / 'sample.png', output_dir / 'sample.png')
@@ -263,6 +272,6 @@ def test_zip_matrix_full_regression(tk_regression_app) -> None:
 def test_app_settings_tab_is_built_with_sound_toggles(tk_regression_app) -> None:
     app, _input_dir, _output_dir = tk_regression_app
 
-    assert len(app.notebook.tabs()) == 3
+    assert len(app.notebook.tabs()) == 4
     assert app.play_startup_sound.get() is True
     assert app.play_cleanup_sound.get() is True

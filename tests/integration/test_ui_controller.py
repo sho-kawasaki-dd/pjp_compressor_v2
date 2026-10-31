@@ -14,7 +14,7 @@ import pytest
 
 import frontend.i18n as i18n
 import frontend.ui_tkinter_controller as controller_module
-from backend.contracts import CapabilityReport, ProgressEvent
+from backend.contracts import CapabilityReport, JobControl, ProgressEvent
 from frontend.ui_tkinter_controller import TkUiControllerMixin
 
 
@@ -192,16 +192,45 @@ class ControllerHost(TkUiControllerMixin):
         self.extract_zip = DummyVar(True)
         self.zip_output_enabled = DummyVar(False)
         self.zip_output_check = DummyWidget()
+        self.video_enabled = DummyVar(True)
+        self.video_quality = DummyVar(75)
+        self.video_codec = DummyVar('libx264')
+        self.video_preset = DummyVar('medium')
+        self.video_audio_mode = DummyVar('copy')
+        self.video_max_long_edge = DummyVar('0')
+        self.video_engine_status_var = DummyVar('')
+        self.video_enable_check = DummyWidget()
+        self.video_quality_scale = DummyWidget()
+        self.video_quality_value_label = DummyWidget()
+        self.video_h264_rb = DummyWidget()
+        self.video_h265_rb = DummyWidget()
+        self.video_h265_note_label = DummyWidget()
+        self.video_preset_combo = DummyWidget()
+        self.video_audio_combo = DummyWidget()
+        self.video_long_edge_combo = DummyWidget()
+        self._video_widgets = [self.video_quality_scale, self.video_h264_rb]
+        self._video_combo_widgets = [self.video_preset_combo, self.video_audio_combo, self.video_long_edge_combo]
+        self.start_button = DummyWidget()
+        self.stop_button = DummyWidget()
+        self.cleanup_input_button = DummyWidget()
+        self.cleanup_output_button = DummyWidget()
+        self.destroyed = False
+        self.defer_after = False
+        self.pending_after: list[tuple[object, tuple]] = []
 
     def after(self, _ms, func=None, *args):
         if func is not None:
-            func(*args)
+            if self.defer_after:
+                self.pending_after.append((func, args))
+            else:
+                func(*args)
         return None
 
     def update_idletasks(self):
         return None
 
     def destroy(self):
+        self.destroyed = True
         return None
 
 
@@ -436,3 +465,433 @@ def test_cleanup_output_plays_warning_sound_when_enabled(
     host.cleanup_output()
 
     assert played == [controller_module.SOUNDS_DIR / 'warning.wav']
+
+
+# ---------------------------------------------------------------------------
+# 動画 UI・停止・終了処理
+# ---------------------------------------------------------------------------
+
+
+class SyncThread:
+    """start() で即座に target を実行する thread ダミー（実行後は非 alive）。"""
+
+    def __init__(self, *, target, args=(), kwargs=None, daemon=False):
+        self.target = target
+        self.args = args
+        self.kwargs = kwargs or {}
+
+    def start(self):
+        self.target(*self.args, **self.kwargs)
+
+    def is_alive(self):
+        return False
+
+
+def _video_capabilities(*, hevc: bool = True, ffmpeg: bool = True, ffprobe: bool = True) -> CapabilityReport:
+    encoders = frozenset({'libx264', 'aac'} | ({'libx265'} if hevc else set()))
+    return CapabilityReport(
+        True,
+        True,
+        'C:/gs.exe',
+        None,
+        ghostscript_source='system',
+        pngquant_source='unavailable',
+        ffmpeg_path='C:/ffmpeg.exe' if ffmpeg else None,
+        ffmpeg_source='system' if ffmpeg else 'unavailable',
+        ffmpeg_encoders=encoders if ffmpeg else frozenset(),
+        ffprobe_path='C:/ffprobe.exe' if ffprobe else None,
+        ffprobe_source='bundled' if ffprobe else 'unavailable',
+    )
+
+
+def _prepare_running_host(host: ControllerHost) -> JobControl:
+    control = JobControl()
+    host._job_control = control
+    host._job_running = True
+    return control
+
+
+def _patch_messagebox(monkeypatch: pytest.MonkeyPatch) -> dict[str, list]:
+    calls: dict[str, list] = {'warning': [], 'error': [], 'ask': []}
+    monkeypatch.setattr(
+        controller_module,
+        'messagebox',
+        SimpleNamespace(
+            showwarning=lambda *a, **k: calls['warning'].append(a),
+            showerror=lambda *a, **k: calls['error'].append(a),
+            askyesno=lambda *a, **k: calls['ask'].append(a) or True,
+        ),
+    )
+    return calls
+
+
+def test_video_events_compose_status_with_overall_progress(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+
+    host._on_progress_event(ProgressEvent(kind='progress', current=1, total=4))
+    assert host.status_var.get() == '処理中 25% (1/4)'
+
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', video_phase='started'))
+    assert host.status_var.get() == '処理中 25% (1/4) | 動画: a.mov'
+
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', current=40, video_phase='updated'))
+    assert host.status_var.get() == '処理中 25% (1/4) | 動画: a.mov (40%)'
+
+    # 割合不明の更新は表示を消さず、割合だけを外す。
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', video_phase='updated'))
+    assert host.status_var.get() == '処理中 25% (1/4) | 動画: a.mov'
+
+    # 画像の完了通知でも動画表示は残る。
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', current=60, video_phase='updated'))
+    host._on_progress_event(ProgressEvent(kind='progress', current=2, total=4))
+    assert host.status_var.get() == '処理中 50% (2/4) | 動画: a.mov (60%)'
+
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', video_phase='finished'))
+    assert host.status_var.get() == '処理中 50% (2/4)'
+
+
+def test_start_compress_locks_controls_and_passes_job_control(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    input_dir = tmp_path / 'input'
+    input_dir.mkdir()
+    host.input_dir.set(str(input_dir))
+    host.output_dir.set(str(tmp_path / 'output'))
+    calls = _patch_messagebox(monkeypatch)
+    monkeypatch.setattr(
+        controller_module,
+        'build_compression_request',
+        lambda _host: SimpleNamespace(request=DummyRequest(str(input_dir), str(tmp_path / 'output')), resize_config=False),
+    )
+    monkeypatch.setattr(controller_module.threading, 'Thread', DummyThread)
+
+    host.start_compress()
+
+    assert host._job_running is True
+    assert isinstance(host.threads[0].kwargs['job_control'], JobControl)
+    assert host.threads[0].kwargs['job_control'] is host._job_control
+    assert host.start_button.state == 'disabled'
+    assert host.stop_button.state == 'normal'
+    assert host.cleanup_input_button.state == 'disabled'
+    assert host.cleanup_output_button.state == 'disabled'
+
+    # 実行中の再開始・クリーンアップは拒否して通知する。
+    host.start_compress()
+    host.cleanup_input()
+    host.cleanup_output()
+    assert len(host.threads) == 1
+    assert len(calls['warning']) == 3
+
+
+@pytest.mark.parametrize(
+    'event',
+    [
+        ProgressEvent(kind='stats', orig_total=10, out_total=5, saved=5, saved_pct=50.0),
+        ProgressEvent(kind='error', message='boom'),
+        ProgressEvent(kind='cancelled', message='中断メッセージ', orig_total=10, out_total=8, saved=2, saved_pct=20.0),
+    ],
+)
+def test_terminal_events_restore_controls_and_clear_video_state(tmp_path: Path, event: ProgressEvent) -> None:
+    host = ControllerHost(tmp_path)
+    _prepare_running_host(host)
+    host._update_action_states()
+    host._on_progress_event(ProgressEvent(kind='video_progress', message='a.mov', current=10, video_phase='updated'))
+
+    host._on_progress_event(event)
+
+    assert host._job_running is False
+    assert host._job_control is None
+    assert host._video_progress is None
+    assert host.start_button.state == 'normal'
+    assert host.stop_button.state == 'disabled'
+    assert host.cleanup_input_button.state == 'normal'
+    assert host.cleanup_output_button.state == 'normal'
+
+
+def test_cancelled_event_shows_partial_stats_without_completion_text(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    _prepare_running_host(host)
+
+    host._on_progress_event(
+        ProgressEvent(kind='cancelled', message='中断メッセージ', orig_total=10, out_total=8, saved=2, saved_pct=20.0)
+    )
+
+    assert host.status_var.get() == '中断しました（部分集計はログ・統計を参照）'
+    assert '完了' not in host.status_var.get()
+    assert any('中断メッセージ' in line for line in host.log_text.lines)
+    assert '20.0%' in host.stats_var.get()
+
+
+def test_finish_job_ui_ignores_stale_control(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    old_control = JobControl()
+    new_control = _prepare_running_host(host)
+
+    host._finish_job_ui(old_control)
+
+    assert host._job_running is True
+    assert host._job_control is new_control
+
+
+def test_stop_compress_disables_stop_button_and_spawns_stop_worker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    control = _prepare_running_host(host)
+    host._update_action_states()
+    monkeypatch.setattr(controller_module.threading, 'Thread', DummyThread)
+
+    host.stop_compress()
+    host.stop_compress()  # 2 回目は無視される
+
+    assert host._stopping is True
+    assert host.stop_button.state == 'disabled'
+    assert host.status_var.get().startswith('停止中')
+    assert host._stop_thread is not None
+    assert host._stop_thread.target == host._stop_worker
+    assert host._stop_thread.args == (control,)
+
+    # 停止中は進捗イベントで状態表示を上書きしない。
+    host._on_progress_event(ProgressEvent(kind='progress', current=1, total=2))
+    assert host.status_var.get().startswith('停止中')
+
+
+def test_stop_worker_requests_cancel_and_terminates_processes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    control = _prepare_running_host(host)
+    terminated: list[JobControl] = []
+    monkeypatch.setattr(
+        controller_module,
+        'terminate_active_video_processes',
+        lambda ctl, **_kwargs: terminated.append(ctl),
+    )
+
+    host._stop_worker(control)
+
+    assert control.is_cancelled is True
+    assert terminated == [control]
+    assert host._stop_error is None
+
+
+def test_stop_worker_failure_is_reported_and_allows_retry(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    control = _prepare_running_host(host)
+    host._stopping = True
+
+    def failing_terminate(_control, **_kwargs):
+        raise RuntimeError('cannot kill')
+
+    monkeypatch.setattr(controller_module, 'terminate_active_video_processes', failing_terminate)
+
+    host._stop_worker(control)
+
+    assert host._stop_error == 'cannot kill'
+    assert any('cannot kill' in line for line in host.log_text.lines)
+    assert host._stopping is False
+    assert host.stop_button.state == 'normal'
+
+
+def test_on_exit_without_work_destroys_immediately(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    calls = _patch_messagebox(monkeypatch)
+
+    host.on_exit()
+
+    assert host.destroyed is True
+    assert calls['ask'] == []
+
+
+def test_on_exit_declined_keeps_running_job(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    _prepare_running_host(host)
+    _patch_messagebox(monkeypatch)
+    monkeypatch.setattr(controller_module.messagebox, 'askyesno', lambda *a, **k: False)
+
+    host.on_exit()
+
+    assert host.destroyed is False
+    assert host._exit_requested is False
+    assert host._stopping is False
+
+
+def test_on_exit_stops_job_and_destroys_only_after_worker_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    host.defer_after = True
+    control = _prepare_running_host(host)
+    _patch_messagebox(monkeypatch)
+    terminated: list[JobControl] = []
+    monkeypatch.setattr(controller_module.threading, 'Thread', SyncThread)
+    monkeypatch.setattr(
+        controller_module,
+        'terminate_active_video_processes',
+        lambda ctl, **_kwargs: terminated.append(ctl),
+    )
+
+    host.on_exit()
+
+    # 停止処理は停止ボタンと共通で、ワーカーが残っている間は閉じない。
+    assert terminated == [control]
+    assert control.is_cancelled is True
+    assert host._exit_requested is True
+    assert host.start_button.state == 'disabled'
+    assert host.stop_button.state == 'disabled'
+    assert host.destroyed is False
+    assert len(host.pending_after) == 1
+
+    # ワーカーの終端が届くまで再スケジュールされ続ける。
+    func, args = host.pending_after.pop()
+    func(*args)
+    assert host.destroyed is False
+    assert len(host.pending_after) == 1
+
+    host._on_progress_event(ProgressEvent(kind='cancelled', message='x'))
+    func, args = host.pending_after.pop()
+    func(*args)
+    assert host.destroyed is True
+
+
+def test_on_exit_aborts_when_stop_fails(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.defer_after = True
+    _prepare_running_host(host)
+    calls = _patch_messagebox(monkeypatch)
+    monkeypatch.setattr(controller_module.threading, 'Thread', SyncThread)
+
+    def failing_terminate(_control, **_kwargs):
+        raise RuntimeError('cannot kill')
+
+    monkeypatch.setattr(controller_module, 'terminate_active_video_processes', failing_terminate)
+
+    host.on_exit()
+
+    assert host.destroyed is False
+    assert host._exit_requested is False
+    assert len(calls['error']) == 1
+    assert host.stop_button.state == 'normal'
+
+
+def test_run_compression_thread_restores_state_even_without_terminal_event(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    control = _prepare_running_host(host)
+    seen: dict[str, object] = {}
+
+    def fake_runner(request, event_callback, job_control=None):
+        seen['control'] = job_control
+
+    monkeypatch.setattr(controller_module, 'run_compression_request', fake_runner)
+
+    host._run_compression_thread(request=object(), event_callback=host._on_progress_event, job_control=control)
+
+    assert seen['control'] is control
+    assert host._job_running is False
+    assert host.start_button.state == 'normal'
+
+
+def test_update_video_controls_disables_everything_when_tools_unavailable(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = _video_capabilities(ffmpeg=False)
+
+    host._update_video_controls()
+    host._refresh_video_engine_status()
+
+    assert host.video_enable_check.state == 'disabled'
+    assert all(widget.state == 'disabled' for widget in host._video_widgets)
+    assert all(combo.state == 'disabled' for combo in host._video_combo_widgets)
+    assert host.video_h265_rb.state == 'disabled'
+    assert 'ffmpeg が見つかりません' in host.video_engine_status_var.get()
+
+
+def test_update_video_controls_disables_only_h265_without_libx265(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = _video_capabilities(hevc=False)
+    host.video_codec.set('libx265')
+
+    host._update_video_controls()
+    host._refresh_video_engine_status()
+
+    assert host.video_codec.get() == 'libx264'
+    assert host.video_h265_rb.state == 'disabled'
+    assert host.video_h265_note_label.packed is True
+    assert host.video_h264_rb.state == 'normal'
+    assert host.video_preset_combo.state == 'readonly'
+    assert 'H.265:不可' in host.video_engine_status_var.get()
+
+
+def test_update_video_controls_follows_enable_toggle(tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host.capabilities = _video_capabilities()
+
+    host.video_enabled.set(False)
+    host._update_video_controls()
+    assert host.video_h265_rb.state == 'disabled'
+    assert all(combo.state == 'disabled' for combo in host._video_combo_widgets)
+    assert host.video_enable_check.state == 'normal'
+
+    host.video_enabled.set(True)
+    host._update_video_controls()
+    assert host.video_h265_rb.state == 'normal'
+    assert all(combo.state == 'readonly' for combo in host._video_combo_widgets)
+    assert all(widget.state == 'normal' for widget in host._video_widgets)
+    assert host.video_h265_note_label.packed is False
+    assert host.video_quality_value_label.text == '75（CRF 24）'
+    host._refresh_video_engine_status()
+    assert host.video_engine_status_var.get() == '（ffmpeg:system, ffprobe:bundled, H.265:可）'
+
+
+def test_cleanup_output_takes_output_lock_and_skips_when_in_use(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    host = ControllerHost(tmp_path)
+    cleaned: list[str] = []
+    released: list[bool] = []
+    monkeypatch.setattr(controller_module, 'cleanup_folder', lambda target, *a, **k: cleaned.append(target))
+
+    class FakeLock:
+        def release(self):
+            released.append(True)
+
+    monkeypatch.setattr(controller_module, 'acquire_output_lock', lambda _target: FakeLock())
+    host._cleanup_running = True
+    host._run_cleanup_thread(str(tmp_path), host.log, 'cleanup_target_output', {'.mp4'}, lock_output=True)
+
+    assert cleaned == [str(tmp_path)]
+    assert released == [True]
+    assert host._cleanup_running is False
+
+    def busy(_target):
+        raise controller_module.OutputLockError('busy')
+
+    monkeypatch.setattr(controller_module, 'acquire_output_lock', busy)
+    cleaned.clear()
+    host._run_cleanup_thread(str(tmp_path), host.log, 'cleanup_target_output', {'.mp4'}, lock_output=True)
+
+    assert cleaned == []
+    assert any('使用中' in line for line in host.log_text.lines)
+
+
+def test_start_compress_is_rejected_during_cleanup(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    host = ControllerHost(tmp_path)
+    host._cleanup_running = True
+    calls = _patch_messagebox(monkeypatch)
+    monkeypatch.setattr(controller_module.threading, 'Thread', DummyThread)
+
+    host.start_compress()
+
+    assert host.threads == []
+    assert len(calls['warning']) == 1
