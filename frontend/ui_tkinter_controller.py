@@ -22,6 +22,7 @@ from frontend.i18n import t
 from frontend.ui_contracts import DropEventProtocol, TkUiControllerHostProtocol
 from frontend.ui_tkinter_mapper import build_compression_request
 from frontend.sound_utils import play_sound
+from shared.path_utils import paths_overlap
 
 
 class TkUiControllerMixin:
@@ -257,19 +258,10 @@ class TkUiControllerMixin:
             self.log(t('log_folders_overlap_reset', input=new_input, output=new_output))
             messagebox.showwarning(t('dlg_folder_overlap_title'), t('dlg_folder_overlap_message'))
 
-    def _paths_overlap(self, a: str, b: str) -> bool:
-        """同一または内包関係のパスかを判定する。"""
-        try:
-            pa = Path(a).resolve()
-            pb = Path(b).resolve()
-            return pa == pb or pa in pb.parents or pb in pa.parents
-        except Exception:
-            return False
-
     def _check_overlap_and_fix(self, input_dir: str, output_dir: str) -> tuple[str, str, bool]:
         """危険な入出力の組み合わせを検知し、安全な既定値へフォールバックする。"""
         host = self._controller_host()
-        if input_dir and output_dir and self._paths_overlap(input_dir, output_dir):
+        if input_dir and output_dir and paths_overlap(input_dir, output_dir):
             return host.default_input_dir, host.default_output_dir, True
         return input_dir, output_dir, False
 

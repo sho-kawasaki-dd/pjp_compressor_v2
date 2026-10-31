@@ -7,7 +7,9 @@ from backend.core.video_utils import (
     cleanup_stale_video_temps,
     compress_video_ffmpeg,
     create_video_job_dir,
+    place_original_copy,
     terminate_active_video_processes,
+    tool_unavailable_reason,
 )
 
 __all__ = [
@@ -15,5 +17,7 @@ __all__ = [
     'cleanup_stale_video_temps',
     'compress_video_ffmpeg',
     'create_video_job_dir',
+    'place_original_copy',
     'terminate_active_video_processes',
+    'tool_unavailable_reason',
 ]

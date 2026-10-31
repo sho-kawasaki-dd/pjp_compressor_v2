@@ -228,7 +228,7 @@
 
 ### Phase 3: ワーカー・オーケストレータの統合（直列実行・安全な配置・進捗通知）
 
-7. [ ] **[backend/core/worker_ops.py](../../backend/core/worker_ops.py)** — タスク拡張と動画ディスパッチ
+7. [x] **[backend/core/worker_ops.py](../../backend/core/worker_ops.py)** — タスク拡張と動画ディスパッチ
    - **タスクタプルの拡張**: 既存 index 0〜19 は変更せず、末尾に6要素を追加する（job_runner の `task[16..18]` 参照は維持される）。
 
      | index | 要素 |
@@ -251,7 +251,7 @@
    - `_csv_action_key()` に動画分岐を追加する: 圧縮成功 `'csv_action_video'`、サイズ理由の元維持 `'csv_action_video_kept_original'`、保持条件による元維持 `'csv_action_video_kept_retention'`、中断 `'csv_action_cancelled'`。元維持を「圧縮成功」と表示しない。
    - 動画タスクの開始・終了通知は job_runner 側のラッパーで扱う（Step 8）。
 
-8. [ ] **[backend/orchestrator/job_runner.py](../../backend/orchestrator/job_runner.py)** — 出力パス確定・executor 分離・進捗連携
+8. [x] **[backend/orchestrator/job_runner.py](../../backend/orchestrator/job_runner.py)** — 出力パス確定・executor 分離・進捗連携
    - `_tool_detection_summary(catalog, report)` に変更し、ジョブ開始時に1回だけ取得した `CapabilityReport` を引数で受け取る（関数内で `detect_capabilities()` を呼ばない）。`ffmpeg` / `ffprobe` の検出結果（`system` / `bundled` / `unavailable`）と検出失敗理由を追加する。
    - `run_compression_job()` に以下の引数を追加する:
      - `video_config: VideoCompressionConfig | dict[str, Any] | None = None`（dict は `VideoCompressionConfig(**d)` へ正規化）

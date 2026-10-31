@@ -910,7 +910,8 @@ def _keep_original(
 # ---------------------------------------------------------------------------
 
 
-def _tool_unavailable_reason(capabilities: CapabilityReport, config: VideoCompressionConfig, log_language: str) -> str | None:
+def tool_unavailable_reason(capabilities: CapabilityReport, config: VideoCompressionConfig, log_language: str) -> str | None:
+    """動画処理を始められない理由を翻訳済み文言で返す。利用可能なら None。"""
     if not capabilities.ffmpeg_path:
         return _t(log_language, 'video_ffmpeg_missing')
     if capabilities.ffmpeg_detection_error:
@@ -948,7 +949,7 @@ def _compress(
         return _keep_original(inpath, original_outpath, reason, notes, job_control, temp_dir, temps, log_language)
 
     check_cancel()
-    unavailable = _tool_unavailable_reason(capabilities, config, log_language)
+    unavailable = tool_unavailable_reason(capabilities, config, log_language)
     if unavailable:
         raise _VideoError(_t(log_language, 'video_tool_unavailable', reason=unavailable))
     ffmpeg_path = str(capabilities.ffmpeg_path)
@@ -1084,6 +1085,29 @@ def terminate_active_video_processes(
         finally:
             if proc.poll() is not None:
                 job_control.unregister(proc)
+
+
+def place_original_copy(inpath: str | Path, dest: str | Path, temp_dir: str | Path, job_control: JobControl) -> bool:
+    """失敗時のミラーコピー用に、元ファイルをジョブ一時領域経由で配置する。
+
+    停止要求を受理していて配置しなかった場合は False、配置できた場合は True を返す。
+    コピー・配置の失敗は OSError のまま送出する。
+    """
+    temp_dir = Path(temp_dir)
+    temps: list[Path] = []
+    try:
+        if job_control.is_cancelled:
+            return False
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        staged = _temp_path(temp_dir, '.orig')
+        temps.append(staged)
+        _copy_with_cancel(Path(inpath), staged, job_control)
+        _publish(staged, Path(dest), job_control)
+        return True
+    except _Cancelled:
+        return False
+    finally:
+        _remove_temps(temps, 'ja')
 
 
 def _is_link(path: Path) -> bool:
