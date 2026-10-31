@@ -55,11 +55,35 @@ VIDEO_TEMP_PREFIX = '.pjp_tmp_'
 APP_WORK_DIR_NAME = '.pjp_work'
 JOB_LOCK_FILENAME = 'job.lock'
 VIDEO_WORK_SUBDIR = 'video'
+# 所有確認用マーカー。これを持つジョブ作業領域だけを残留掃除の対象にする。
+VIDEO_WORK_OWNER_MARKER = '.pjp_owner'
+VIDEO_WORK_OWNER_TOKEN = 'pjp_compressor_video_job_v1'
+
+# ffprobe の解析・出力検証のタイムアウト（秒）。エンコード自体には固定タイムアウトを設けない。
+VIDEO_PROBE_TIMEOUT_SECONDS = 30
+# 元ファイル維持コピーのブロックサイズ。ブロックごとに停止要求を確認する。
+VIDEO_COPY_CHUNK_BYTES = 4 * 1024 * 1024
+# 出力検証で「入力にあれば出力にも残っていること」を要求する全体メタデータキー（小文字）。
+VIDEO_PRESERVED_METADATA_KEYS = frozenset({
+    'creation_time',
+    'location',
+    'location-eng',
+    'make',
+    'model',
+    'com.apple.quicktime.location.iso6709',
+    'com.apple.quicktime.make',
+    'com.apple.quicktime.model',
+    'com.apple.quicktime.software',
+    'com.apple.quicktime.creationdate',
+})
 
 # MP4 へ音声コピーを許可するコーデック。opus / flac は採用ビルドの検証後に追加する。
 VIDEO_MP4_AUDIO_COPY_CODECS = frozenset({'aac', 'mp3', 'ac3', 'eac3', 'alac'})
 # 削除を許容し notes に記録するデータストリーム。
 VIDEO_DROPPABLE_DATA_CODECS = frozenset({'tmcd', 'mebx'})
+# MOV / MP4 のチャプタートラック（QuickTime 形式のテキストトラック）。チャプターがある入力では
+# `-map_chapters` で再構築されるため、データストリームとしては扱わない。
+VIDEO_CHAPTER_TRACK_TAGS = frozenset({'text'})
 # これを超えるビット深度の入力は元維持にする。
 VIDEO_MAX_BIT_DEPTH = 8
 

@@ -78,7 +78,7 @@
 
 ### Phase 2: Backend コア（保持条件判定・実行・キャンセル）の実装
 
-5. [ ] **`backend/core/video_utils.py`**（新規作成） — `compress_video_ffmpeg()` の実装
+5. [x] **`backend/core/video_utils.py`**（新規作成） — `compress_video_ffmpeg()` の実装
    - 戻り値型を新設する:
      ```python
      @dataclass(frozen=True)
@@ -215,7 +215,7 @@
    - `terminate_active_video_processes(job_control: JobControl, timeout: float = 3.0) -> None` を提供する。対象ジョブの停止要求後、`job_control.snapshot()` を取得し、ロック外で `terminate()` → `wait(timeout)` → 残存時 `kill()` → `wait()` を行って回収する。正常終了・例外とも `unregister()` し、停止失敗も通知する。
    - **残留一時ファイル掃除**: `cleanup_stale_video_temps(output_dir: Path) -> int` は出力排他取得中だけ呼ぶ。`.pjp_work/video/` 配下で所有マーカーを確認した過去ジョブのUUIDディレクトリだけを削除する。出力ツリー全体の接頭辞一致ファイル、所有不明のディレクトリ、作業領域外を指すリンクは削除しない。
 
-6. [ ] **`backend/services/video_service.py`**（新規作成）
+6. [x] **`backend/services/video_service.py`**（新規作成）
    - 既存 [backend/services/pdf_service.py](../../backend/services/pdf_service.py) と同じ構成で、`compress_video_ffmpeg` / `terminate_active_video_processes` / `cleanup_stale_video_temps` を公開する。
    - **`backend/orchestrator/job_lock.py`**（新規作成）に出力排他の取得・解放を実装する。Windows標準の `msvcrt.locking` による非ブロッキングのOSファイルロックを使い、PIDの記録だけを排他判定に使わない。
      - 解決済み出力ルートの `.pjp_work/job.lock`（`APP_WORK_DIR_NAME / JOB_LOCK_FILENAME`）を全圧縮ジョブ・出力クリーンアップで共有する。`.pjp_work/` 作成時に Windows では `SetFileAttributesW`（`FILE_ATTRIBUTE_HIDDEN`）で隠し属性を付与する（失敗は無視してよい）。取得失敗は処理中である旨を通知し、走査・掃除・CSV作成・コピー等を開始しない。

@@ -20,6 +20,7 @@ from typing import Any, cast
 
 from PIL import Image, ImageCms
 
+from backend.core.subprocess_utils import sanitize_subprocess_error as _sanitize_subprocess_error
 from backend.settings import (
     GS_DEFAULT_PRESET,
     PDF_ALLOWED_MODES,
@@ -66,16 +67,6 @@ def _normalize_custom_dpi(value: Any) -> int | None:
     except Exception:
         return None
     return max(1, min(MAX_CUSTOM_DPI, parsed))
-
-
-def _sanitize_subprocess_error(message: str, *paths: Path) -> str:
-    """外部コマンドのエラーを短く整形し、内部パス露出を抑える。"""
-    sanitized = ' '.join((message or '').split())
-    for path in paths:
-        path_str = str(path)
-        if path_str:
-            sanitized = sanitized.replace(path_str, path.name)
-    return sanitized[:240]
 
 
 def _t(log_language: str, key: str, **kwargs: Any) -> str:
