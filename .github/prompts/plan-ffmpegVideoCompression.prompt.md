@@ -6,13 +6,15 @@
 
 ## Steps
 
+> **進捗管理ルール**: 各 Step・Verification 項目・Implementation Milestones の行頭にチェックボックス（`[ ]`）を設けている。**タスクの実装・確認が完了するたびに、対応するチェックボックスを `[x]` に更新すること**（完了前に埋めない）。Milestone は、対応する Step と Verification がすべて完了した時点で `[x]` にする。
+
 ### Phase 1: 外部ツール解決とデータ契約・設定の拡張
 
-1. **[shared/runtime_paths.py](../../shared/runtime_paths.py)** — `resolve_ffmpeg_executable()` / `resolve_ffprobe_executable()` の追加
+1. [ ] **[shared/runtime_paths.py](../../shared/runtime_paths.py)** — `resolve_ffmpeg_executable()` / `resolve_ffprobe_executable()` の追加
    - `resolve_external_tool()` を使用し、`system_candidates=('ffmpeg',)`、`bundled_relative_candidates=('ffmpeg-windows/bin/ffmpeg.exe', 'ffmpeg-windows/ffmpeg.exe')` で解決する。
    - `ffprobe` も同様に、`system_candidates=('ffprobe',)`、`bundled_relative_candidates=('ffmpeg-windows/bin/ffprobe.exe', 'ffmpeg-windows/ffprobe.exe')` で解決する。
 
-2. **[backend/contracts.py](../../backend/contracts.py)** — データ契約の拡張
+2. [ ] **[backend/contracts.py](../../backend/contracts.py)** — データ契約の拡張
    - `VideoCompressionConfig`（`frozen=True`）dataclass を新設する。backend は **`crf` のみを正** とし、UI の品質値（0〜100）は保持しない:
      - `enabled: bool = True`
      - `codec: Literal['libx264', 'libx265'] = 'libx264'`
@@ -44,13 +46,13 @@
      - executor / 子プロセスの停止待ちはロック外で行う。`JobControl` を `CompressionRequest` の設定値には含めない。
    - `CompressionRequest` に `video_config: VideoCompressionConfig | None = None` を追加し、`to_legacy_kwargs()` にも `'video_config': self.video_config` を含める。
 
-3. **[backend/capabilities.py](../../backend/capabilities.py)** — `ffmpeg` / `ffprobe` 可用性・エンコーダ検出の追加
+3. [ ] **[backend/capabilities.py](../../backend/capabilities.py)** — `ffmpeg` / `ffprobe` 可用性・エンコーダ検出の追加
    - `_detect_ffmpeg()` を追加し、解決できた場合は `ffmpeg -hide_banner -encoders` を1回実行（`CREATE_NO_WINDOW`、`timeout=10`）して `libx264` / `libx265` / `aac` の有無を収集する。
    - `_detect_ffprobe()` は解決後に `ffprobe -version` を実行して起動可否を確認する（`timeout=10`）。未検出と検出コマンドの失敗を区別し、失敗理由をUI・ログへ通知できるよう検出結果に保持する。ffmpeg の検出失敗も、理由なしで空集合へ置き換えない。
    - `detect_capabilities()` はジョブ開始ごとにも呼ばれるため、動画ツールの検出結果は `functools.lru_cache(maxsize=1)` でアプリ起動中キャッシュする。PATHやビルド変更の反映には再起動が必要と明記し、テストでは `cache_clear()` で初期化する。
    - `detect_capabilities()` の返却値に `ffmpeg_path` / `ffmpeg_source` / `ffmpeg_encoders` / `ffprobe_path` / `ffprobe_source` を含める。ジョブ開始時のレポートをワーカーへ渡し、ファイルごとに別の実行パスを再解決しない。
 
-4. **[backend/settings.py](../../backend/settings.py) & [frontend/settings.py](../../frontend/settings.py)** — 既定値と対象拡張子の定義
+4. [ ] **[backend/settings.py](../../backend/settings.py) & [frontend/settings.py](../../frontend/settings.py)** — 既定値と対象拡張子の定義
    - `backend/settings.py` に動画既定値を追加する（**拡張子定義の正はここ**）:
      - `VIDEO_EXTENSIONS = frozenset({'mp4', 'mov', 'avi', 'mkv', 'webm', 'wmv', 'm4v'})`
      - `VIDEO_ENABLED_DEFAULT = True`
@@ -76,7 +78,7 @@
 
 ### Phase 2: Backend コア（保持条件判定・実行・キャンセル）の実装
 
-5. **`backend/core/video_utils.py`**（新規作成） — `compress_video_ffmpeg()` の実装
+5. [ ] **`backend/core/video_utils.py`**（新規作成） — `compress_video_ffmpeg()` の実装
    - 戻り値型を新設する:
      ```python
      @dataclass(frozen=True)
@@ -213,7 +215,7 @@
    - `terminate_active_video_processes(job_control: JobControl, timeout: float = 3.0) -> None` を提供する。対象ジョブの停止要求後、`job_control.snapshot()` を取得し、ロック外で `terminate()` → `wait(timeout)` → 残存時 `kill()` → `wait()` を行って回収する。正常終了・例外とも `unregister()` し、停止失敗も通知する。
    - **残留一時ファイル掃除**: `cleanup_stale_video_temps(output_dir: Path) -> int` は出力排他取得中だけ呼ぶ。`.pjp_work/video/` 配下で所有マーカーを確認した過去ジョブのUUIDディレクトリだけを削除する。出力ツリー全体の接頭辞一致ファイル、所有不明のディレクトリ、作業領域外を指すリンクは削除しない。
 
-6. **`backend/services/video_service.py`**（新規作成）
+6. [ ] **`backend/services/video_service.py`**（新規作成）
    - 既存 [backend/services/pdf_service.py](../../backend/services/pdf_service.py) と同じ構成で、`compress_video_ffmpeg` / `terminate_active_video_processes` / `cleanup_stale_video_temps` を公開する。
    - **`backend/orchestrator/job_lock.py`**（新規作成）に出力排他の取得・解放を実装する。Windows標準の `msvcrt.locking` による非ブロッキングのOSファイルロックを使い、PIDの記録だけを排他判定に使わない。
      - 解決済み出力ルートの `.pjp_work/job.lock`（`APP_WORK_DIR_NAME / JOB_LOCK_FILENAME`）を全圧縮ジョブ・出力クリーンアップで共有する。`.pjp_work/` 作成時に Windows では `SetFileAttributesW`（`FILE_ATTRIBUTE_HIDDEN`）で隠し属性を付与する（失敗は無視してよい）。取得失敗は処理中である旨を通知し、走査・掃除・CSV作成・コピー等を開始しない。
@@ -226,7 +228,7 @@
 
 ### Phase 3: ワーカー・オーケストレータの統合（直列実行・安全な配置・進捗通知）
 
-7. **[backend/core/worker_ops.py](../../backend/core/worker_ops.py)** — タスク拡張と動画ディスパッチ
+7. [ ] **[backend/core/worker_ops.py](../../backend/core/worker_ops.py)** — タスク拡張と動画ディスパッチ
    - **タスクタプルの拡張**: 既存 index 0〜19 は変更せず、末尾に6要素を追加する（job_runner の `task[16..18]` 参照は維持される）。
 
      | index | 要素 |
@@ -249,7 +251,7 @@
    - `_csv_action_key()` に動画分岐を追加する: 圧縮成功 `'csv_action_video'`、サイズ理由の元維持 `'csv_action_video_kept_original'`、保持条件による元維持 `'csv_action_video_kept_retention'`、中断 `'csv_action_cancelled'`。元維持を「圧縮成功」と表示しない。
    - 動画タスクの開始・終了通知は job_runner 側のラッパーで扱う（Step 8）。
 
-8. **[backend/orchestrator/job_runner.py](../../backend/orchestrator/job_runner.py)** — 出力パス確定・executor 分離・進捗連携
+8. [ ] **[backend/orchestrator/job_runner.py](../../backend/orchestrator/job_runner.py)** — 出力パス確定・executor 分離・進捗連携
    - `_tool_detection_summary(catalog, report)` に変更し、ジョブ開始時に1回だけ取得した `CapabilityReport` を引数で受け取る（関数内で `detect_capabilities()` を呼ばない）。`ffmpeg` / `ffprobe` の検出結果（`system` / `bundled` / `unavailable`）と検出失敗理由を追加する。
    - `run_compression_job()` に以下の引数を追加する:
      - `video_config: VideoCompressionConfig | dict[str, Any] | None = None`（dict は `VideoCompressionConfig(**d)` へ正規化）
@@ -301,7 +303,7 @@
 
 ### Phase 4: Frontend（UI 4タブ化・動画設定セクション・品質→CRF変換・進捗合成）
 
-9. **[frontend/ui_tkinter_state.py](../../frontend/ui_tkinter_state.py) & [frontend/ui_contracts.py](../../frontend/ui_contracts.py)** — UI State と Protocol 定義
+9. [ ] **[frontend/ui_tkinter_state.py](../../frontend/ui_tkinter_state.py) & [frontend/ui_contracts.py](../../frontend/ui_contracts.py)** — UI State と Protocol 定義
    - `initialize_ui_state()` に動画設定用の Tk 変数を追加する:
      - `video_enabled: tk.BooleanVar`（既定 `True`）
      - `video_quality: tk.IntVar`（既定 `75`）
@@ -312,7 +314,7 @@
    - `CompressionRequestAppProtocol` と `TkUiControllerHostProtocol`、view mixinの属性宣言に動画用 state 変数・ウィジェット・`output_settings_tab` を追加する。
    - controller は実行中 `JobControl`、ジョブ実行中フラグ、終了要求フラグを保持する。開始・停止・入力／出力クリーンアップボタンを属性として保持し（`start_button` / `stop_button` / `cleanup_input_button` / `cleanup_output_button`）、実行中の活性制御に使用する。
 
-10. **[frontend/ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)** — 品質（0〜100）から CRF への変換
+10. [ ] **[frontend/ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)** — 品質（0〜100）から CRF への変換
     - `quality_to_crf(quality: int, codec: str = 'libx264') -> int` を実装する:
       ```python
       def quality_to_crf(q: int, codec: str = 'libx264') -> int:
@@ -330,7 +332,7 @@
     - 音声モードの表示名と backend 値は対応表で変換する。既定は `copy`、AACビットレートはUIに固定128kbpsとして表示せず `None`（チャンネル数に応じた自動値）を渡す。
     - `max_long_edge` は既存の `to_non_negative_int(..., max_value=MAX_RESIZE_DIMENSION)` で正規化する。
 
-11. **[frontend/ui_tkinter_view.py](../../frontend/ui_tkinter_view.py)** — 「出力設定」タブの分離と「動画圧縮設定」の構築
+11. [ ] **[frontend/ui_tkinter_view.py](../../frontend/ui_tkinter_view.py)** — 「出力設定」タブの分離と「動画圧縮設定」の構築
     - `_build_notebook()` を4タブ構成に更新する:
       1. `圧縮設定` (`self.settings_tab`)
       2. `出力設定` (`self.output_settings_tab`) **← 新設**
@@ -350,7 +352,7 @@
       - Preset / 音声 / 長辺のComboboxは選択式 `readonly` とし、表示文言をbackend値として直接渡さない。
     - `_build_action_buttons()` に「停止」ボタン（`self.stop_button`、初期状態 `disabled`）を開始ボタンの隣に追加する。開始ボタンも `self.start_button` として保持する。
 
-12. **[frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py)** — 動画 UI 活性制御・進捗合成・終了処理
+12. [ ] **[frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py)** — 動画 UI 活性制御・進捗合成・終了処理
     - `_update_video_controls()` を追加する:
       - `capabilities.video_available` が `False`（ffmpeg / ffprobe 未検出・検出失敗、または libx264 非対応）のときは動画セクション全体を `disabled` にして具体的な理由を表示する。
       - `ffmpeg_hevc_available` が `False` のときは H.265 Radiobutton のみ `disabled` にし注記を表示する（選択中なら `libx264` へ戻す）。
@@ -376,7 +378,7 @@
 
 ### Phase 5: 多言語カタログ・ビルド定義・テスト・ドキュメントの更新
 
-13. **[frontend/config_data/locales/ja.json](../../frontend/config_data/locales/ja.json) & [frontend/config_data/locales/en.json](../../frontend/config_data/locales/en.json)**
+13. [ ] **[frontend/config_data/locales/ja.json](../../frontend/config_data/locales/ja.json) & [frontend/config_data/locales/en.json](../../frontend/config_data/locales/en.json)**
     - 日英両方に以下を追加する:
       - タブ・セクション: `tab_output`、`section_video_settings`、動画UIラベル群・注記
       - CSV アクション: `csv_action_video`、`csv_action_video_kept_original`、`csv_action_video_kept_retention`、`csv_action_cancelled`
@@ -387,14 +389,14 @@
       - 排他・停止: 二重起動拒否、出力使用中、クリーンアップ拒否、中断、停止／一時ファイル削除失敗
       - 検出: `capability_ffmpeg_label`、`capability_ffprobe_label`、H.265非対応注記
 
-14. **ビルド・配布**
+14. [ ] **ビルド・配布**
     - [compressor_launcher_tkinter.spec](../../compressor_launcher_tkinter.spec): `vendor/` 全体を同梱済み。ffmpeg / ffprobeと必要なDLL・ライセンス資料が含まれ、新規Pythonモジュールも収集されることを確認する。
     - [pjp_compressor.iss](../../pjp_compressor.iss) / [vendor_zip.ps1](../../vendor_zip.ps1): `vendor/ffmpeg-windows/` を含めた配布物の構成・実サイズ・インストール時間を確認する。凍結アプリで実行パス解決と両ツールの起動を検証する。
     - **採用ビルド**: ffmpeg / ffprobeは同じ配布ビルドで揃え、バージョン、入手元、SHA256、ビルド設定、libx264 / libx265 / AAC等の依存・ライセンスを固定する。`--enable-nonfree` ビルドは採用しない。第一候補は BtbN/FFmpeg-Builds の日付タグ付き `win64-gpl`（n7.1系）とする（ビルドスクリプトが公開されており対応ソースを特定しやすい）。`vendor/ffmpeg-windows/` への配置は M5 の前提作業とする。
     - **ライセンス・対応ソース**: LICENSEの同梱だけで完了としない。配布バイナリに対応するFFmpeg・外部ライブラリのソース、適用パッチ、ビルド設定・再現情報を、採用ライセンスに従って提供できるようにする。上流のタグ・ビルドスクリプトに加え、対応ソース一式を自前でも保管し、単なる上流トップページや消失し得る第三者URLだけに依存しない。
     - GPLビルドと本体AGPL-3.0の関係は配布構成に基づいて確認し、互換性と対応ソース提供義務を別に扱う。ダウンロード案内・配布ドキュメントにもライセンスと対応ソース入手方法を記載する。
 
-15. **テストの追加・更新**
+15. [ ] **テストの追加・更新**
     - `tests/unit/test_video_utils.py`（新規）:
       - コマンド生成（`-map 0:V:0`、全音声 `0:a?`、全字幕 `0:s?`、`-map_chapters 0`、`-movflags +faststart+use_metadata_tags`、`-nostdin`、`-y`、`-pix_fmt`、libx265 時の `-tag:v hvc1`）
       - 映像フィルタ式（リサイズ有無、偶数丸め）
@@ -432,7 +434,7 @@
     - [tests/conftest.py](../../tests/conftest.py): `CapabilityReport` 生成箇所は新フィールドが既定値付きのため変更不要（必要に応じ ffmpeg 有りフィクスチャを追加）。
     - `tests/integration/test_video_ffmpeg.py`（新規、`requires_external`）: 採用ビルドで生成した短尺動画を実処理し、本編選択、全音声・全字幕の言語／選択状態、音声レイアウト、字幕本文・装飾・表示タイミング、チャプター、回転を検証する。保持不能入力では元コピーのハッシュ一致を検証する。必要なツール／エンコーダがない環境は理由付きでskipする。
 
-16. **[README.md](../../README.md) & [Documentation/README.md](../../Documentation/README.md)**
+16. [ ] **[README.md](../../README.md) & [Documentation/README.md](../../Documentation/README.md)**
     - 動画圧縮機能、4タブ構成、ffmpeg / ffprobeの配置・検出キャッシュ、ライセンスと対応ソース入手方法を追記する。
     - 保持範囲（最初の本編映像・全音声・全字幕・関連情報）、コピー既定と許可リスト、AAC／音声削除の例外、HDR（iPhoneの既定設定で撮影したHDR動画を含む）・8bit超・映像なし・字幕変換が必要な入力の元維持、`tmcd` / `mebx` を削除すること、MP4格納可否と再生互換性の違いを明記する。
     - サイズ／保持条件による元維持はミラー設定に関係なく実施し、通常の処理失敗はミラー設定に従うこと、同時1ジョブ・出力排他・停止ボタン・キャンセルの扱い、CPU使用率上限を保証しないことを説明する。
@@ -471,11 +473,11 @@
 
 ## Verification
 
-1. `pytest tests/unit/test_capabilities.py tests/unit/test_contracts.py tests/unit/test_ui_tkinter_mapper.py tests/unit/test_video_utils.py tests/unit/test_job_lock.py tests/unit/test_path_utils.py tests/unit/test_file_ops.py tests/unit/test_locale_catalog.py tests/unit/test_settings_split.py`
-2. `pytest tests/integration/test_job_runner.py tests/integration/test_ui_controller.py tests/regression/test_tkinter_regression.py`
-3. `pytest`（全体回帰）
-4. 採用ffmpeg / ffprobeビルドで `pytest tests/integration/test_video_ffmpeg.py` を実行する。保持可能な入力だけがMP4になり、保持不可入力は元拡張子・同一内容で出力されることを確認する。全体進捗と動画名・割合（不明時は割合なし）が合成表示され、画像完了でちらつかないことを確認する。
-5. 以下の動画で手動確認する:
+1. [ ] `pytest tests/unit/test_capabilities.py tests/unit/test_contracts.py tests/unit/test_ui_tkinter_mapper.py tests/unit/test_video_utils.py tests/unit/test_job_lock.py tests/unit/test_path_utils.py tests/unit/test_file_ops.py tests/unit/test_locale_catalog.py tests/unit/test_settings_split.py`
+2. [ ] `pytest tests/integration/test_job_runner.py tests/integration/test_ui_controller.py tests/regression/test_tkinter_regression.py`
+3. [ ] `pytest`（全体回帰）
+4. [ ] 採用ffmpeg / ffprobeビルドで `pytest tests/integration/test_video_ffmpeg.py` を実行する。保持可能な入力だけがMP4になり、保持不可入力は元拡張子・同一内容で出力されることを確認する。全体進捗と動画名・割合（不明時は割合なし）が合成表示され、画像完了でちらつかないことを確認する。
+5. [ ] 以下の動画で手動確認する:
    - 奇数解像度（例: 1279x719）→ エラーなく偶数丸めで出力される
    - 音声なし動画・字幕なし動画 → optional mapによりエラーなく出力される
    - 本編より先にカバーアートがある動画 → `0:V:0` により本編が選択される
@@ -490,11 +492,11 @@
    - 総尺不明動画 → 動画名が処理中として表示され、割合不明を終了と誤認しない
    - 低ビットレートで出力が肥大化する動画 → **元の拡張子のまま元ファイルがコピー** され、CSV に `元ファイル維持` と記録される
    - 同一フォルダの `sample.mp4` と `sample.mov` → 上書きされず `sample.mp4` / `sample_mov.mp4` に出力される。同じ出力先で再実行しても同じ名前で上書きされる
-6. 複数動画の待機中・解析中・エンコード中・元コピー中に**停止ボタン**と**アプリ終了**のそれぞれで停止する。停止要求後に次のプロセス・コピー・ZIP再生成が始まらず、ffmpeg / ffprobe・executorが終了し、一時領域・出力ロックが後片付けされることを確認する。停止ボタンでは部分集計と中断状態が表示されて再開始できること、終了ではその後にウィンドウが閉じることを確認する。異常終了の残留領域は次回の排他取得後に限り掃除されることを確認する。
-7. ffmpegなし／ffprobeなし／検出コマンド失敗／libx265なし環境で起動し、起動直後から動画セクション全体（またはH.265のみ）が無効化され、具体的な理由が表示されること、PDF・画像圧縮が従来どおり動作することを確認する。
-8. UI 上で「圧縮設定」「出力設定」「アプリ設定」「ログ・進捗」の4タブが正しく表示・遷移でき、既存の出力設定（CSV出力、ZIP展開/再圧縮、ミラーコピー等）が「出力設定」タブから問題なく機能することを確認する。
-9. 開始ボタン連打・処理中クリーンアップが拒否され、別アプリインスタンスが同じ出力フォルダの圧縮・出力クリーンアップを開始できないことを確認する。残留掃除が使用中・所有不明のファイルを削除しないこと、出力クリーンアップが `.pjp_work/` を消さないこと、`.pjp_work/` がエクスプローラーで隠しフォルダになっていることを確認する。
-10. 凍結アプリ・インストーラで両ツールの起動、配布資料と対応ソースの取得を確認する。動画と画像の混在処理中にUI操作が応答し、画像タスクが動画待ちで停止しないことを実測する。CPU使用率そのものの上限保証は検証要件にしない。
+6. [ ] 複数動画の待機中・解析中・エンコード中・元コピー中に**停止ボタン**と**アプリ終了**のそれぞれで停止する。停止要求後に次のプロセス・コピー・ZIP再生成が始まらず、ffmpeg / ffprobe・executorが終了し、一時領域・出力ロックが後片付けされることを確認する。停止ボタンでは部分集計と中断状態が表示されて再開始できること、終了ではその後にウィンドウが閉じることを確認する。異常終了の残留領域は次回の排他取得後に限り掃除されることを確認する。
+7. [ ] ffmpegなし／ffprobeなし／検出コマンド失敗／libx265なし環境で起動し、起動直後から動画セクション全体（またはH.265のみ）が無効化され、具体的な理由が表示されること、PDF・画像圧縮が従来どおり動作することを確認する。
+8. [ ] UI 上で「圧縮設定」「出力設定」「アプリ設定」「ログ・進捗」の4タブが正しく表示・遷移でき、既存の出力設定（CSV出力、ZIP展開/再圧縮、ミラーコピー等）が「出力設定」タブから問題なく機能することを確認する。
+9. [ ] 開始ボタン連打・処理中クリーンアップが拒否され、別アプリインスタンスが同じ出力フォルダの圧縮・出力クリーンアップを開始できないことを確認する。残留掃除が使用中・所有不明のファイルを削除しないこと、出力クリーンアップが `.pjp_work/` を消さないこと、`.pjp_work/` がエクスプローラーで隠しフォルダになっていることを確認する。
+10. [ ] 凍結アプリ・インストーラで両ツールの起動、配布資料と対応ソースの取得を確認する。動画と画像の混在処理中にUI操作が応答し、画像タスクが動画待ちで停止しないことを実測する。CPU使用率そのものの上限保証は検証要件にしない。
 
 ---
 
@@ -521,15 +523,15 @@
 
 ## Implementation Milestones
 
-各段階は単独でマージ可能な単位とし、段階ごとに既存テストと追加テストを通す。
+各段階は単独でマージ可能な単位とし、段階ごとに既存テストと追加テストを通す。各行頭のチェックボックスは、該当段階の完了後に `[x]` へ更新する。
 
 | 段階 | 内容 | 対応Step | 依存 |
 |---|---|---|---|
-| M1 | 4タブ化（出力設定タブの分離）と停止ボタンの配置（初期 `disabled`、動作は未接続）。既存回帰テストのタブ数更新 | 11（タブ・ボタンのみ）, 15（回帰） | なし |
-| M2 | ffmpeg / ffprobe の解決・検出・キャッシュ、`CapabilityReport` 拡張、`_tool_detection_summary(catalog, report)`、動画セクションのUI活性制御と検出状態表示 | 1, 2（CapabilityReport）, 3, 11（動画セクション）, 12（活性制御） | なし |
-| M3 | `JobControl`、出力排他（`.pjp_work/`）、入出力の重なりチェック、`wait(FIRST_COMPLETED)` ループ、`cancelled` イベント、停止ボタン・安全な終了。**画像・PDFのみで動作確認** | 2（JobControl・イベント）, 6（job_lock）, 8（ライフサイクル・executor）, 9, 12（停止・終了） | M1 |
-| M4 | 動画処理の中核: 事前判定、許可リストによる音声判定、比較ルールによる出力検証、元維持、決定的な出力名、動画executor・進捗合成、CSV notes、ロケール | 4, 5, 6（video_service）, 7, 8（動画部分）, 10, 12（進捗）, 13 | M2, M3 |
-| M5 | 採用ビルドの選定・配置（`vendor/ffmpeg-windows/`）、`requires_external` 実ファイルテスト、許可リストへの Opus / FLAC 追加判断、配布・ライセンス・対応ソース、README | 14, 15（実ファイル）, 16 | M4 |
+| [ ] M1 | 4タブ化（出力設定タブの分離）と停止ボタンの配置（初期 `disabled`、動作は未接続）。既存回帰テストのタブ数更新 | 11（タブ・ボタンのみ）, 15（回帰） | なし |
+| [ ] M2 | ffmpeg / ffprobe の解決・検出・キャッシュ、`CapabilityReport` 拡張、`_tool_detection_summary(catalog, report)`、動画セクションのUI活性制御と検出状態表示 | 1, 2（CapabilityReport）, 3, 11（動画セクション）, 12（活性制御） | なし |
+| [ ] M3 | `JobControl`、出力排他（`.pjp_work/`）、入出力の重なりチェック、`wait(FIRST_COMPLETED)` ループ、`cancelled` イベント、停止ボタン・安全な終了。**画像・PDFのみで動作確認** | 2（JobControl・イベント）, 6（job_lock）, 8（ライフサイクル・executor）, 9, 12（停止・終了） | M1 |
+| [ ] M4 | 動画処理の中核: 事前判定、許可リストによる音声判定、比較ルールによる出力検証、元維持、決定的な出力名、動画executor・進捗合成、CSV notes、ロケール | 4, 5, 6（video_service）, 7, 8（動画部分）, 10, 12（進捗）, 13 | M2, M3 |
+| [ ] M5 | 採用ビルドの選定・配置（`vendor/ffmpeg-windows/`）、`requires_external` 実ファイルテスト、許可リストへの Opus / FLAC 追加判断、配布・ライセンス・対応ソース、README | 14, 15（実ファイル）, 16 | M4 |
 
 ## References
 
