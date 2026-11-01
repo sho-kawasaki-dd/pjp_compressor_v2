@@ -3,8 +3,8 @@
 **Batch-compress PDF, JPEG, PNG, and video files by folder — Windows GUI application.**
 フォルダ単位で PDF・JPEG・PNG・動画ファイルを一括圧縮できる Windows GUI アプリケーションです。
 
-> Video support described below is **unreleased development functionality**; existing releases may not include it.
-> 以下の動画機能は**未リリースの開発版**の機能です。既存のリリースには含まれない場合があります。
+> Video support described below is included in **v2.7.0**; earlier releases may not include it.
+> 以下の動画機能は **v2.7.0** に含まれます。以前のリリースには含まれない場合があります。
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.13%2B-blue)](https://www.python.org/)

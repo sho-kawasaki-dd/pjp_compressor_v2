@@ -1,6 +1,6 @@
 # フォルダ一括圧縮アプリ（PDF・画像・動画対応版）
 
-PDF、JPG、PNG、動画ファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。動画圧縮は未リリースの開発版機能であり、既存リリースには含まれない場合があります。
+PDF、JPG、PNG、動画ファイルを「フォルダ単位」で一括圧縮できるGUIアプリケーションです。動画圧縮は v2.7.0 に含まれる機能であり、以前のリリースには含まれない場合があります。
 PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuPDF + pikepdf）を利用し、画像はPillowによる品質指定圧縮、PNGはpngquant（不可逆）も選択可能です。さらに画像の一括リサイズ（手動指定 / 長辺指定、アスペクト比保持）にも対応し、並列処理で大量ファイルにも対応します。ネイティブ PDF 非可逆圧縮では、PDF 内 PNG 系画像を PNG のまま減色圧縮でき、WeasyPrint 由来の soft mask 付き透過画像も透過を保ったまま再圧縮できます。加えて、PDF 埋め込み画像と単体画像ファイルの両方で CMYK 画像を ICC プロファイル優先で RGB へ正規化するため、黒潰れや保存時のモード不整合を起こしにくくしました。
 
 本アプリはフロントエンド/バックエンド分離構成で、起動は `compressor_launcher_tkinter.py` → `frontend/bootstrap.py` → `frontend/ui_tkinter.py` の順で行います。圧縮処理は `backend` 配下の契約・オーケストレータ経由で実行されます。
@@ -9,6 +9,7 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
 
 - 画面と処理の全体像（HTML）: [フロー図、シーケンス図およびクラス図](./flow_sequence_and_class_diagrams.html)
 - 画面と処理の全体像（Markdown）: [flow_sequence_and_class_diagrams.md](./flow_sequence_and_class_diagrams.md)
+- v2.7.0の変更点・ライセンス・公開前チェック: [Releaseノート](./release-notes-v2.7.0.md)
 
 ## 主な機能
 
@@ -627,7 +628,8 @@ FFmpeg x264-only 承認ビルドを含むリリースでは、`ffmpeg-source.tar
     - cleanup 呼び出し境界を安定したキー渡しへ変更し、backend 側でロケールを解決する形へ整理した
     - image / PDF / worker のログ結果メッセージと message 合成を整え、ログ多言語化の責務分離を維持しやすくした
     - 関連する unit / integration テストを更新し、ログ文言の変更で UI 状態更新が壊れないことを固定した
-- 未リリース（次期版）
+- バージョン: 2.7.0
+  - ビルド日: 2026年11月2日
   - 動画圧縮、4タブ構成、停止ボタン、出力先の排他制御を追加
   - **入力クリーンアップに動画ファイルを追加**。動画圧縮の設定に関係なく、対象フォルダとそのサブフォルダの動画が取り消し不可で削除される
   - FFmpeg x264-only の限定再配布を承認し、同梱・fallback と対応ソースの同一Release掲載を有効化
