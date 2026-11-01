@@ -392,7 +392,7 @@
 14. [ ] **ビルド・配布**
     - [compressor_launcher_tkinter.spec](../../compressor_launcher_tkinter.spec): `vendor/` 全体を同梱済み。ffmpeg / ffprobeと必要なDLL・ライセンス資料が含まれ、新規Pythonモジュールも収集されることを確認する。
     - [pjp_compressor.iss](../../pjp_compressor.iss) / [vendor_zip.ps1](../../vendor_zip.ps1): `vendor/ffmpeg-windows/` を含めた配布物の構成・実サイズ・インストール時間を確認する。凍結アプリで実行パス解決と両ツールの起動を検証する。
-    - **採用ビルド**: ffmpeg / ffprobeは同じ配布ビルドで揃え、バージョン、入手元、SHA256、ビルド設定、libx264 / libx265 / AAC等の依存・ライセンスを固定する。`--enable-nonfree` ビルドは採用しない。第一候補は BtbN/FFmpeg-Builds の日付タグ付き `win64-gpl`（n7.1系）とする（ビルドスクリプトが公開されており対応ソースを特定しやすい）。`vendor/ffmpeg-windows/` への配置は M5 の前提作業とする。
+    - **採用ビルド**: ffmpeg / ffprobeは同じ配布ビルドで揃え、バージョン、入手元、SHA256、ビルド設定、libx264 / libx265 / AAC等の依存・ライセンスを固定する。`--enable-nonfree` ビルドは採用しない。2026-11-01の確認と利用者承認により、配置済みの gyan.dev `9.0.2-full_build` を採用する（当初の第一候補 BtbN n7.1系から変更）。`vendor/ffmpeg-windows/` への配置は完了したが、対応ソース一式の確保とライセンス確認は配布前の必須条件として残す。実測値と確認範囲は末尾の「同梱パッケージ確認結果」に記録する。
     - **ライセンス・対応ソース**: LICENSEの同梱だけで完了としない。配布バイナリに対応するFFmpeg・外部ライブラリのソース、適用パッチ、ビルド設定・再現情報を、採用ライセンスに従って提供できるようにする。上流のタグ・ビルドスクリプトに加え、対応ソース一式を自前でも保管し、単なる上流トップページや消失し得る第三者URLだけに依存しない。
     - GPLビルドと本体AGPL-3.0の関係は配布構成に基づいて確認し、互換性と対応ソース提供義務を別に扱う。ダウンロード案内・配布ドキュメントにもライセンスと対応ソース入手方法を記載する。
 
@@ -518,7 +518,7 @@
 - **ツール・エンコーダ互換**: ffmpeg / ffprobeの起動可否とlibx264 / libx265 / AACを検出し、理由付きでUI活性を制御する。音声コピー可否は固定許可リスト `VIDEO_MP4_AUDIO_COPY_CODECS` で事前判定し、実行時のAAC再試行は行わない。格納可否と再生機器互換性を区別する。H.265出力には `-tag:v hvc1` を付与する。
 - **ビット深度・HDR**: `yuv420p`（8bit）固定のため、8bit超とHDRの入力は元維持とする。iPhone既定のHDR動画が圧縮されないことはREADMEで明示し、10bit / HDR対応は将来課題とする。
 - **メタデータ・データストリーム**: 全体メタデータは `use_metadata_tags` で引き継ぐ。`tmcd` / `mebx` は削除を許容して notes に記録し、それ以外のデータストリーム・添付は元維持とする。
-- **配布**: 同一ビルドのffmpeg / ffprobeを固定し（第一候補: BtbN/FFmpeg-Builds `win64-gpl` n7.1系、SHA256記録）、非再配布可能なnonfreeビルドは採用しない。ライセンス互換性の確認と、バイナリに対応するソース・ビルド情報の提供（自前保管を含む）を別の受入条件とする。
+- **配布**: 同一ビルドのffmpeg / ffprobeを固定し（採用: gyan.dev `9.0.2-full_build`、SHA256は末尾に記録）、非再配布可能なnonfreeビルドは採用しない。ライセンス互換性の確認と、バイナリに対応するソース・ビルド情報の提供（自前保管を含む）を別の受入条件とする。実行確認の成功だけでは配布完了としない。
 - **タブ構成**: メインタブの肥大化を防ぐため、「出力設定」を独立した第2タブへ切り出す。
 
 ## Implementation Milestones
@@ -532,6 +532,28 @@
 | [ ] M3 | `JobControl`、出力排他（`.pjp_work/`）、入出力の重なりチェック、`wait(FIRST_COMPLETED)` ループ、`cancelled` イベント、停止ボタン・安全な終了。**画像・PDFのみで動作確認** | 2（JobControl・イベント）, 6（job_lock）, 8（ライフサイクル・executor）, 9, 12（停止・終了） | M1 |
 | [ ] M4 | 動画処理の中核: 事前判定、許可リストによる音声判定、比較ルールによる出力検証、元維持、決定的な出力名、動画executor・進捗合成、CSV notes、ロケール | 4, 5, 6（video_service）, 7, 8（動画部分）, 10, 12（進捗）, 13 | M2, M3 |
 | [ ] M5 | 採用ビルドの選定・配置（`vendor/ffmpeg-windows/`）、`requires_external` 実ファイルテスト、許可リストへの Opus / FLAC 追加判断、配布・ライセンス・対応ソース、README | 14, 15（実ファイル）, 16 | M4 |
+
+## 同梱パッケージ確認結果（2026-11-01）
+
+- [x] 利用者承認により gyan.dev `9.0.2-full_build` を採用し、展開フォルダを `vendor/ffmpeg-windows/` に統一した。Pythonのパス解決コードは変更していない。
+- [x] `ffmpeg -version` / `ffprobe -version` がともに成功し、バージョンとビルド設定が一致することを確認した。`--enable-gpl` / `--enable-version3` / `--enable-static` があり、`--enable-nonfree` はない。LICENSEはGPL v3、READMEにはビルド設定が記載されている。
+- [x] `libx264` / `libx265` / `aac` の検出に成功した。PATHをWindows標準ディレクトリだけに制限しても、両ツールの供給元が `bundled` となり、`video_available=True` であることを確認した。通常のPATHにはsystem版もあるため、同梱検証では意図的に除外した。
+- [x] 同じPATH制限で `.venv\Scripts\python.exe -m pytest tests\unit\test_capabilities.py tests\integration\test_video_ffmpeg.py -q` を実行し、**16 passed（検出8件・実動画8件）**。実動画テストは縮小MP4、奇数解像度MOV、映像なし・非対応字幕・サイズ増大時の元維持、破損入力、開始前中断、エンコード中停止を確認する。計画全体の字幕装飾・HDR・多チャンネル・回転等の網羅を意味しないため、Verification 4全体は未完了のままとする。
+- [x] 利用者承認により `bin/ffplay.exe` / `doc/` / `presets/` を削除した。削減量は約229.8 MiB（未圧縮）。`bin/ffmpeg.exe` / `bin/ffprobe.exe` / `LICENSE` / `README.txt` は残した。両実行ファイル合計は約434.35 MiB。
+- [x] 既存の `vendor_zip.ps1` で `vendor.zip` を再生成した。ZIP全体は約196.59 MiB。FFmpeg配下が上記4ファイルだけであること、ZIP全体のCRC、展開前ファイルとの内容一致を確認した。
+- [x] 既存specによるPyInstallerビルドが成功した。さらに検証専用の一時runtime hookを加えた凍結実行体で、PATH制限下の `_MEIPASS/vendor/ffmpeg-windows/bin/` 解決、両ツールの検出コマンド成功、3エンコーダ検出、下記SHA256との一致を確認した。hookはGUI起動前に終了するため、この確認はGUI操作・インストーラ試験の代替ではない。検証用ビルドは既存の `dist/` を上書きせず、確認後に削除した。
+
+| 対象 | SHA256（配置済みファイルの実測値） |
+|---|---|
+| `bin/ffmpeg.exe` | `589e50b766d251afdf181dd664d40bd94407e200b019989fd7468c7d118a28d0` |
+| `bin/ffprobe.exe` | `02264dfa4f56baaa31e443ece8aa16d397f6b008200e7fd184d22b9009e75fd3` |
+| `LICENSE` | `8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903` |
+| `README.txt` | `e7db34704804ed8844e837714eebbf843ca0a499555541df9e47fa2cc033dcb1` |
+
+- 入手元の確認先: [gyan.dev Windows builds](https://www.gyan.dev/ffmpeg/builds/)。READMEと配布ページが示すFFmpegソースコミットは [`946fcce07b`](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b)。上記SHA256はローカル実測であり、元のダウンロードアーカイブに対する配布元チェックサム照合ではない。
+- [ ] 元アーカイブと配布元SHA256の照合、外部ライブラリの正確なリビジョン・ライセンス・適用パッチ・ビルドスクリプトを含む対応ソース一式の確保と自前保管。READMEのFFmpegコミットとライブラリ一覧だけで完了としない。
+- [ ] GPL v3ビルドと本体AGPL-3.0の配布構成に基づく互換性確認、対応ソース提供方法とダウンロード案内の整備。FFmpeg legalページの直接取得は通信エラーとなり、この実行ではライセンス適合の最終判断は行っていない。
+- [ ] インストーラ構築・インストール時間・GUI操作・残る実ファイルケースの検証、配布READMEの更新。Step 14、Verification 10、M5は未完了のままとする。
 
 ## References
 
