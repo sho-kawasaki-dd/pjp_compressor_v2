@@ -9,9 +9,9 @@
     "binaries": [
       {
         "name": "ffmpeg.exe",
-        "local_path": "vendor/ffmpeg-windows/bin/ffmpeg.exe",
-        "size_bytes": 31188992,
-        "sha256": "dd8bb87fbd05be31c17c37ce2fa2e8b910ceacd4ed5bccdccb8f43e4fd8bfa7d",
+        "local_path": "build/ffmpeg-x264-0480cb05/package/bin/ffmpeg.exe",
+        "size_bytes": 31191552,
+        "sha256": "0a47a1e8d711501ff6f81fcab3c8b2f6df388c66c6b1c8acc658545c5667639b",
         "built_from": [
           "ffmpeg-source.tar.gz",
           "x264-source.tar.gz"
@@ -19,9 +19,9 @@
       },
       {
         "name": "ffprobe.exe",
-        "local_path": "vendor/ffmpeg-windows/bin/ffprobe.exe",
-        "size_bytes": 30968320,
-        "sha256": "df293436b81eda08b3b4101a9d18a2659f50d8d0bf7c8f1637e5765c378e1a89",
+        "local_path": "build/ffmpeg-x264-0480cb05/package/bin/ffprobe.exe",
+        "size_bytes": 30970880,
+        "sha256": "da192769f8b80915fa90af3b681c3689ebb2308cac93e3310170ab7c1d7b553f",
         "built_from": [
           "ffmpeg-source.tar.gz",
           "x264-source.tar.gz"
@@ -32,7 +32,7 @@
   "sources": [
     {
       "name": "ffmpeg-source.tar.gz",
-      "local_path": "build/ffmpeg-x264-only/audit/ffmpeg-source.tar.gz",
+      "local_path": "build/ffmpeg-x264-0480cb05/audit/ffmpeg-source.tar.gz",
       "size_bytes": 17323112,
       "sha256": "bfbb1d6c80bf4519449438a5992d2e683436236a78441fd9f1626278ed4fb647",
       "upstream_version": "9.0.2",
@@ -40,12 +40,14 @@
     },
     {
       "name": "x264-source.tar.gz",
-      "local_path": "build/ffmpeg-x264-only/audit/x264-source.tar.gz",
-      "size_bytes": 1033601,
-      "sha256": "936243796617b86f7d6ced919c3485891a866945923b3ae07091bf688a7768f0",
-      "upstream_version": "master (API 164; build version 0.164.x)",
-      "upstream_commit": null,
-      "provenance_note": "The original source tree had no Git history. This checksum identifies the archived tree used for the build; the upstream commit is not established."
+      "local_path": "build/ffmpeg-x264-0480cb05/audit/x264-source.tar.gz",
+      "size_bytes": 1038681,
+      "sha256": "7c418cc9d31e4c5f1029a3a845e54a9cdfe9dbecfe49d6ede16bd663ec8d7ed2",
+      "upstream_version": "API 164; build version 0.164.x (source supplied without Git history)",
+      "upstream_repository": "https://code.videolan.org/videolan/x264.git",
+      "upstream_commit": "0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee",
+      "provenance_note": "All 270 file paths and file contents match the official commit byte for byte. Comparison used git archive with core.autocrlf=false; no line-ending normalization was needed.",
+      "verification_record": "build/ffmpeg-x264-0480cb05/audit/x264-upstream-verification.txt"
     }
   ],
   "build": {
@@ -53,40 +55,40 @@
     "patches": "No source patches were applied.",
     "build_script": {
       "name": "build_ffmpeg_x264.sh",
-      "local_path": "build/ffmpeg-x264-only/audit/build_ffmpeg_x264.sh",
+      "local_path": "build/ffmpeg-x264-0480cb05/audit/build_ffmpeg_x264.sh",
       "sha256": "f3c491cafc0c79c5904ceb7cb1b760ff5ef165f1ed20c31c067164e300444896"
     },
-    "toolchain_record": "build/ffmpeg-x264-only/audit/toolchain.txt"
+    "toolchain_record": "build/ffmpeg-x264-0480cb05/audit/toolchain.txt"
   },
   "license_notices": [
     {
       "name": "FFmpeg-COPYING.GPLv3",
-      "local_path": "vendor/ffmpeg-windows/licenses/FFmpeg-COPYING.GPLv3",
+      "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/FFmpeg-COPYING.GPLv3",
       "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
     },
     {
       "name": "FFmpeg-LICENSE.md",
-      "local_path": "vendor/ffmpeg-windows/licenses/FFmpeg-LICENSE.md",
+      "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/FFmpeg-LICENSE.md",
       "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
     },
     {
       "name": "x264-COPYING",
-      "local_path": "vendor/ffmpeg-windows/licenses/x264-COPYING",
+      "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/x264-COPYING",
       "sha256": "32b1062f7da84967e7019d01ab805935caa7ab7321a7ced0e30ebe75e5df1670"
     }
   ],
   "verification": {
-    "binary_hashes_match_build_package": true,
-    "build_package_paths": [
-      "build/ffmpeg-x264-only/package/bin/ffmpeg.exe",
-      "build/ffmpeg-x264-only/package/bin/ffprobe.exe"
-    ],
+    "binary_hashes_recomputed": true,
     "source_archive_hashes_recomputed": true,
-    "details": "Hashes were recomputed from the files present in this checkout on 2026-11-01 and match the build audit's SHA256SUMS."
+    "x264_source_matches_upstream_commit": true,
+    "pytest_passed": 315,
+    "pytest_skipped": 0,
+    "test_record": "build/ffmpeg-x264-0480cb05/audit/test-result.json",
+    "details": "Hashes were recomputed on 2026-11-01 and match the build audit's SHA256SUMS. App tests use the new candidate; stock FFmpeg is used only to generate test inputs. HEVC inputs were copied unchanged with zero encoding calls. The existing vendor binaries were not replaced."
   },
   "distribution_caveats": [
     "This manifest records file identity and build inputs; it is not legal advice or confirmation that redistribution is permitted.",
-    "The x264 upstream commit is unknown; the source archive checksum pins the exact archived tree used for this build.",
+    "This manifest describes the new independent build, not the older binaries still present under vendor/ffmpeg-windows.",
     "Review of all applicable license conditions, the application's AGPL-3.0 distribution arrangement, and required corresponding-source delivery remains incomplete. Do not publish or redistribute these binaries until those reviews and delivery requirements are resolved."
   ]
 }

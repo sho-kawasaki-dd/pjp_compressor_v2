@@ -34,6 +34,28 @@
 - HEVCのMP4、MKV、H.264主映像＋HEVC追加映像のMKVについて、新ffprobeで検知し、ffmpegのエンコード実行が0回、コピー元とコピー先のSHA256一致を確認しました。
 - [監査資料](../build/ffmpeg-x264-only/audit/) にconfigure引数・生成設定・ソースアーカイブ・ライセンス・ツール情報・DLL import・テスト結果を保存しています。ソースアーカイブのSHA256は `ffmpeg-source.tar.gz`: `bfbb1d6c80bf4519449438a5992d2e683436236a78441fd9f1626278ed4fb647`、`x264-source.tar.gz`: `936243796617b86f7d6ced919c3485891a866945923b3ae07091bf688a7768f0` です。
 
+### 公式x264最新ソースによる再ビルド（2026-11-01）
+
+公式リポジトリの確認時点のHEADは `0480cb05fa188d37ae87e8f4fd8f1aea3711f7ee`（2025-09-10、`riscv64: add compile support`）でした。新たに提供されたx264ソースの全270ファイルについて、`core.autocrlf=false` で取得した同コミットの `git archive` とパス・内容がバイト単位で一致しました。Git履歴なしのソースなので実行時のx264版表示は引き続き `0.164.x` ですが、今回は上流コミットとの内容一致を確認済みです。
+
+FFmpeg `n9.0.2` とこの新しいx264ソースで、同じビルドスクリプト・ツールチェーン・並列数4を使って再ビルドしました。従来同様、外部メディアライブラリはx264だけに限定し、HEVC機能を無効化しています。一般的な組み込みcodec・filter・コンテナ機能は残すため、最小サイズのビルドではありません。
+
+成果物は [`build/ffmpeg-x264-0480cb05/package/bin/`](../build/ffmpeg-x264-0480cb05/package/bin/) に、対応ソースとビルド・検証記録は[監査資料](../build/ffmpeg-x264-0480cb05/audit/)に保存しています。[マニフェスト](ffmpeg-x264-only-manifest.json)はこの新ビルドを指すよう更新しました。旧成果物と `vendor/ffmpeg-windows/` のバイナリは変更しておらず、同梱fallbackと梱包除外も維持しています。
+
+バイナリ・ライセンス・対応ソースアーカイブ・マニフェスト・監査資料をまとめた[保管用ZIP](../build/ffmpeg-x264-0480cb05/ffmpeg-x264-0480cb05.zip)は62,294,715 bytes、SHA256は `f782ab053582b64bc0d2833d10be36273423551a2c084f38ed741f481a1a5f83` です。公開配布を承認したものではありません。
+
+| 実行ファイル | サイズ | SHA256 |
+|---|---:|---|
+| `ffmpeg.exe` | 31,191,552 bytes | `0a47a1e8d711501ff6f81fcab3c8b2f6df388c66c6b1c8acc658545c5667639b` |
+| `ffprobe.exe` | 30,970,880 bytes | `da192769f8b80915fa90af3b681c3689ebb2308cac93e3310170ab7c1d7b553f` |
+
+- 対応ソースSHA256: `ffmpeg-source.tar.gz` は `bfbb1d6c80bf4519449438a5992d2e683436236a78441fd9f1626278ed4fb647`（従来と同一）、`x264-source.tar.gz` は `7c418cc9d31e4c5f1029a3a845e54a9cdfe9dbecfe49d6ede16bd663ec8d7ed2`。パッチなし。
+- 新候補でアプリの全315テストが成功し、スキップは0件でした。テスト入力の生成のみsystemのfull buildを使い、アプリの実処理は新候補を使っています。
+- HEVCのMP4・MKVおよびH.264＋HEVCのMKVについて、元維持・エンコード呼び出し0回・コピー後のSHA256一致を確認しました。
+- Windows DLL importは両実行ファイルとも `bcrypt.dll`、`KERNEL32.dll`、`msvcrt.dll`、`SHELL32.dll` のみです。GPL version 3 or laterの表示を確認しました。
+
+**上流コミットの照合と再ビルド成功は、再配布の承認ではありません。** ランタイムのライセンス条件、本体との配布構成、対応ソース提供、特許上の条件は引き続き確認が必要です。
+
 ### 再ビルド
 
 [ビルドスクリプト](../scripts/build_ffmpeg_x264.sh) はMSYS2 Bashで実行します。`PATH` にMinGW GCC・pkg-config・MSYS2のmake/NASM等を配置し、ソース2つと未使用の出力ディレクトリを引数に指定してください。入力ソースはコピーして使用し、原本を変更しません。
