@@ -16,5 +16,22 @@ build/
 *.zip
 installer/
 
-# Ghostscript & pngquant bundle folder
-vendor/
+# Vendor binaries are not tracked; retain their distribution notices.
+vendor/*
+!vendor/ffmpeg-windows/
+vendor/ffmpeg-windows/*
+!vendor/ffmpeg-windows/LICENSE
+!vendor/ffmpeg-windows/README.txt
+!vendor/ffmpeg-windows/licenses/
+!vendor/Ghostscript-windows/
+vendor/Ghostscript-windows/*
+!vendor/Ghostscript-windows/LICENSE
+!vendor/Ghostscript-windows/AGPL-3.0-or-later.txt
+!vendor/pngquant-windows/
+vendor/pngquant-windows/*
+!vendor/pngquant-windows/pngquant/
+vendor/pngquant-windows/pngquant/*
+!vendor/pngquant-windows/pngquant/BUILD.txt
+!vendor/pngquant-windows/pngquant/COPYRIGHT
+!vendor/pngquant-windows/pngquant/README.txt
+!vendor/pngquant-windows/pngquant/libimagequant-COPYRIGHT

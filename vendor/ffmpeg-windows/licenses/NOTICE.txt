@@ -1,0 +1,2 @@
+This software is based in part on the work of the Independent JPEG Group.
+The supplied FFmpeg and x264 sources were built without source patches.

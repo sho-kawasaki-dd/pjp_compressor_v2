@@ -1,0 +1,37 @@
+Bundled pngquant: 3.0.4
+Bundled libimagequant: 4.5.0
+Platform: Windows x64 (x86_64-pc-windows-msvc)
+
+Built from the supplied pngquant-main and libimagequant-main source snapshots.
+Rust 1.99.1 / Cargo 1.99.1 / Visual Studio 18 Community.
+
+Build command (from an x64 Native Tools Command Prompt):
+  set RUSTFLAGS=-C target-feature=+crt-static
+  cargo build --release --locked --offline --target x86_64-pc-windows-msvc --features static,z-static
+
+libpng, zlib, Little CMS 2 and the MSVC runtime are statically linked.
+Only Windows system DLLs are required; no additional third-party DLLs.
+The application still prefers a system pngquant found on PATH. Bundled
+integration was tested with PATH isolated in the validation process only;
+the machine's PATH and existing system pngquant were not changed.
+
+Validation on the supplied samples:
+  test.png: 380x287 palette PNG, 17194 -> 9383 bytes.
+  Full and partial transparency remain present. Quantization is lossy:
+  maximum alpha difference was 15/255; 12 originally transparent pixels
+  became nearly transparent (alpha at most 5/255).
+  metadata.png: iTXt retained normally and removed with --strip.
+  Its ICC profile was converted to sRGB rather than copied unchanged.
+
+COPYRIGHT contains the pngquant license and copyright notices.
+libimagequant-COPYRIGHT contains the libimagequant license and notices.
+README.txt contains the upstream pngquant 3 usage documentation.
+
+Corresponding source archive:
+  pngquant-3.0.4-libimagequant-4.5.0-windows-source.zip
+
+The archive includes Cargo.lock, vendored dependency sources, libimagequant
+and BUILD-WINDOWS.txt with offline build instructions. Distribute the archive
+alongside the executable when using the GPL-3.0-or-later license, and retain
+the applicable license notices. The archive is delivered separately and is
+not included automatically by this project's PyInstaller configuration.
