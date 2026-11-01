@@ -9,9 +9,9 @@
 
 ## 現行の製品方針
 
-アプリは H.265/HEVC のエンコード・デコードを行いません。HEVC映像streamを含む入力は ffprobe のstream metadataで検出し、ffmpegを起動せず元ファイルをコピーします。未監査の `vendor/ffmpeg-windows/` gyan.dev full build は実行時fallbackと凍結版・`vendor.zip`の梱包対象から除外しました。動画機能は現在 PATH 上の system `ffmpeg` / `ffprobe` に依存します。
+アプリは H.265/HEVC のエンコード・デコードを行いません。HEVC映像streamを含む入力は ffprobe のstream metadataで検出し、ffmpegを起動せず元ファイルをコピーします。`vendor/ffmpeg-windows/` は実行時fallbackと凍結版・`vendor.zip`の梱包対象から除外しています。動画機能は現在 PATH 上の system `ffmpeg` / `ffprobe` に依存します。
 
-これは一時的な安全側の配布・実行方針です。Windows向けx264-only再ビルドは下記のとおり作成・動作検証しましたが、配布上の条件確認は未完了です。同梱fallbackと梱包除外はそのまま維持し、新バイナリも自動で同梱版へ差し替えていません。
+これは一時的な安全側の配布・実行方針です。Windows向けx264-only再ビルドは下記のとおり作成・動作検証しましたが、配布上の条件確認は未完了です。2026-11-01にユーザーの依頼で [`vendor/ffmpeg-windows/bin/`](../vendor/ffmpeg-windows/bin/) のffmpeg/ffprobeを新ビルドへ差し替え、付属ライセンスとREADMEも更新しました。差し替え後のSHA256は下記ビルド成果物と一致します。同梱fallbackと梱包除外はそのまま維持しています。
 
 ## x264限定のWindowsビルド（2026-11-01）
 
@@ -52,7 +52,7 @@ bash scripts/build_ffmpeg_x264.sh \
 
 ## 旧full buildについてローカルで確認したもの
 
-対象ディレクトリは [`vendor/ffmpeg-windows/`](../vendor/ffmpeg-windows/) です。
+以下は差し替え前に [`vendor/ffmpeg-windows/`](../vendor/ffmpeg-windows/) にあったgyan.dev full buildの調査履歴です。現在配置しているバイナリとREADMEの情報ではありません。
 
 | ファイル | サイズ | SHA256 |
 |---|---:|---|
