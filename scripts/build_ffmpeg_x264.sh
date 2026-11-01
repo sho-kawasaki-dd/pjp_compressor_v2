@@ -115,7 +115,7 @@ cp "$output/sources/ffmpeg/CREDITS" "$output/package/licenses/FFmpeg-CREDITS"
 cp "$output/sources/x264/COPYING" "$output/package/licenses/x264-COPYING"
 printf '%s\n' \
     'This software is based in part on the work of the Independent JPEG Group.' \
-    'The supplied FFmpeg and x264 sources were built without source patches.' \
+    'For the FFmpeg n9.0.2 source used in this build, no changes, additions, or deletions were made to libavcodec/jfdctfst.c, libavcodec/jfdctint_template.c, or libavcodec/jrevdct.c.' \
     > "$output/package/licenses/NOTICE.txt"
 cp "$output/sources/x264/x264.h" "$output/audit/x264.h"
 cd "$output"

@@ -133,7 +133,7 @@ GitHub の `n9.0.2` タグ参照先は `946fcce07b6dcd0331c8cc609192aeff5e1924f8
 
 上表は、FFmpeg の `LICENSE.md` が明示するカテゴリと設定上の有効化を突き合わせたものです。その他の有効ライブラリも多数あり、各依存先の**正確なビルド版のライセンス、例外、著作権表示**の確認が別途必要です。`vendor/ffmpeg-windows/README.txt` は外部ライブラリ名と多くの版を列挙していますが、ライセンス文やソースアーカイブ、全依存のソースハッシュは含みません。
 
-FFmpeg の `LICENSE.md` は、`libavcodec/jfdctfst.c`、`libavcodec/jfdctint_template.c`、`libavcodec/jrevdct.c` の IJG 由来コードについて、実行ファイルのみを配布する場合の IJG クレジットと変更内容の説明にも言及しています。最終配布資料でこの表示要件を確認してください。
+FFmpeg の `LICENSE.md` は、`libavcodec/jfdctfst.c`、`libavcodec/jfdctint_template.c`、`libavcodec/jrevdct.c` の IJG 由来コードについて、実行ファイルのみを配布する場合の IJG クレジットと変更内容の説明を求めています。監査対象の FFmpeg n9.0.2 x264-only 候補については、ビルドスクリプトがソースパッチを適用しないため、これら3ファイルに対する当該ビルドでの変更・追加・削除はありません。この内容を [`README.md`](../README.md) と生成される `package/licenses/NOTICE.txt` に記載しました。この変更状況はビルドに使用した FFmpeg n9.0.2 ソースを基準とするもので、IJG 原典との差分がないという意味ではなく、他の FFmpeg ビルドにも適用されません。実際に配布するバイナリと付属 NOTICE の一致をリリース時に再確認してください。再配布の承認は未完了です。
 
 ## アプリの機能要件から見た外部ライブラリ候補
 

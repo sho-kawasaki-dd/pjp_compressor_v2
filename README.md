@@ -211,6 +211,17 @@ This project is licensed under the [GNU Affero General Public License v3.0 or la
 The third-party source archives listed above are provided alongside the installer on GitHub Releases to make the sources corresponding to bundled binaries available. This release practice does not by itself establish that every license obligation or distribution condition has been satisfied; see the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) for the current review status.
 同梱バイナリに対応するソースを入手できるよう、上記のサードパーティソースアーカイブを GitHub Releases でインストーラーとともに提供します。この掲載方針だけで各ライセンス上の義務や配布条件をすべて満たすと判断するものではありません。確認状況は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)を参照してください。
 
+For the FFmpeg n9.0.2 x264-only build candidate, executable-only distribution documentation must include this IJG notice:
+FFmpeg n9.0.2 x264-only ビルド候補を実行ファイルのみで配布する場合、付属文書に次の IJG 表示を含めてください。
+
+```text
+This software is based in part on the work of the Independent JPEG Group.
+For the FFmpeg n9.0.2 source used in this build, no changes, additions, or deletions were made to libavcodec/jfdctfst.c, libavcodec/jfdctint_template.c, or libavcodec/jrevdct.c.
+```
+
+The change statement is relative to the FFmpeg n9.0.2 source used for this candidate: its build script applies no source patches. It does not claim that the IJG-derived files are identical to the original IJG files, and it does not apply to other FFmpeg builds. Include and verify this notice with the exact binaries in any eventual installer; redistribution remains uncleared.
+変更内容は、この候補で使用した FFmpeg n9.0.2 ソースを基準とした記述です。ビルドスクリプトはソースパッチを適用していません。この記述は IJG 由来ファイルが IJG 原典と同一であることを意味せず、他の FFmpeg ビルドにも適用されません。将来インストーラーを作成する際は、実際のバイナリとともにこの表示を含めて確認してください。再配布の確認は未完了です。
+
 The app only uses H.264 (`libx264`) for video output. It does not encode or decode H.265/HEVC; if any video stream (including cover art) is HEVC, the app probes stream metadata and copies the original file unchanged without starting `ffmpeg`. Video compression currently requires system `ffmpeg` and `ffprobe` on `PATH`. The existing gyan.dev `9.0.2-full_build` contains x265/HEVC support and is unverified for redistribution, so it is neither used as a fallback nor included in frozen builds or `vendor.zip` while an audited x264-only replacement is unavailable. Detection is cached until the app restarts.
 アプリの動画出力は H.264（`libx264`）のみです。H.265/HEVC のエンコード・デコードは行いません。カバーアートを含むいずれかの映像ストリームが HEVC の場合、ストリーム情報だけを調べ、`ffmpeg` を起動せず元ファイルをそのままコピーします。現時点では動画圧縮に PATH 上の system `ffmpeg` と `ffprobe` が必要です。既存の gyan.dev `9.0.2-full_build` は x265/HEVC 対応で再配布の監査も未完了のため、監査済みx264-only版ができるまでfallbackとして使用せず、凍結版や `vendor.zip` にも含めません。検出結果はアプリ再起動までキャッシュされます。
 
