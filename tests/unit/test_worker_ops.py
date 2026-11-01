@@ -73,6 +73,39 @@ def test_process_single_file_rejects_video_task_without_required_context(tmp_pat
         )
 
 
+def test_process_single_file_preserves_hevc_prohibition_in_csv_notes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / 'clip.mov'
+    source.write_bytes(b'original')
+    original_outpath = tmp_path / 'out' / source.name
+
+    def fake_compress(*_args, **_kwargs):
+        return VideoCompressResult(
+            ok=True,
+            message='original kept because H.265/HEVC use is prohibited',
+            final_outpath=str(original_outpath),
+            kept_original=True,
+            kept_original_reason='retention',
+            notes=('hevc_input_prohibited',),
+        )
+
+    monkeypatch.setattr(worker_ops, 'compress_video_ffmpeg', fake_compress)
+    outcome = worker_ops.process_single_file(
+        build_task(
+            source,
+            tmp_path / 'out' / 'clip.mp4',
+            'mov',
+            *video_extra(original_outpath=str(original_outpath), video_temp_dir=str(tmp_path / 'work')),
+        )
+    )
+
+    assert outcome.action_key == 'csv_action_video_kept_retention'
+    assert outcome.processed is True
+    assert outcome.notes == 'hevc_input_prohibited'
+
+
 @pytest.mark.parametrize(
     ('result', 'expected_key', 'expected_processed'),
     [

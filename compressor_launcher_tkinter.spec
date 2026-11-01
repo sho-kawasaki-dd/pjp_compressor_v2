@@ -8,7 +8,12 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 tkdnd_datas = collect_data_files('tkinterdnd2')
 tkdnd_hiddenimports = collect_submodules('tkinterdnd2')
 project_root = Path.cwd()
-vendor_datas = [('vendor', 'vendor')] if (project_root / 'vendor').exists() else []
+vendor_root = project_root / 'vendor'
+vendor_datas = [
+    (str(path), str(Path('vendor') / path.relative_to(vendor_root).parent))
+    for path in vendor_root.rglob('*')
+    if path.is_file() and path.relative_to(vendor_root).parts[0].casefold() != 'ffmpeg-windows'
+]
 
 
 a = Analysis(

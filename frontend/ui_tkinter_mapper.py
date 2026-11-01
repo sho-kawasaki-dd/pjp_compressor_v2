@@ -10,7 +10,7 @@ controller は widget 操作、backend は request 契約に集中したいの�
 from dataclasses import dataclass
 
 from backend.contracts import CompressionRequest, VideoCompressionConfig
-from backend.settings import VIDEO_ALLOWED_AUDIO_MODES, VIDEO_ALLOWED_CODECS, VIDEO_ALLOWED_PRESETS
+from backend.settings import VIDEO_ALLOWED_AUDIO_MODES, VIDEO_ALLOWED_PRESETS
 from frontend.i18n import get_current_language
 from frontend.settings import PDF_LOSSY_DPI_RANGE
 from frontend.ui_contracts import CompressionRequestAppProtocol
@@ -18,15 +18,13 @@ from frontend.ui_contracts import CompressionRequestAppProtocol
 
 MAX_RESIZE_DIMENSION = 65535
 
-# x265 は同じ CRF でも x264 より強く圧縮されるため、同じ品質値では +4 して見た目を揃える。
-_X265_CRF_OFFSET = 4
 _CRF_SPAN = 22
 
 
-def quality_to_crf(q: int, codec: str = 'libx264') -> int:
+def quality_to_crf(q: int) -> int:
     """UI の品質値 (0〜100) を CRF へ変換する。品質が高いほど CRF は小さい。"""
     base = round(40 - (max(0, min(100, int(q))) / 100.0) * _CRF_SPAN)
-    return min(51, base + (_X265_CRF_OFFSET if codec == 'libx265' else 0))
+    return base
 
 
 @dataclass(frozen=True)
@@ -134,9 +132,6 @@ def build_video_config(app: CompressionRequestAppProtocol) -> VideoCompressionCo
     if not app.video_enabled.get():
         return None
 
-    codec = app.video_codec.get()
-    if codec not in VIDEO_ALLOWED_CODECS:
-        codec = 'libx264'
     preset = app.video_preset.get()
     if preset not in VIDEO_ALLOWED_PRESETS:
         preset = 'medium'
@@ -146,8 +141,8 @@ def build_video_config(app: CompressionRequestAppProtocol) -> VideoCompressionCo
 
     return VideoCompressionConfig(
         enabled=True,
-        codec=codec,  # type: ignore[arg-type]
-        crf=quality_to_crf(app.video_quality.get(), codec),
+        codec='libx264',
+        crf=quality_to_crf(app.video_quality.get()),
         preset=preset,
         audio_mode=audio_mode,  # type: ignore[arg-type]
         # 固定ビットレートは UI に出さず、チャンネル数に応じた自動値に任せる。

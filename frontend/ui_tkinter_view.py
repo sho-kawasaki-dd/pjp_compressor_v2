@@ -73,7 +73,6 @@ class TkUiViewMixin:
     pdf_ll_remove_unreferenced: tk.BooleanVar
     video_enabled: tk.BooleanVar
     video_quality: tk.IntVar
-    video_codec: tk.StringVar
     video_preset: tk.StringVar
     video_audio_mode: tk.StringVar
     video_max_long_edge: tk.StringVar
@@ -111,9 +110,7 @@ class TkUiViewMixin:
     video_enable_check: ttk.Checkbutton
     video_quality_scale: tk.Scale
     video_quality_value_label: ttk.Label
-    video_h264_rb: ttk.Radiobutton
-    video_h265_rb: ttk.Radiobutton
-    video_h265_note_label: ttk.Label
+    video_codec_label: ttk.Label
     video_preset_combo: ttk.Combobox
     video_audio_combo: ttk.Combobox
     video_long_edge_combo: ttk.Combobox
@@ -459,25 +456,8 @@ class TkUiViewMixin:
         codec_row = ttk.Frame(parent)
         codec_row.pack(fill='x', padx=5, pady=2)
         ttk.Label(codec_row, text=t('label_video_codec')).pack(side='left')
-        self.video_h264_rb = ttk.Radiobutton(
-            codec_row,
-            text=t('video_codec.libx264'),
-            variable=self.video_codec,
-            value='libx264',
-            command=self._update_video_quality_label,
-        )
-        self.video_h264_rb.pack(side='left', padx=(8, 0))
-        self.video_h265_rb = ttk.Radiobutton(
-            codec_row,
-            text=t('video_codec.libx265'),
-            variable=self.video_codec,
-            value='libx265',
-            command=self._update_video_quality_label,
-        )
-        self.video_h265_rb.pack(side='left', padx=(8, 0))
-        self._video_widgets.append(self.video_h264_rb)
-        self.video_h265_note_label = ttk.Label(codec_row, text=t('note_video_h265_unavailable'), foreground='gray')
-        # H.265 非対応時だけ controller が pack する。
+        self.video_codec_label = ttk.Label(codec_row, text=t('video_codec.libx264'))
+        self.video_codec_label.pack(side='left', padx=(8, 0))
 
         preset_row = ttk.Frame(parent)
         preset_row.pack(fill='x', padx=5, pady=2)
@@ -546,9 +526,9 @@ class TkUiViewMixin:
         self._update_video_quality_label()
 
     def _update_video_quality_label(self) -> None:
-        """現在の品質値とコーデックから CRF の目安を表示する。"""
+        """現在の品質値から H.264 CRF の目安を表示する。"""
         quality = int(self.video_quality.get())
-        crf = quality_to_crf(quality, self.video_codec.get())
+        crf = quality_to_crf(quality)
         self.video_quality_value_label.config(text=t('video_quality_value', quality=quality, crf=crf))
 
     def _build_pdf_section(self, parent):

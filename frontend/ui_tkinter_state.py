@@ -15,7 +15,6 @@ from backend.settings import (
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
     PDF_LOSSY_PNG_QUALITY_DEFAULT,
     VIDEO_AUDIO_MODE_DEFAULT,
-    VIDEO_CODEC_DEFAULT,
     VIDEO_ENABLED_DEFAULT,
     VIDEO_MAX_LONG_EDGE_DEFAULT,
     VIDEO_PRESET_DEFAULT,
@@ -83,7 +82,6 @@ class TkUiStateMixin:
         # 動画圧縮設定。品質は UI 専用の 0〜100 で、CRF への変換は mapper が行う。
         self.video_enabled: tk.BooleanVar = tk.BooleanVar(value=VIDEO_ENABLED_DEFAULT)
         self.video_quality: tk.IntVar = tk.IntVar(value=VIDEO_QUALITY_DEFAULT)
-        self.video_codec: tk.StringVar = tk.StringVar(value=VIDEO_CODEC_DEFAULT)
         self.video_preset: tk.StringVar = tk.StringVar(value=VIDEO_PRESET_DEFAULT)
         self.video_audio_mode: tk.StringVar = tk.StringVar(value=VIDEO_AUDIO_MODE_DEFAULT)
         self.video_max_long_edge: tk.StringVar = tk.StringVar(value=str(VIDEO_MAX_LONG_EDGE_DEFAULT))

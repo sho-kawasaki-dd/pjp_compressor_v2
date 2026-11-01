@@ -218,16 +218,13 @@ class TkUiControllerMixin:
         self._set_widget_state(host.zip_output_check, 'normal' if extract_zip_enabled else 'disabled')
 
     def _refresh_video_engine_status(self) -> None:
-        """ffmpeg / ffprobe の供給元・H.265 可否・利用不可の理由を表示する。"""
+        """ffmpeg / ffprobe の供給元と利用不可の理由を表示する。"""
         host = self._controller_host()
         report = host.capabilities
         parts = [
             f"{t('capability_ffmpeg_label')}{t(f'tool_source.{report.ffmpeg_source}')}",
             f"{t('capability_ffprobe_label')}{t(f'tool_source.{report.ffprobe_source}')}",
         ]
-        if report.ffmpeg_available:
-            parts.append(t('video_engine_hevc_ok' if report.ffmpeg_hevc_available else 'video_engine_hevc_ng'))
-
         text = t('video_engine_status', parts=', '.join(parts))
         if not report.video_available:
             reason = tool_unavailable_reason(report, VideoCompressionConfig(), get_current_language())
@@ -238,9 +235,7 @@ class TkUiControllerMixin:
     def _update_video_controls(self) -> None:
         """検出結果と有効トグルに合わせて動画セクションの活性状態を切り替える。
 
-        ffmpeg / ffprobe が使えない環境では起動直後からセクション全体を無効化し、H.265 だけ
-        使えない環境では H.265 のみを無効化する。無効化した選択肢が選ばれたままにならないよう
-        コーデックも H.264 へ戻す。
+        ffmpeg / ffprobe が使えない環境では起動直後からセクション全体を無効化する。
         """
         host = self._controller_host()
         report = host.capabilities
@@ -249,31 +244,21 @@ class TkUiControllerMixin:
             self._set_widget_state(host.video_enable_check, 'disabled')
             for widget in host._video_widgets:
                 self._set_widget_state(widget, 'disabled')
-            self._set_widget_state(host.video_h265_rb, 'disabled')
             for combo in host._video_combo_widgets:
                 self._set_widget_state(combo, 'disabled')
             return
-
-        hevc_available = report.ffmpeg_hevc_available
-        if not hevc_available:
-            if host.video_codec.get() == 'libx265':
-                host.video_codec.set('libx264')
-            host.video_h265_note_label.pack(side='left', padx=(10, 0))
-        else:
-            host.video_h265_note_label.pack_forget()
 
         enabled = host.video_enabled.get()
         self._set_widget_state(host.video_enable_check, 'normal')
         for widget in host._video_widgets:
             self._set_widget_state(widget, 'normal' if enabled else 'disabled')
-        self._set_widget_state(host.video_h265_rb, 'normal' if enabled and hevc_available else 'disabled')
         for combo in host._video_combo_widgets:
             self._set_widget_state(combo, 'readonly' if enabled else 'disabled')
         host.video_quality_value_label.config(
             text=t(
                 'video_quality_value',
                 quality=int(host.video_quality.get()),
-                crf=quality_to_crf(int(host.video_quality.get()), host.video_codec.get()),
+                crf=quality_to_crf(int(host.video_quality.get())),
             )
         )
 

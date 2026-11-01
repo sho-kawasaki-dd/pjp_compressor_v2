@@ -57,7 +57,7 @@ class VideoCompressionConfig:
     """動画圧縮設定。backend は CRF のみを正とし、UI の品質値は保持しない。"""
 
     enabled: bool = True
-    codec: Literal['libx264', 'libx265'] = 'libx264'
+    codec: Literal['libx264'] = 'libx264'
     crf: int = VIDEO_CRF_DEFAULT
     preset: str = 'medium'
     audio_mode: Literal['aac', 'copy', 'none'] = 'copy'
@@ -171,11 +171,6 @@ class CapabilityReport:
     def video_available(self) -> bool:
         """動画圧縮に必要な ffmpeg / ffprobe が揃っているかを返す。"""
         return self.ffmpeg_available and self.ffprobe_available
-
-    @property
-    def ffmpeg_hevc_available(self) -> bool:
-        """H.265 (libx265) エンコードが使えるかを返す。"""
-        return self.ffmpeg_available and 'libx265' in self.ffmpeg_encoders
 
     @property
     def native_pdf_available(self) -> bool:

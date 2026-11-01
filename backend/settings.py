@@ -42,7 +42,7 @@ VIDEO_AUDIO_BITRATE_DEFAULT = None
 VIDEO_MAX_LONG_EDGE_DEFAULT = 0
 VIDEO_CRF_DEFAULT = 24
 
-VIDEO_ALLOWED_CODECS = frozenset({'libx264', 'libx265'})
+VIDEO_ALLOWED_CODECS = frozenset({'libx264'})
 VIDEO_ALLOWED_PRESETS = frozenset({
     'ultrafast', 'superfast', 'veryfast', 'faster', 'fast',
     'medium', 'slow', 'slower', 'veryslow',

@@ -6,6 +6,7 @@ from __future__ import annotations
 """
 
 import csv
+import hashlib
 import json
 import re
 import subprocess
@@ -17,6 +18,7 @@ import pytest
 
 from backend import capabilities
 from backend.contracts import JobControl, VideoCompressionConfig
+from backend.core import video_utils
 from backend.core.video_utils import VideoCompressResult, compress_video_ffmpeg, terminate_active_video_processes, tool_unavailable_reason
 from backend.orchestrator import job_runner
 from shared.locale_catalog import translate
@@ -414,19 +416,29 @@ def test_unsupported_gpmd_data_keeps_original(caps, tmp_path: Path) -> None:
     assert (out_dir / src.name).read_bytes() == src.read_bytes()
 
 
-def test_hevc_output_uses_hvc1_tag(caps, tmp_path: Path) -> None:
-    if not caps.ffmpeg_hevc_available:
-        pytest.skip('ffmpeg libx265 encoder is unavailable')
-    src = _make_video_only(caps, tmp_path / 'hevc.mov')
-
-    result, out_dir, _ = _run(
-        caps, src, tmp_path, config=VideoCompressionConfig(codec='libx265', crf=35, preset='ultrafast'),
+def test_hevc_input_is_copied_without_running_ffmpeg(caps, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _require_encoder(caps, 'libx265')
+    src = tmp_path / 'hevc.mp4'
+    _ffmpeg(
+        caps, '-f', 'lavfi', '-i', 'testsrc2=size=128x72:rate=10:duration=1',
+        '-c:v', 'libx265', '-preset', 'ultrafast', '-x265-params', 'log-level=error',
+        '-pix_fmt', 'yuv420p', str(src),
     )
+    app_ffmpeg_calls: list[bool] = []
 
-    assert result.ok and not result.kept_original, (result.message, result.notes)
-    output_video = _streams(_probe(caps, out_dir / 'hevc.mp4'), 'video')[0]
-    assert output_video['codec_name'] == 'hevc'
-    assert output_video['codec_tag_string'] == 'hvc1'
+    def reject_ffmpeg(*_args, **_kwargs):
+        app_ffmpeg_calls.append(True)
+        raise AssertionError('HEVC input must be copied without starting ffmpeg')
+
+    monkeypatch.setattr(video_utils, '_run_ffmpeg', reject_ffmpeg)
+    result, out_dir, _ = _run(caps, src, tmp_path)
+    copied = out_dir / src.name
+
+    assert result.ok and result.kept_original and result.kept_original_reason == 'retention'
+    assert result.notes == ('hevc_input_prohibited',)
+    assert 'H.265/HEVC' in result.message
+    assert not app_ffmpeg_calls
+    assert hashlib.sha256(src.read_bytes()).digest() == hashlib.sha256(copied.read_bytes()).digest()
 
 
 @pytest.mark.parametrize(

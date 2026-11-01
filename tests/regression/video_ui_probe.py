@@ -49,7 +49,8 @@ def main() -> None:
             'stop_state': str(app.stop_button.cget('state')),
             'enable_disabled': app.video_enable_check.instate(('disabled',)),
             'quality_state': str(app.video_quality_scale.cget('state')),
-            'h265_disabled': app.video_h265_rb.instate(('disabled',)),
+            'h265_widget_present': hasattr(app, 'video_h265_rb'),
+            'codec_label': app.video_codec_label.cget('text'),
             'combos_readonly': [combo.instate(('readonly',)) for combo in app._video_combo_widgets],
             'combos_disabled': [combo.instate(('disabled',)) for combo in app._video_combo_widgets],
             'engine_status': app.video_engine_status_var.get(),
@@ -61,7 +62,6 @@ def main() -> None:
             app.video_enabled.set(True)
             app._update_video_controls()
             state['combos_readonly_after_toggle'] = all(combo.instate(('readonly',)) for combo in app._video_combo_widgets)
-            state['h265_disabled_after_toggle'] = app.video_h265_rb.instate(('disabled',))
         print('PJP_UI_RESULT=' + json.dumps(state))
     finally:
         app.destroy()

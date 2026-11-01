@@ -3,6 +3,7 @@ from __future__ import annotations
 """動画圧縮 backend（video_utils）の unit test。外部プロセスは起動しない。"""
 
 import dataclasses
+import hashlib
 import subprocess
 import sys
 import threading
@@ -28,7 +29,7 @@ from backend.settings import VIDEO_WORK_OWNER_MARKER, VIDEO_WORK_OWNER_TOKEN
 
 pytestmark = pytest.mark.unit
 
-ALL_ENCODERS = frozenset({'libx264', 'libx265', 'aac'})
+ALL_ENCODERS = frozenset({'libx264', 'aac'})
 
 
 def make_caps(encoders: frozenset[str] = ALL_ENCODERS, **overrides: Any) -> CapabilityReport:
@@ -120,6 +121,32 @@ def test_parse_probe_json_extracts_streams_and_skips_cover_art() -> None:
     assert info.audio[0].default is True
     assert info.chapters == (ChapterInfo(start=1.5, title='Intro'),)
     assert info.format_tags == {'creation_time': 'x'}
+    assert info.contains_hevc is False
+
+
+def test_parse_probe_json_detects_hevc_in_cover_art_and_secondary_video() -> None:
+    cover = {**VIDEO_STREAM, 'index': 4, 'codec_name': 'hevc', 'disposition': {'attached_pic': 1}}
+    secondary = {**VIDEO_STREAM, 'index': 5, 'codec_name': 'HEVC'}
+
+    info = video_utils.parse_probe_json(probe_payload([VIDEO_STREAM, cover, secondary]))
+
+    assert info.contains_hevc is True
+    assert info.video_count == 2
+
+
+@pytest.mark.parametrize(
+    ('stream', 'message'),
+    [
+        ({**VIDEO_STREAM, 'codec_name': None}, 'has no codec name'),
+        ({**VIDEO_STREAM, 'codec_name': 'unknown'}, 'has no codec name'),
+        ({'index': 0, 'codec_name': 'hevc'}, 'has no codec type'),
+    ],
+)
+def test_parse_probe_json_rejects_video_streams_without_identifiable_codec(
+    stream: dict[str, Any], message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        video_utils.parse_probe_json(probe_payload([stream]))
 
 
 @pytest.mark.parametrize(
@@ -396,13 +423,6 @@ def test_build_ffmpeg_command_sets_stream_metadata_explicitly() -> None:
     assert ('-disposition:a:0', '0') in pairs
     assert ('-disposition:a:1', 'default') in pairs
     assert not any(arg == '-metadata:s:a:1' for arg in cmd)  # und / title なしは指定しない
-
-
-def test_build_ffmpeg_command_adds_hvc1_tag_for_x265() -> None:
-    cmd = build(VideoCompressionConfig(codec='libx265', crf=28), make_info(audio=()), EncodePlan(audio=()))
-
-    assert cmd[cmd.index('-tag:v') + 1] == 'hvc1'
-    assert cmd[cmd.index('-x265-params') + 1] == 'log-level=error'
 
 
 def test_build_ffmpeg_command_audio_none_uses_an_and_no_subtitle_copy_without_subtitles() -> None:
@@ -858,10 +878,35 @@ def test_compress_reports_tool_unavailable_with_reason(flow: Flow) -> None:
     assert flow.ffmpeg_calls == 0
 
 
-def test_compress_reports_unavailable_codec(flow: Flow) -> None:
-    result = flow.run(VideoCompressionConfig(codec='libx265'), make_caps(frozenset({'libx264', 'aac'})))
+def test_compress_keeps_hevc_input_without_starting_ffmpeg(flow: Flow) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, contains_hevc=True)
 
-    assert not result.ok and 'libx265' in result.message
+    result = flow.run()
+
+    copied = flow.out_dir / 'clip.mov'
+    assert result.ok and result.kept_original and result.kept_original_reason == 'retention'
+    assert result.notes == ('hevc_input_prohibited',)
+    assert 'H.265/HEVC' in result.message
+    assert flow.ffmpeg_calls == 0
+    assert copied.exists() and not (flow.out_dir / 'clip.mp4').exists()
+    assert hashlib.sha256(flow.src.read_bytes()).digest() == hashlib.sha256(copied.read_bytes()).digest()
+    assert flow.leftovers() == []
+
+
+def test_compress_keeps_hevc_input_without_h264_encoder(flow: Flow) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, contains_hevc=True)
+
+    result = flow.run(caps=make_caps(
+        frozenset({'aac'}),
+        ffmpeg_path=None,
+        ffmpeg_source='unavailable',
+    ))
+
+    copied = flow.out_dir / 'clip.mov'
+    assert result.ok and result.kept_original
+    assert result.notes == ('hevc_input_prohibited',)
+    assert flow.ffmpeg_calls == 0
+    assert copied.read_bytes() == flow.src.read_bytes()
 
 
 def test_compress_cancelled_before_start_does_nothing(flow: Flow) -> None:

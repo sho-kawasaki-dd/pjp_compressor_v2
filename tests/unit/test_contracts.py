@@ -22,13 +22,14 @@ def test_video_config_defaults_and_validation() -> None:
 
     assert (config.codec, config.crf, config.preset, config.audio_mode) == ('libx264', 24, 'medium', 'copy')
     assert config.audio_bitrate is None and config.max_long_edge == 0
-    assert VideoCompressionConfig.from_mapping({'codec': 'libx265', 'crf': 30, 'audio_bitrate': '192k'}).crf == 30
+    assert VideoCompressionConfig.from_mapping({'codec': 'libx264', 'crf': 30, 'audio_bitrate': '192k'}).crf == 30
 
 
 @pytest.mark.parametrize(
     'payload',
     [
         {'codec': 'vp9'},
+        {'codec': 'libx265'},
         {'crf': 52},
         {'crf': -1},
         {'crf': '24'},
@@ -59,10 +60,10 @@ def test_capability_report_video_properties() -> None:
         ffmpeg_path='ffmpeg', ffmpeg_source='system', ffmpeg_encoders=frozenset({'libx264', 'libx265'}),
         ffprobe_path='ffprobe', ffprobe_source='system',
     )
-    assert ready.video_available and ready.ffmpeg_hevc_available
+    assert ready.video_available
 
     no_hevc = CapabilityReport(**base, ffmpeg_path='ffmpeg', ffmpeg_encoders=frozenset({'libx264'}), ffprobe_path='ffprobe')
-    assert no_hevc.video_available and not no_hevc.ffmpeg_hevc_available
+    assert no_hevc.video_available
 
     no_probe = CapabilityReport(**base, ffmpeg_path='ffmpeg', ffmpeg_encoders=frozenset({'libx264'}))
     assert no_probe.ffmpeg_available and not no_probe.ffprobe_available and not no_probe.video_available
@@ -71,7 +72,7 @@ def test_capability_report_video_properties() -> None:
         **base, ffmpeg_path='ffmpeg', ffmpeg_encoders=frozenset({'libx264'}), ffmpeg_detection_error='boom',
         ffprobe_path='ffprobe',
     )
-    assert not failed.ffmpeg_available and not failed.ffmpeg_hevc_available and not failed.video_available
+    assert not failed.ffmpeg_available and not failed.video_available
 
     no_x264 = CapabilityReport(**base, ffmpeg_path='ffmpeg', ffmpeg_encoders=frozenset({'libx265'}), ffprobe_path='ffprobe')
     assert not no_x264.ffmpeg_available

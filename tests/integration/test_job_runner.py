@@ -74,7 +74,6 @@ class DummyMapperApp:
         self.ui_language = DummyVar('ja')
         self.video_enabled = DummyVar(False)
         self.video_quality = DummyVar(75)
-        self.video_codec = DummyVar('libx264')
         self.video_preset = DummyVar('medium')
         self.video_audio_mode = DummyVar('copy')
         self.video_max_long_edge = DummyVar('0')
@@ -92,7 +91,7 @@ def snapshot_tree(root: Path) -> dict[str, int]:
 
 def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
-    video_config = VideoCompressionConfig(codec='libx265', crf=44)
+    video_config = VideoCompressionConfig(codec='libx264', crf=44)
     control = JobControl()
 
     def fake_run_compression_job(**kwargs):

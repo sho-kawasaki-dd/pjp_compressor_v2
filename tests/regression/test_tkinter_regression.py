@@ -293,30 +293,30 @@ def test_app_settings_tab_is_built_with_sound_toggles(tk_regression_app) -> None
 
 
 @pytest.mark.parametrize(
-    ('report', 'available', 'enabled', 'hevc', 'reason_key'),
+    ('report', 'available', 'enabled', 'reason_key'),
     [
         pytest.param(
             replace(VIDEO_CAPABILITIES, ffmpeg_path=None, ffmpeg_source='unavailable'),
-            False, True, False, 'video_ffmpeg_missing', id='ffmpeg-missing',
+            False, True, 'video_ffmpeg_missing', id='ffmpeg-missing',
         ),
         pytest.param(
             replace(VIDEO_CAPABILITIES, ffprobe_path=None, ffprobe_source='unavailable'),
-            False, True, False, 'video_ffprobe_missing', id='ffprobe-missing',
+            False, True, 'video_ffprobe_missing', id='ffprobe-missing',
         ),
         pytest.param(
             replace(VIDEO_CAPABILITIES, ffmpeg_detection_error='broken binary'),
-            False, True, False, None, id='ffmpeg-detection-failed',
+            False, True, None, id='ffmpeg-detection-failed',
         ),
         pytest.param(
             replace(VIDEO_CAPABILITIES, ffmpeg_encoders=frozenset({'libx264', 'aac'})),
-            True, True, False, None, id='no-hevc',
+            True, True, None, id='system-ffmpeg-without-hevc-encoder',
         ),
-        pytest.param(VIDEO_CAPABILITIES, True, False, True, None, id='video-disabled'),
-        pytest.param(VIDEO_CAPABILITIES, True, True, True, None, id='video-enabled'),
+        pytest.param(VIDEO_CAPABILITIES, True, False, None, id='video-disabled'),
+        pytest.param(VIDEO_CAPABILITIES, True, True, None, id='video-enabled'),
     ],
 )
 def test_video_controls_and_tabs_at_startup(
-    report: CapabilityReport, available: bool, enabled: bool, hevc: bool, reason_key: str | None, tmp_path: Path,
+    report: CapabilityReport, available: bool, enabled: bool, reason_key: str | None, tmp_path: Path,
 ) -> None:
     pytest.importorskip('tkinterdnd2')
     input_dir = tmp_path / 'input'
@@ -349,7 +349,9 @@ def test_video_controls_and_tabs_at_startup(
     assert state['stop_state'] == 'disabled'
     assert state['enable_disabled'] is not available
     assert state['quality_state'] == ('normal' if available and enabled else 'disabled')
-    assert state['h265_disabled'] is not (available and enabled and hevc)
+    assert state['h265_widget_present'] is False
+    assert state['codec_label'] == 'H.264 (高互換)'
+    assert 'H.265' not in state['engine_status']
     assert state['combos_readonly'] == [available and enabled] * 3
     assert state['combos_disabled'] == [not (available and enabled)] * 3
     if reason_key:
@@ -359,4 +361,3 @@ def test_video_controls_and_tabs_at_startup(
     if available:
         assert state['combos_disabled_after_toggle']
         assert state['combos_readonly_after_toggle']
-        assert state['h265_disabled_after_toggle'] is not hevc

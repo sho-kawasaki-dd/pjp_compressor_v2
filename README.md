@@ -29,8 +29,8 @@
   バッチリサイズ：手動（幅/高さ）または長辺プリセット（640〜3840 px）、アスペクト比保持対応。
 
 **Video Compression / 動画圧縮**
-- ffmpeg / ffprobe process `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.wmv`, and `.m4v`; H.264 / H.265, quality, preset, audio mode, and long-edge resizing are selectable.
-  ffmpeg / ffprobe で `.mp4`、`.mov`、`.avi`、`.mkv`、`.webm`、`.wmv`、`.m4v` を処理し、H.264 / H.265、品質、速度、音声処理、長辺リサイズを選択できます。
+- ffmpeg / ffprobe process `.mp4`, `.mov`, `.avi`, `.mkv`, `.webm`, `.wmv`, and `.m4v`; H.264 output, quality, preset, audio mode, and long-edge resizing are supported. H.265/HEVC is prohibited: HEVC inputs are copied unchanged without starting ffmpeg.
+  ffmpeg / ffprobe で `.mp4`、`.mov`、`.avi`、`.mkv`、`.webm`、`.wmv`、`.m4v` を処理し、H.264出力、品質、速度、音声処理、長辺リサイズに対応します。H.265/HEVCは禁止し、HEVC入力はffmpegを起動せず元ファイルをそのままコピーします。
 - The first non-cover video, all audio and subtitle tracks, and related language, selection, chapter, orientation, and metadata information are preserved where possible. Additional video and cover art are outside the preservation target.
   最初のカバーアート以外の本編映像、全音声・全字幕、および言語・選択状態・チャプター・表示向き・メタデータなどの関連情報を可能な限り保持します。追加映像とカバーアートは保持対象外です。
 - Audio defaults to copying AAC, MP3, AC-3, E-AC-3, ALAC, and FLAC. Other codecs, including Opus, are converted to AAC per track with a log notice; explicit AAC changes audio quality, and **No audio** removes all audio. Container support does not guarantee playback on every device.
@@ -196,8 +196,8 @@ uv run pytest -m unit
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 本プロジェクトは [GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）のもとで公開されています。
 
-The development bundle uses gyan.dev FFmpeg `9.0.2-full_build` (GPL v3, static build; includes libx264 / libx265 and FFmpeg's AAC encoder). The binaries, license, and build information are under `vendor/ffmpeg-windows/`; a frozen build places them under `_internal/vendor/ffmpeg-windows/`. System `ffmpeg` / `ffprobe` take precedence over bundled tools, and detection is cached until the app restarts.
-開発版の同梱候補は gyan.dev FFmpeg `9.0.2-full_build`（GPL v3、静的ビルド。libx264 / libx265 と FFmpeg の AAC エンコーダを含む）です。実行ファイル・ライセンス・ビルド情報は `vendor/ffmpeg-windows/`、凍結版では `_internal/vendor/ffmpeg-windows/` に配置されます。system の `ffmpeg` / `ffprobe` が優先され、検出結果はアプリ再起動までキャッシュされます。
+The app only uses H.264 (`libx264`) for video output. It does not encode or decode H.265/HEVC; if any video stream (including cover art) is HEVC, the app probes stream metadata and copies the original file unchanged without starting `ffmpeg`. Video compression currently requires system `ffmpeg` and `ffprobe` on `PATH`. The existing gyan.dev `9.0.2-full_build` contains x265/HEVC support and is unverified for redistribution, so it is neither used as a fallback nor included in frozen builds or `vendor.zip` while an audited x264-only replacement is unavailable. Detection is cached until the app restarts.
+アプリの動画出力は H.264（`libx264`）のみです。H.265/HEVC のエンコード・デコードは行いません。カバーアートを含むいずれかの映像ストリームが HEVC の場合、ストリーム情報だけを調べ、`ffmpeg` を起動せず元ファイルをそのままコピーします。現時点では動画圧縮に PATH 上の system `ffmpeg` と `ffprobe` が必要です。既存の gyan.dev `9.0.2-full_build` は x265/HEVC 対応で再配布の監査も未完了のため、監査済みx264-only版ができるまでfallbackとして使用せず、凍結版や `vendor.zip` にも含めません。検出結果はアプリ再起動までキャッシュされます。
 
 **Distribution is not yet cleared:** the exact corresponding source, external-library revisions, patches, build scripts, and licensing compatibility still need to be obtained, retained, and reviewed. The [FFmpeg source commit](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) and [upstream builds](https://www.gyan.dev/ffmpeg/builds/) are references, not a complete corresponding-source offer. Do not redistribute the bundled binaries until these requirements are resolved.
 **配布準備は未完了です。** 対応ソース一式、外部ライブラリのリビジョン、パッチ、ビルドスクリプトの確保・保管とライセンス互換性の確認が必要です。[FFmpeg のソースコミット](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) と[上流のビルド配布元](https://www.gyan.dev/ffmpeg/builds/)は参考情報であり、対応ソース一式の提供を意味しません。これらの条件が整うまで同梱バイナリを再配布しないでください。

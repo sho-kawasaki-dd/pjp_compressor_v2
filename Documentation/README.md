@@ -36,7 +36,8 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
     - アスペクト比保持の選択
     - パフォーマンス最適化：幅/高さの入力は処理開始時に一度だけ数値化し、空欄・非数値は0に自動補正（入力時の逐次検証は行わずUIを軽量化）
 - 動画圧縮（ffmpeg / ffprobe が必要）
-  - 対象は `.mp4/.mov/.avi/.mkv/.webm/.wmv/.m4v`。H.264 / H.265、品質、速度、音声モード、長辺の上限を選択可能
+  - 対象は `.mp4/.mov/.avi/.mkv/.webm/.wmv/.m4v`。出力はH.264（libx264）のみ。H.265/HEVCはエンコード・デコードせず、HEVC映像streamを含む入力はffprobeのstream情報で検出してffmpegを起動せず元ファイルをコピー
+  - 動画機能はPATH上のsystem `ffmpeg` / `ffprobe` を必要とする。既存の未監査gyan.dev full buildはfallback・配布物から除外し、監査済みx264-only版の再ビルド完了まで同梱しない
   - 最初のカバーアート以外の本編映像、全音声・全字幕と、言語・トラック名・既定選択・音声レイアウト・チャプター・表示向き・対象メタデータを保持対象とする。追加映像・カバーアートは対象外
   - 音声の既定はコピー。MP4 へのコピー許可リストは AAC / MP3 / AC-3 / E-AC-3 / ALAC / FLAC で、Opus などそれ以外は該当トラックのみ AAC に変換してログに通知する。AAC 指定は音質を変え、「音声なし」は全音声を削除する。MP4 格納可否と再生機器の互換性は別
   - HDR（iPhone の HDR 撮影を含む）・8bit 超・映像なし・字幕変換が必要な形式・強制字幕・添付・未対応データストリームなどは元維持。MP4 出力時は `tmcd` / `mebx` の削除を許容し、CSV 備考に記録する
@@ -106,7 +107,7 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
   - 実行ファイル: `ghostscript` (`gswin64c` / `gswin32c` / `gs`) / `pngquant` / `ffmpeg` / `ffprobe`
 - 検出結果は `CapabilityReport`（`backend/contracts.py`）としてUIへ反映されます。
 - 外部ツール未導入でもアプリは起動継続し、該当機能のみ無効化されます。
-- 動画には ffmpeg と ffprobe、および ffmpeg の libx264 が必要です。libx265 が無い場合は H.265 のみ無効になります。動画ツールの検出結果はキャッシュされ、再検出にはアプリの再起動が必要です。
+- 動画には PATH 上の system `ffmpeg` / `ffprobe` と `libx264` が必要です。H.265/HEVC機能は提供しません。HEVC映像streamがある入力はmetadataを取得した後に元ファイルを維持します。動画ツールの検出結果はキャッシュされ、再検出にはアプリの再起動が必要です。
 - `pngquant` が未導入でも PDF ネイティブ非可逆圧縮は継続し、PDF 内 PNG 系画像だけが Pillow の 256 色固定減色へフォールバックします。
 - Ghostscript / pngquant の呼び出しは `subprocess.run([...])` の引数配列で実行し、shell を経由しません。
 - Ghostscript / pngquant の呼び出しには timeout を設定し、引数は安全側に正規化します。
@@ -134,14 +135,14 @@ uv run python -m PyInstaller --clean .\compressor_launcher_tkinter.spec
 
 補足:
 
-- one-folder 配布では `sounds/`、`images/`、`frontend/config_data/ui_catalogs.json` に加えて、存在する場合は `vendor/` も丸ごと同梱されます。
+- one-folder 配布では `sounds/`、`images/`、`frontend/config_data/ui_catalogs.json` に加えて、存在する場合は `vendor/` のうち `ffmpeg-windows/` を除外して同梱します。
 - UI の表示用カタログと `app_settings` は JSON から読み込むため、spec を介さず独自ビルドする場合も `frontend/config_data/` を配布物へ含めてください。
-- `vendor/` が無い状態でもビルドは継続します。その場合、外部ツールは system PATH 上のもののみを利用します。
+- `vendor/` が無い状態でもビルドは継続します。その場合、外部ツールは system PATH 上のもののみを利用します。ffmpeg / ffprobe は未監査の同梱版を避けるため、vendorの有無にかかわらずsystem PATHからのみ解決します。
 - インストーラを既存アプリと分離して検証する場合、ISCC に `/DMyAppSourceDir=...`、一意の `/DMyAppId=...`、`/DMyAppSkipShortcuts` を指定できます。`/O` で別の出力先を指定し、インストール時の `/DIR` にも未使用の専用フォルダを指定してください。これらを省略した通常ビルドでは従来のソース・AppId・ショートカット設定が使われます。
 
 外部ツールの探索順:
 
-- Ghostscript / pngquant / ffmpeg / ffprobe はそれぞれ `system PATH` を先に探索し、見つからない場合だけ `vendor/` 配下の bundled 版へフォールバックします。
+- Ghostscript / pngquant は `system PATH` を先に探索し、見つからない場合だけ `vendor/` 配下の bundled 版へフォールバックします。ffmpeg / ffprobe は現行の未監査バイナリを使わないため、system PATHのみを探索します。
 - どちらにも無い場合、UI には `system` / `bundled` / `未検出` のいずれかが表示されます。
 - Ghostscript 実行が失敗した PDF はそのファイルだけをスキップし、元 PDF を出力側へ維持します。
 - pngquant 実行が失敗した PNG は Pillow フォールバックで継続します。
@@ -154,17 +155,12 @@ vendor/
     bin/gswin64c.exe
   pngquant-windows/
     pngquant/pngquant.exe
-  ffmpeg-windows/
-    bin/ffmpeg.exe
-    bin/ffprobe.exe
-    LICENSE
-    README.txt
 ```
 
 ライセンス確認:
 
 - `vendor/` に同梱する Ghostscript / pngquant の再配布条件とライセンス確認は利用者側の責務です。
-- 開発版で選定した ffmpeg / ffprobe は同一の gyan.dev `9.0.2-full_build`、GPL v3 の静的ビルドで、libx264 / libx265 と FFmpeg の AAC エンコーダを含みます。凍結版では `_internal/vendor/ffmpeg-windows/` に置かれます。
+- 既存のgyan.dev `9.0.2-full_build` はlibx265/HEVC対応であり、未監査のため利用・梱包を停止しました。監査済みx264-onlyビルドを作成して構成・ライセンス・対応ソースを確認するまで、動画ツールはsystem PATHからのみ利用します。
 - **動画ツールの再配布は未承認です。** 対応する FFmpeg・外部ライブラリの正確なソース、ライセンス、適用パッチ、ビルドスクリプトを確保して自前で保管し、GPL v3 と本体 AGPL-3.0 の配布構成を確認する必要があります。[上流のビルド](https://www.gyan.dev/ffmpeg/builds/)と[FFmpeg ソースコミット](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b)は参考情報であり、対応ソース一式を提供できていることにはなりません。条件を満たすまでこの同梱バイナリを再配布しないでください。
 
 PowerShell スクリプト経由で実行する場合:
@@ -182,7 +178,7 @@ PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを�
 補足:
 
 - system 版が導入されている環境では、`vendor/` を置いていても system 版が優先されます。
-- bundled 版を使わせたい場合は system PATH から対象ツールを外し、上記の `vendor/` 配置規約に従って同梱してください。
+- bundled 版を使わせたい場合は system PATH から対象ツールを外し、上記の `vendor/` 配置規約に従って同梱してください（Ghostscript / pngquant のみ。ffmpeg / ffprobe は再ビルド・監査完了まで同梱不可）。
 
 ## 使い方（手順）
 

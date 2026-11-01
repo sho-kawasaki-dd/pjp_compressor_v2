@@ -194,7 +194,6 @@ class ControllerHost(TkUiControllerMixin):
         self.zip_output_check = DummyWidget()
         self.video_enabled = DummyVar(True)
         self.video_quality = DummyVar(75)
-        self.video_codec = DummyVar('libx264')
         self.video_preset = DummyVar('medium')
         self.video_audio_mode = DummyVar('copy')
         self.video_max_long_edge = DummyVar('0')
@@ -202,13 +201,11 @@ class ControllerHost(TkUiControllerMixin):
         self.video_enable_check = DummyWidget()
         self.video_quality_scale = DummyWidget()
         self.video_quality_value_label = DummyWidget()
-        self.video_h264_rb = DummyWidget()
-        self.video_h265_rb = DummyWidget()
-        self.video_h265_note_label = DummyWidget()
+        self.video_codec_label = DummyWidget()
         self.video_preset_combo = DummyWidget()
         self.video_audio_combo = DummyWidget()
         self.video_long_edge_combo = DummyWidget()
-        self._video_widgets = [self.video_quality_scale, self.video_h264_rb]
+        self._video_widgets = [self.video_quality_scale]
         self._video_combo_widgets = [self.video_preset_combo, self.video_audio_combo, self.video_long_edge_combo]
         self.start_button = DummyWidget()
         self.stop_button = DummyWidget()
@@ -812,24 +809,18 @@ def test_update_video_controls_disables_everything_when_tools_unavailable(tmp_pa
     assert host.video_enable_check.state == 'disabled'
     assert all(widget.state == 'disabled' for widget in host._video_widgets)
     assert all(combo.state == 'disabled' for combo in host._video_combo_widgets)
-    assert host.video_h265_rb.state == 'disabled'
     assert 'ffmpeg が見つかりません' in host.video_engine_status_var.get()
 
 
-def test_update_video_controls_disables_only_h265_without_libx265(tmp_path: Path) -> None:
+def test_update_video_controls_ignores_hevc_encoder_availability(tmp_path: Path) -> None:
     host = ControllerHost(tmp_path)
     host.capabilities = _video_capabilities(hevc=False)
-    host.video_codec.set('libx265')
 
     host._update_video_controls()
     host._refresh_video_engine_status()
 
-    assert host.video_codec.get() == 'libx264'
-    assert host.video_h265_rb.state == 'disabled'
-    assert host.video_h265_note_label.packed is True
-    assert host.video_h264_rb.state == 'normal'
     assert host.video_preset_combo.state == 'readonly'
-    assert 'H.265:不可' in host.video_engine_status_var.get()
+    assert 'H.265' not in host.video_engine_status_var.get()
 
 
 def test_update_video_controls_follows_enable_toggle(tmp_path: Path) -> None:
@@ -838,19 +829,17 @@ def test_update_video_controls_follows_enable_toggle(tmp_path: Path) -> None:
 
     host.video_enabled.set(False)
     host._update_video_controls()
-    assert host.video_h265_rb.state == 'disabled'
     assert all(combo.state == 'disabled' for combo in host._video_combo_widgets)
     assert host.video_enable_check.state == 'normal'
 
     host.video_enabled.set(True)
     host._update_video_controls()
-    assert host.video_h265_rb.state == 'normal'
     assert all(combo.state == 'readonly' for combo in host._video_combo_widgets)
     assert all(widget.state == 'normal' for widget in host._video_widgets)
-    assert host.video_h265_note_label.packed is False
     assert host.video_quality_value_label.text == '75（CRF 24）'
     host._refresh_video_engine_status()
-    assert host.video_engine_status_var.get() == '（ffmpeg:system, ffprobe:bundled, H.265:可）'
+    assert host.video_engine_status_var.get() == '（ffmpeg:system, ffprobe:bundled）'
+    assert 'H.265' not in host.video_engine_status_var.get()
 
 
 def test_cleanup_output_takes_output_lock_and_skips_when_in_use(

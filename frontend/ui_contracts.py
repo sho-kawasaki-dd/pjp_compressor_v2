@@ -52,7 +52,6 @@ class CompressionRequestAppProtocol(Protocol):
     ui_language: tk.StringVar
     video_enabled: tk.BooleanVar
     video_quality: tk.IntVar
-    video_codec: tk.StringVar
     video_preset: tk.StringVar
     video_audio_mode: tk.StringVar
     video_max_long_edge: tk.StringVar
@@ -91,9 +90,7 @@ class TkUiControllerHostProtocol(CompressionRequestAppProtocol, Protocol):
     video_enable_check: ttk.Checkbutton
     video_quality_scale: tk.Scale
     video_quality_value_label: ttk.Label
-    video_h264_rb: ttk.Radiobutton
-    video_h265_rb: ttk.Radiobutton
-    video_h265_note_label: ttk.Label
+    video_codec_label: ttk.Label
     video_preset_combo: ttk.Combobox
     video_audio_combo: ttk.Combobox
     video_long_edge_combo: ttk.Combobox

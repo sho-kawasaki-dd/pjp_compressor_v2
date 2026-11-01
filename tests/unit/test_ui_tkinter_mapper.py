@@ -66,7 +66,6 @@ class DummyApp:
         self.copy_non_target_files = DummyVar(False)
         self.video_enabled = DummyVar(True)
         self.video_quality = DummyVar(75)
-        self.video_codec = DummyVar('libx264')
         self.video_preset = DummyVar('medium')
         self.video_audio_mode = DummyVar('copy')
         self.video_max_long_edge = DummyVar('0')
@@ -188,20 +187,17 @@ def test_build_compression_request_clamps_custom_gs_dpi() -> None:
 
 
 @pytest.mark.parametrize(
-    ('quality', 'codec', 'expected'),
+    ('quality', 'expected'),
     [
-        (100, 'libx264', 18),
-        (75, 'libx264', 24),
-        (0, 'libx264', 40),
-        (100, 'libx265', 22),
-        (75, 'libx265', 28),
-        (0, 'libx265', 44),
-        (-20, 'libx264', 40),
-        (500, 'libx264', 18),
+        (100, 18),
+        (75, 24),
+        (0, 40),
+        (-20, 40),
+        (500, 18),
     ],
 )
-def test_quality_to_crf_boundaries(quality: int, codec: str, expected: int) -> None:
-    assert quality_to_crf(quality, codec) == expected
+def test_quality_to_crf_boundaries(quality: int, expected: int) -> None:
+    assert quality_to_crf(quality) == expected
 
 
 def test_build_video_config_defaults_to_copy_audio_and_auto_bitrate() -> None:
@@ -216,9 +212,8 @@ def test_build_video_config_defaults_to_copy_audio_and_auto_bitrate() -> None:
     assert config.max_long_edge == 0
 
 
-def test_build_video_config_converts_quality_per_codec_and_normalizes_edge() -> None:
+def test_build_video_config_uses_h264_and_normalizes_edge() -> None:
     app = DummyApp()
-    app.video_codec.set('libx265')
     app.video_quality.set(100)
     app.video_audio_mode.set('aac')
     app.video_max_long_edge.set('1920')
@@ -226,7 +221,7 @@ def test_build_video_config_converts_quality_per_codec_and_normalizes_edge() -> 
     config = build_video_config(app)
 
     assert config is not None
-    assert (config.codec, config.crf, config.audio_mode, config.max_long_edge) == ('libx265', 22, 'aac', 1920)
+    assert (config.codec, config.crf, config.audio_mode, config.max_long_edge) == ('libx264', 18, 'aac', 1920)
 
     app.video_max_long_edge.set('abc')
     assert build_video_config(app).max_long_edge == 0  # type: ignore[union-attr]
@@ -236,8 +231,6 @@ def test_build_video_config_falls_back_for_display_labels_and_unknown_values() -
     app = DummyApp()
     app.video_audio_mode.set('そのままコピー')
     app.video_preset.set('turbo')
-    app.video_codec.set('H.264 (高互換)')
-
     config = build_video_config(app)
 
     assert config is not None

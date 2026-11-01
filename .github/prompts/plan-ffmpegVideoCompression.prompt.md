@@ -1,12 +1,14 @@
 # Plan: ffmpeg 動画圧縮機能の追加と UI タブ再編
 
-**TL;DR**: `ffmpeg` を用いた動画ファイル一括圧縮を第3の圧縮ドメインとして追加する。外部ツール解決は既存の `system` 優先 → `bundled` (`vendor/ffmpeg-windows/`) 次点 → `unavailable`（UI無効化・劣化起動）の方式を踏襲し、保持条件の判定・出力検証に使う `ffprobe` も必須とする。アプリ内の圧縮ジョブは同時に1件、動画タスクは **専用の単一ワーカー `ThreadPoolExecutor(max_workers=1)`** で直列実行する。これは同時エンコード数の制限であり、CPU使用率の上限は保証しない。UIの品質スライダー（0〜100）は mapper 層で `CRF`（x264: 18〜40 / x265: 22〜44）へ変換する。**本編映像・全音声・全字幕と関連情報の保持をMP4統一より優先**し、保持条件を満たして元より小さくなる場合のみ `.mp4` を出力する。保持条件を満たせない場合と元以上サイズの場合は、ミラー設定に関係なく **元拡張子のままコピーし、元維持の理由を通知**する。音声の既定はコピーとし、MP4へのコピー可否は**固定の許可リストで事前判定**する（実行失敗からのAAC再試行は行わない）。HDR・8bit超・映像なし・字幕の装飾など安全に保持できない入力は初版では元維持とする。出力検証は**項目別の比較ルール表**に従う。出力名はジョブ内の候補同士だけで衝突回避し、再実行で名前が変わらないようにする。**停止ボタン**とアプリ終了で共通の停止処理を使い、出力フォルダ排他（`.pjp_work/`）で一時ファイル掃除を安全に行う。動画進捗は開始・更新・終了を区別するイベントで全体進捗と合成し、「出力設定」を独立させた4タブ構成とする。実装は末尾の Implementation Milestones（M1〜M5）の順に段階的に行う。
+**TL;DR**: `ffmpeg` を用いた動画ファイル一括圧縮を第3の圧縮ドメインとして追加する。既存のGhostscript/pngquantとは異なり、FFmpegは承認済みの同梱ビルドを再作成するまでPATH上の `system` 版のみを使用する。**製品方針としてH.265/HEVC技術の利用を禁止する**: H.265のエンコードとデコードを行わず、`libx265` を同梱・要求しない。システムFFmpegにHEVC機能があってもアプリは利用しない。HEVC映像を含む入力はffprobeの全video stream情報でエンコード前に判定し、デコードせず元ファイルのままコピーして理由を通知する。出力はH.264（`libx264`）のみとする。アプリ内の圧縮ジョブは同時に1件、動画タスクは **専用の単一ワーカー `ThreadPoolExecutor(max_workers=1)`** で直列実行する。これは同時エンコード数の制限であり、CPU使用率の上限は保証しない。UIの品質スライダー（0〜100）は mapper 層で H.264 の `CRF`（18〜40）へ変換する。**本編映像・全音声・全字幕と関連情報の保持をMP4統一より優先**し、保持条件を満たして元より小さくなる場合のみ `.mp4` を出力する。保持条件を満たせない場合と元以上サイズの場合は、ミラー設定に関係なく **元拡張子のままコピーし、元維持の理由を通知**する。音声の既定はコピーとし、MP4へのコピー可否は**固定の許可リストで事前判定**する（実行失敗からのAAC再試行は行わない）。HDR・8bit超・映像なし・字幕の装飾など安全に保持できない入力は元維持とする。出力検証は**項目別の比較ルール表**に従う。出力名はジョブ内の候補同士だけで衝突回避し、再実行で名前が変わらないようにする。**停止ボタン**とアプリ終了で共通の停止処理を使い、出力フォルダ排他（`.pjp_work/`）で一時ファイル掃除を安全に行う。動画進捗は開始・更新・終了を区別するイベントで全体進捗と合成し、「出力設定」を独立させた4タブ構成とする。M7では既存H.265対応の処理を廃止し、x264-onlyバイナリの再ビルドと配布監査が完了するまでFFmpegを同梱しない。
 
 ---
 
 ## Steps
 
 > **進捗管理ルール**: 各 Step・Verification 項目・Implementation Milestones の行頭にチェックボックス（`[ ]`）を設けている。**タスクの実装・確認が完了するたびに、対応するチェックボックスを `[x]` に更新すること**（完了前に埋めない）。Milestone は、対応する Step と Verification がすべて完了した時点で `[x]` にする。
+
+> **後続の製品方針変更**: 既存のPhase 1〜5、Verification、Decisionに残るH.265/libx265の仕様は、当時の実装・検証履歴である。新規の製品要件としてはPhase 6 / Step 17とM7が優先し、そこに定めるH.265禁止・HEVC入力の元維持へ置き換える。M7完了前はsystem FFmpegのみを利用し、既存H.265対応ビルドは実行時・配布物の対象にしない。
 
 ### Phase 1: 外部ツール解決とデータ契約・設定の拡張
 
@@ -17,7 +19,7 @@
 2. [x] **[backend/contracts.py](../../backend/contracts.py)** — データ契約の拡張
    - `VideoCompressionConfig`（`frozen=True`）dataclass を新設する。backend は **`crf` のみを正** とし、UI の品質値（0〜100）は保持しない:
      - `enabled: bool = True`
-     - `codec: Literal['libx264', 'libx265'] = 'libx264'`
+     - 旧実装は `Literal['libx264', 'libx265']` を許可していた。Step 17で `Literal['libx264']` のみに制限する。
      - `crf: int = 24`
      - `preset: str = 'medium'`
      - `audio_mode: Literal['aac', 'copy', 'none'] = 'copy'`
@@ -35,7 +37,7 @@
      - `@property ffmpeg_available -> bool`（`ffmpeg_path` があり、検出エラーがなく、かつ `'libx264' in ffmpeg_encoders`）
      - `@property ffprobe_available -> bool`（`ffprobe_path` があり、検出エラーがない）
      - `@property video_available -> bool`（`ffmpeg_available` かつ `ffprobe_available`）
-     - `@property ffmpeg_hevc_available -> bool`（`ffmpeg_available` かつ `'libx265' in ffmpeg_encoders`）
+     - H.265対応可否のpropertyは設けない。FFmpegがHEVC対応かどうかをアプリ機能や選択肢の有効化に利用しない。
    - `EventKind` に `'video_progress'` / `'cancelled'` を追加し、`ProgressEvent` の末尾に `video_phase: Literal['started', 'updated', 'finished'] | None = None` を追加する。
      - 動画イベントは `kind='video_progress'`、`message=<ファイル名>`、`video_phase=<段階>`、`current=<pct | None>`。`current=None` は **割合不明のみ**を表し、表示のクリアは `video_phase='finished'` で行う。
      - `'cancelled'` はジョブの終端イベントで、途中までの集計値と中断メッセージを持つ。中断時に通常完了の `stats` イベントを送らない。
@@ -47,7 +49,7 @@
    - `CompressionRequest` に `video_config: VideoCompressionConfig | None = None` を追加し、`to_legacy_kwargs()` にも `'video_config': self.video_config` を含める。
 
 3. [x] **[backend/capabilities.py](../../backend/capabilities.py)** — `ffmpeg` / `ffprobe` 可用性・エンコーダ検出の追加
-   - `_detect_ffmpeg()` を追加し、解決できた場合は `ffmpeg -hide_banner -encoders` を1回実行（`CREATE_NO_WINDOW`、`timeout=10`）して `libx264` / `libx265` / `aac` の有無を収集する。
+   - 旧実装の `_detect_ffmpeg()` は `libx264` / `libx265` / `aac` を検出していた。Step 17でx265検出とHEVC可否表示を除去し、必要な `libx264` / `aac` のみを収集する。
    - `_detect_ffprobe()` は解決後に `ffprobe -version` を実行して起動可否を確認する（`timeout=10`）。未検出と検出コマンドの失敗を区別し、失敗理由をUI・ログへ通知できるよう検出結果に保持する。ffmpeg の検出失敗も、理由なしで空集合へ置き換えない。
    - `detect_capabilities()` はジョブ開始ごとにも呼ばれるため、動画ツールの検出結果は `functools.lru_cache(maxsize=1)` でアプリ起動中キャッシュする。PATHやビルド変更の反映には再起動が必要と明記し、テストでは `cache_clear()` で初期化する。
    - `detect_capabilities()` の返却値に `ffmpeg_path` / `ffmpeg_source` / `ffmpeg_encoders` / `ffprobe_path` / `ffprobe_source` を含める。ジョブ開始時のレポートをワーカーへ渡し、ファイルごとに別の実行パスを再解決しない。
@@ -87,7 +89,7 @@
          message: str
          final_outpath: str | None  # 実際に配置したファイル（失敗時 None）
          kept_original: bool = False
-         kept_original_reason: Literal['no_gain', 'retention'] | None = None
+         kept_original_reason: Literal['no_gain', 'retention', 'hevc_input_prohibited'] | None = None
          cancelled: bool = False
          notes: tuple[str, ...] = ()  # 保持不可理由・AAC変換トラック・削除したデータストリーム等（CSV notes へ連結）
      ```
@@ -107,9 +109,10 @@
      ) -> VideoCompressResult:
      ```
    - `capabilities` の確定済みパスを使用し、ffmpeg / ffprobe が使用不可なら `ok=False` と具体的な理由を返す。
-   - **入力解析**: `ffprobe -v error -show_format -show_streams -show_chapters -of json <input>` を実行し、JSONの型・必須情報を検証する。映像・音声・字幕、言語・タイトル・disposition、チャンネル数・レイアウト、チャプター、回転、色特性・HDR関連side data、総尺を取得する。解析失敗・不正JSONは通常の処理失敗として通知し、「保持成功」に置き換えない。
+   - **入力解析**: `ffprobe -v error -show_format -show_streams -show_chapters -of json <input>` を実行し、JSONの型・必須情報を検証する。映像・音声・字幕、言語・タイトル・disposition、チャンネル数・レイアウト、チャプター、回転、色特性・HDR関連side data、総尺を取得する。すべてのvideo streamのcodec名を調べ、HEVC (`hevc`) を1つでも検出したら理由 `hevc_input_prohibited` で元ファイルをそのまま配置し、ffmpegを起動しない（ffprobeのコンテナ／stream情報取得は行うが、HEVC frameの解析・デコードは行わない）。解析失敗・不正JSONは通常の処理失敗として通知し、「保持成功」に置き換えない。
    - **保持範囲と事前判定**:
      - 本編映像は最初の非カバー映像のみ。全音声・全字幕と、関連する言語・トラック名・既定選択状態・チャプターを保持対象にする（強制選択などMP4で表現できないdispositionを持つ入力は元維持）。追加映像やカバーアートは初版の保持対象外であることを明記する。
+     - **HEVC入力**: カバーアートを含むいずれかのvideo streamがHEVCなら、H.265技術をアプリで使用しないため、エンコード・デコードを行わず元ファイルをバイト単位でコピーして保持する（`hevc_input_prohibited`）。HEVC判定は通常の処理失敗や保持成功に偽装せず、ログ・CSV notesに明示する。
      - **映像なし入力**: 非カバー映像が0本なら ffmpeg を起動せず元維持とする（`retention`、notes に `no_primary_video`）。
      - **ビット深度**: `-pix_fmt yuv420p` は8bit固定のため、`bits_per_raw_sample` または `pix_fmt` から8bit超と判定した入力は元維持とする（notes に `high_bit_depth`）。利用者が選択していない画質劣化を避ける。
      - **データストリーム・添付**: `VIDEO_DROPPABLE_DATA_CODECS`（`tmcd` タイムコード、iPhoneの `mebx`）は削除を許容し、notes に `dropped_data_streams=<codec,...>` を記録する。それ以外のデータストリーム（GoProの `gpmd` 等）や添付ファイルがある入力は元維持とする（notes に `unsupported_data_stream` / `attachment`）。
@@ -117,7 +120,7 @@
      - 音声の既定はコピー。コピー可否は `VIDEO_MP4_AUDIO_COPY_CODECS` による事前判定で決める（後述）。明示的なAAC指定と、通知付きの許可リスト外トラックのAAC変換は音質完全維持の例外とする。`none` 指定時だけ全音声の削除を許可する。チャンネル数・レイアウトを暗黙に変えない。
      - 字幕を黙って削除・焼き込みしない。初版の字幕コピー対象は `mov_text` に限定し、全字幕をMP4へコピー可能な場合のみエンコードする。`default` 以外の特殊disposition（`forced` 等）を持つ字幕はMP4で保持できないため元維持とする（notes に `subtitle_disposition`）。
      - SRT等は `mov_text` へ変換可能だが装飾の完全保持を保証できず、初版では字幕変換・装飾損失を許可するUIを設けないため元維持とする。ASS/SSAの装飾・位置指定、PGS等の未対応字幕、ASS関連の添付フォントを必要とする入力も元維持とする。MP4の対応可否を字幕形式全般に対して一律に断定しない。
-     - PQ / HLG、Dolby Vision等のHDR関連情報を検出した入力は初版では元維持とする。`yuv420p` への変換をHDR→SDRトーンマッピングとは扱わない。iPhoneの既定設定で撮影したHDR動画も元維持になることをREADMEに明記する。x265 の10bit出力と色情報引き継ぎによる HLG / HDR10 対応は将来課題とする。
+     - PQ / HLG、Dolby Vision等のHDR関連情報を検出した入力は元維持とする。`yuv420p` への変換をHDR→SDRトーンマッピングとは扱わない。iPhoneの既定設定で撮影したHDR動画も元維持になることをREADMEに明記する。
      - 保持対象の情報を採用ビルド・MP4で表現できないと判定した場合は、エンコードを省略して元維持とする。理由をログ・CSVへ残す。MKV自動選択とHDR変換は将来課題。
    - **一時ファイル**: `temp_dir` 内に `f'{VIDEO_TEMP_PREFIX}{uuid4().hex}.mp4'` を生成する。作業領域は出力と同じファイルシステムに配置し、正常配置には `replace` を使う。`try/finally` で一時ファイルを削除し、削除失敗はパスをサニタイズして通知する。
    - **ffmpeg 引数構成**:
@@ -131,7 +134,6 @@
          '-vf', vf,
          '-c:v', codec, '-crf', str(crf), '-preset', preset,
          '-pix_fmt', 'yuv420p',
-         *(['-tag:v', 'hvc1', '-x265-params', 'log-level=error'] if codec == 'libx265' else []),
          *audio_args,
          *subtitle_args,
          *stream_metadata_args,
@@ -307,7 +309,7 @@
    - `initialize_ui_state()` に動画設定用の Tk 変数を追加する:
      - `video_enabled: tk.BooleanVar`（既定 `True`）
      - `video_quality: tk.IntVar`（既定 `75`）
-     - `video_codec: tk.StringVar`（既定 `'libx264'`）
+     - `video_codec: tk.StringVar`（旧H.265設定の読み込みが残る場合も、常に `'libx264'` に正規化する。Step 17でcodec選択自体を削除する）
      - `video_preset: tk.StringVar`（既定 `'medium'`）
      - `video_audio_mode: tk.StringVar`（既定 `'copy'`）
      - `video_max_long_edge: tk.StringVar`（既定 `'0'`）
@@ -315,18 +317,17 @@
    - controller は実行中 `JobControl`、ジョブ実行中フラグ、終了要求フラグを保持する。開始・停止・入力／出力クリーンアップボタンを属性として保持し（`start_button` / `stop_button` / `cleanup_input_button` / `cleanup_output_button`）、実行中の活性制御に使用する。
 
 10. [x] **[frontend/ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)** — 品質（0〜100）から CRF への変換
-    - `quality_to_crf(quality: int, codec: str = 'libx264') -> int` を実装する:
+    - 旧仕様のcodec別CRF変換をStep 17でH.264専用にする。`quality_to_crf(quality: int) -> int` とし、品質100→CRF18、75→24、0→40の単一マッピングにする:
       ```python
-      def quality_to_crf(q: int, codec: str = 'libx264') -> int:
-          base = round(40 - (max(0, min(100, q)) / 100.0) * 22)
-          return min(51, base + (4 if codec == 'libx265' else 0))
+      def quality_to_crf(q: int) -> int:
+          return round(40 - (max(0, min(100, q)) / 100.0) * 22)
       ```
 
-      | 品質 Q | libx264 | libx265 |
-      |---|---|---|
-      | 100 | 18 | 22 |
-      | 75（既定） | 24 | 28（x265 既定値相当） |
-      | 0 | 40 | 44 |
+      | 品質 Q | H.264 / libx264 |
+      |---|---|
+      | 100 | 18 |
+      | 75（既定） | 24 |
+      | 0 | 40 |
 
     - `build_video_config(app)` を追加し、CRF を確定させた `VideoCompressionConfig` を構築して `build_compression_request()` で `CompressionRequest.video_config` に格納する。動画無効時は `None` とする。
     - 音声モードの表示名と backend 値は対応表で変換する。既定は `copy`、AACビットレートはUIに固定128kbpsとして表示せず `None`（チャンネル数に応じた自動値）を渡す。
@@ -343,7 +344,7 @@
       - `ffmpeg` / `ffprobe` 検出状態ラベル (`self.video_engine_status_var`)
       - 「動画を圧縮する（保持可能な場合は.mp4形式で出力）」Checkbutton
       - 動画品質スライダー（0〜100、現在値と変換後 CRF 目安を表示）
-      - 映像コーデック選択 Radiobutton（`H.264 (高互換)` / `H.265 (高圧縮)`）
+      - 映像コーデック選択UIは設けず、出力はH.264に固定する（Step 17で既存H.265選択肢を削除する）。
       - エンコード速度 Preset Combobox（`ultrafast` / `fast` / `medium` / `slow`）
       - 音声処理 Combobox（`そのままコピー（非対応トラックのみ AAC へ切替）` / `AAC（チャンネル数に応じたビットレート）` / `音声なし（全音声を削除）`）。既定はコピー。
       - 長辺リサイズ上限 Combobox（`変更なし` / `3840` / `1920` / `1280` / `854`）
@@ -355,9 +356,9 @@
 12. [x] **[frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py)** — 動画 UI 活性制御・進捗合成・終了処理
     - `_update_video_controls()` を追加する:
       - `capabilities.video_available` が `False`（ffmpeg / ffprobe 未検出・検出失敗、または libx264 非対応）のときは動画セクション全体を `disabled` にして具体的な理由を表示する。
-      - `ffmpeg_hevc_available` が `False` のときは H.265 Radiobutton のみ `disabled` にし注記を表示する（選択中なら `libx264` へ戻す）。
-      - 利用可能時は `video_enabled` トグルに応じて子ウィジェットを切り替える。Comboboxの有効状態は `readonly`、その他の操作部品は `normal` とし、H.265不可状態を後から有効化しない。
-    - `_refresh_video_engine_status()` を新設し、`ffmpeg` / `ffprobe` の供給元（`system` / `bundled` / `unavailable`）、検出失敗理由、H.265可否を表示する。
+      - H.265可否に応じたUI分岐は設けない。system FFmpegにHEVC機能があっても選択・利用させない。
+      - 利用可能時は `video_enabled` トグルに応じて子ウィジェットを切り替える。Comboboxの有効状態は `readonly`、その他の操作部品は `normal` とする。
+    - `_refresh_video_engine_status()` を新設し、`ffmpeg` / `ffprobe` の供給元（`system` / `bundled` / `unavailable`）と検出失敗理由を表示する。H.265可否は表示しない。
     - **[frontend/ui_tkinter.py](../../frontend/ui_tkinter.py)** の `App.__init__()` で、レイアウト構築後に `_refresh_video_engine_status()` / `_update_video_controls()` を呼ぶ。起動直後から正しい活性状態にする。
     - **動画進捗の合成表示**（ステータスのちらつき防止）:
       - controller に `self._video_progress: tuple[str, int | None] | None` と最新の全体進捗件数 `(current, total)` を保持する。新規ジョブ開始時に両方を初期化する。
@@ -387,18 +388,18 @@
       - ログ: `video_ffmpeg_missing`、`video_ffprobe_missing`、検出／解析／出力検証失敗、`video_success`、`video_kept_original`、`video_failed`、`video_audio_aac_converted`、`video_codec_unavailable`、`log_video_settings`
       - 保持不可理由: `no_primary_video`、`high_bit_depth`、`hdr`、`unsupported_data_stream`、`attachment`、`subtitle_not_mov_text`、`subtitle_disposition`、`audio_codec_not_copyable`、`audio_layout_unsupported`、`validation_mismatch`（違反項目付き）
       - 排他・停止: 二重起動拒否、出力使用中、クリーンアップ拒否、中断、停止／一時ファイル削除失敗
-      - 検出: `capability_ffmpeg_label`、`capability_ffprobe_label`、H.265非対応注記
+      - 検出: `capability_ffmpeg_label`、`capability_ffprobe_label`。H.265可否用のlocaleキーは設けない。
 
 14. [ ] **ビルド・配布**
     - [compressor_launcher_tkinter.spec](../../compressor_launcher_tkinter.spec): `vendor/` 全体を同梱済み。ffmpeg / ffprobeと必要なDLL・ライセンス資料が含まれ、新規Pythonモジュールも収集されることを確認する。
     - [pjp_compressor.iss](../../pjp_compressor.iss) / [vendor_zip.ps1](../../vendor_zip.ps1): `vendor/ffmpeg-windows/` を含めた配布物の構成・実サイズ・インストール時間を確認する。凍結アプリで実行パス解決と両ツールの起動を検証する。
-    - **採用ビルド**: ffmpeg / ffprobeは同じ配布ビルドで揃え、バージョン、入手元、SHA256、ビルド設定、libx264 / libx265 / AAC等の依存・ライセンスを固定する。`--enable-nonfree` ビルドは採用しない。2026-11-01の確認と利用者承認により、配置済みの gyan.dev `9.0.2-full_build` を採用する（当初の第一候補 BtbN n7.1系から変更）。`vendor/ffmpeg-windows/` への配置は完了したが、対応ソース一式の確保とライセンス確認は配布前の必須条件として残す。実測値と確認範囲は末尾の「同梱パッケージ確認結果」に記録する。
+    - **採用ビルド（旧仕様。Step 17で置換）**: 既存のgyan.dev `9.0.2-full_build` は `libx265` とHEVCデコーダを含むため、H.265禁止方針に適合せず配布しない。Step 17でx264のみのビルドを作成し、対応ソース・ビルド情報・ライセンスを確認してから新たな採用候補にする。system FFmpegは引き続き解決可能だが、アプリはHEVC入力をデコードせず元維持し、H.265エンコード機能を呼び出さない。
     - **ライセンス・対応ソース**: LICENSEの同梱だけで完了としない。配布バイナリに対応するFFmpeg・外部ライブラリのソース、適用パッチ、ビルド設定・再現情報を、採用ライセンスに従って提供できるようにする。上流のタグ・ビルドスクリプトに加え、対応ソース一式を自前でも保管し、単なる上流トップページや消失し得る第三者URLだけに依存しない。
     - GPLビルドと本体AGPL-3.0の関係は配布構成に基づいて確認し、互換性と対応ソース提供義務を別に扱う。ダウンロード案内・配布ドキュメントにもライセンスと対応ソース入手方法を記載する。
 
 15. [x] **テストの追加・更新**
     - `tests/unit/test_video_utils.py`（新規）:
-      - コマンド生成（`-map 0:V:0`、全音声 `0:a?`、全字幕 `0:s?`、`-map_chapters 0`、`-movflags +faststart+use_metadata_tags`、`-nostdin`、`-y`、`-pix_fmt`、libx265 時の `-tag:v hvc1`）
+      - コマンド生成（`-map 0:V:0`、全音声 `0:a?`、全字幕 `0:s?`、`-map_chapters 0`、`-movflags +faststart+use_metadata_tags`、`-nostdin`、`-y`、`-pix_fmt`）。旧H.265専用引数のテストはStep 17で削除する。
       - 映像フィルタ式（リサイズ有無、偶数丸め）
       - ffprobe JSONの型・HDR・ビット深度・音声／字幕／データストリーム／チャプター解析、不正JSON・タイムアウト（`kill()` 後の回収）・解析失敗の明示通知
       - ffprobe duration / `out_time_us` / `N/A` / `progress=end` と割合既知・不明の間引き条件
@@ -430,7 +431,7 @@
       - `_tool_detection_summary(catalog, report)` がジョブで確定したレポートを使うこと（`detect_capabilities()` の呼び出しが1回であること）
       - `run_compression_request()` 経由で設定・実行制御が届くこと、旧20要素タスクとの互換
     - [tests/integration/test_ui_controller.py](../../tests/integration/test_ui_controller.py): ダミー `ControllerHost` に動画用 state 変数・ウィジェット、`output_settings_tab`、`start_button` / `stop_button` / クリーンアップボタンを追加する。割合不明を含む進捗合成・メインスレッド中継、二重開始・クリーンアップ拒否、停止ボタンの活性切替と `request_cancel()` 呼び出し、`cancelled` 受信後の操作復帰、終了確認の拒否／承認、停止待ち中のイベントループ維持、後片付け完了後のdestroyを検証する。
-    - [tests/regression/test_tkinter_regression.py](../../tests/regression/test_tkinter_regression.py): 既存の `len(app.notebook.tabs()) == 3` を `4` に更新する。4タブ構成、起動直後のffmpegなし／ffprobeなし／H.265なし／動画無効状態、停止ボタンの初期 `disabled`、Comboboxの `readonly` 復帰を検証する。
+    - [tests/regression/test_tkinter_regression.py](../../tests/regression/test_tkinter_regression.py): 既存の `len(app.notebook.tabs()) == 3` を `4` に更新する。4タブ構成、起動直後のffmpegなし／ffprobeなし／動画無効状態、H.265選択肢・可否表示が存在しないこと、停止ボタンの初期 `disabled`、Comboboxの `readonly` 復帰を検証する。
     - [tests/conftest.py](../../tests/conftest.py): `CapabilityReport` 生成箇所は新フィールドが既定値付きのため変更不要（必要に応じ ffmpeg 有りフィクスチャを追加）。
     - `tests/integration/test_video_ffmpeg.py`（新規、`requires_external`）: 採用ビルドで生成した短尺動画を実処理し、本編選択、全音声・全字幕の言語／選択状態、音声レイアウト、字幕本文・装飾・表示タイミング、チャプター、回転を検証する。保持不能入力では元コピーのハッシュ一致を検証する。必要なツール／エンコーダがない環境は理由付きでskipする。
 
@@ -442,6 +443,19 @@
     - 再実行で出力名は変わらず既存出力を上書きすること、前回 `.mp4` を出力した入力が元維持になった場合は古い `.mp4` が残ることを説明する。
     - 入力クリーンアップ対象への動画追加は取り消せない削除範囲の変更としてREADME・リリースノートで周知する。
 
+### Phase 6: H.265/HEVC技術の利用禁止への移行
+
+17. [ ] **H.265/HEVCをアプリで使用しない製品方針への改修**
+    - **進捗注記**: H.265選択・x265補正・HEVC能力表示の削除、HEVC入力の無変換コピー、理由/CSV記録、未監査FFmpegのfallback・梱包除外を実装済み。全テストと一時ディレクトリでのPyInstaller配布確認は完了。x264-only FFmpegの再ビルド・機能監査・対応ソースとライセンスの記録は未完了のため、Step 17とM7は未完了のままにする。
+    - **方針・境界**: このアプリはH.265/HEVCのエンコード・デコードを行わない。システムFFmpegがHEVC対応でも、その機能を呼び出さない。HEVC映像を含む入力（主映像・追加映像・カバーアートを含む全video stream）はffprobeのstream情報で検出し、ffmpegを起動せず入力を元拡張子のままバイト単位でコピーする。ffprobeのコンテナ/stream metadata読取りは許すが、HEVC frame解析・デコードは行わない。ログ・CSVに `hevc_input_prohibited` と説明を記録する。
+    - **契約・backend**: `VideoCompressionConfig.codec` と `VIDEO_ALLOWED_CODECS` をH.264 / `libx264` のみに制限する。旧保存値・旧dictから `libx265` が渡った場合、H.264へ黙ってフォールバックせず明示的に拒否する。`CapabilityReport.ffmpeg_hevc_available` とH.265専用コードパスを削除する。ffmpeg検出は `libx264` / 組み込み `aac` のみを必要条件として扱う。
+    - **HEVC入力の安全な元維持**: ffprobe JSONから全video streamのcodec名を調べる。いずれかが `hevc` なら、通常の `plan_encode()`・ffmpeg起動より前に `hevc_input_prohibited` の保持結果を返す。実ファイルテストで、ffmpegが一度も起動されないこと、元ファイルと出力のSHA256が一致すること、元拡張子・CSV action・理由通知が正しいことを確認する。ffprobe結果が不完全でHEVCか判定できない異常入力は、圧縮継続せず既存の明示的な解析失敗経路にする。
+    - **UI・設定移行**: H.265 Radiobutton、codec選択state、CRFのx265補正、H.265可否表示・注記・localeキーを削除する。出力コーデックはH.264固定と表示する。旧設定に `libx265` が残っていても、起動・設定読込みでHEVCを利用可能にせず、ログまたは標準の設定補正経路で明示する。HEVC入力元維持の理由 `hevc_input_prohibited` を日英localeへ追加する。
+    - **FFmpeg能力を越えた禁止**: ffmpeg executableがsystem PATHからのみ解決される移行中の方針を維持し、system版が `libx265` / HEVC encoder・decoderを備えていてもUIやbackendで利用可能扱いしない。HEVC入力の事前判定がデコード起動前に実行されることをsystem版で実ファイル検証する。
+    - **x264専用再ビルド**: gyan.dev full buildは廃止し、FFmpeg `n9.0.2` とx264の採用ソースを使う再ビルドを行う。設計の出発点は `--disable-autodetect --disable-ffplay --enable-gpl --enable-version3 --enable-libx264` とし、`--enable-libx265`、すべてのHEVC encoder/decoder（software・hardware）を有効化しない。生成後の `-buildconf` / `-encoders` / `-decoders` / `-parsers` を監査する。検証済みビルドが完成するまで既存 `vendor/ffmpeg-windows/` を実行時・PyInstaller・vendor.zipの対象から除外する。FFmpeg内部codecや入力demuxerを不用意に一括削除しない。
+    - **ライセンス・特許の扱い**: x264/FFmpegの正確なソース、COPYING、依存ソース、パッチ、ビルドスクリプト、設定、SHA256を対応づけて保管し、配布資料へ反映する。H.265機能を除外しても、H.264等の特許・第三者ライセンス問題まで解消したとは表示しない。特許適用の最終判断は対象地域・配布形態に応じて専門家に確認する。
+    - **テスト・文書**: `libx265` を前提にしたunit/integration/UI回帰テスト・README・Documentation・ビルド受入結果を更新する。H.265エンコード成功テストは削除し、旧設定拒否、x265 encoderがあるsystem FFmpegでも選択不可、HEVC入力の非デコード元維持、H.264処理回帰、x264-only bundled buildの構成監査を追加する。README・配布資料ではHEVCを使わない旨とHEVC入力が元維持になる旨を説明し、特許リスク全般の不存在を示唆しない。
+
 ---
 
 ## Relevant files
@@ -450,7 +464,7 @@
 - [backend/contracts.py](../../backend/contracts.py) — 動画設定・ツール可用性・段階付き進捗／中断イベント・`JobControl`
 - [backend/capabilities.py](../../backend/capabilities.py) — ffmpeg / ffprobe検出・失敗理由・エンコーダ検出・キャッシュ
 - [backend/settings.py](../../backend/settings.py) — 動画既定値・対象拡張子・作業領域・ロック名
-- `backend/core/video_utils.py` *(新規)* — 保持条件解析・比較ルールによる出力検証・全音声／字幕・許可リストによる音声コピー判定・元維持・キャンセル・プロセス回収
+- `backend/core/video_utils.py` *(新規)* — 保持条件解析・比較ルールによる出力検証・全音声／字幕・許可リストによる音声コピー判定・元維持・キャンセル・プロセス回収。Step 17でHEVC stream事前判定も追加
 - `backend/services/video_service.py` *(新規)* — 動画圧縮サービス層の公開入口
 - `backend/orchestrator/job_lock.py` *(新規)* — 出力フォルダのOS排他ロック（`.pjp_work/job.lock`）
 - `shared/path_utils.py` *(新規)* — 入出力の重なり判定 `paths_overlap()`（UI・backend共用）
@@ -467,6 +481,7 @@
 - [frontend/ui_tkinter_controller.py](../../frontend/ui_tkinter_controller.py) — 動画UI・段階付き進捗・停止ボタン・二重開始／削除防止・安全な終了
 - [frontend/config_data/locales/ja.json](../../frontend/config_data/locales/ja.json) / [frontend/config_data/locales/en.json](../../frontend/config_data/locales/en.json) — 日英ロケール文言
 - [tests/regression/test_tkinter_regression.py](../../tests/regression/test_tkinter_regression.py) / [tests/integration/test_ui_controller.py](../../tests/integration/test_ui_controller.py) — 既存のタブ数検証・ダミーホストの更新が必要
+- H.265禁止改修（Step 17）では、contracts/settings/capabilities/UI/locales、動画処理・CSV、FFmpegビルド定義、README、該当するunit/integration/regression testsを横断して更新する。
 - [pjp_compressor.iss](../../pjp_compressor.iss) / [vendor_zip.ps1](../../vendor_zip.ps1) — 配布物構成の確認
 
 ---
@@ -488,22 +503,25 @@
    - 複数mov_text字幕 → 本文・装飾・タイミング・言語・既定選択状態が保持される
    - ASS＋添付フォント、SRT等の変換必要字幕、PGS、forced字幕、HDR、10bit SDR、映像なし（音声だけの `.m4v`）、GoPro `gpmd` 付き → 元ファイルが元拡張子で保持され、具体的な理由がログ・CSV notes に残る
    - iPhoneのSDR動画（`mebx` / `tmcd` 付き）→ MP4に圧縮され、撮影日時・位置情報・機種名が残り、`dropped_data_streams` が notes に記録される
+   - HEVC/H.265映像を含むMP4/MKV、HEVCカバーアートまたは追加video stream付き入力 → ffprobeのstream情報だけを取得し、ffmpegを起動せず元ファイルを同一SHA256・元拡張子でコピーし、`hevc_input_prohibited` がログ・CSVに残る
    - チャプター付き動画 → チャプター名・時間が保持される
    - 総尺不明動画 → 動画名が処理中として表示され、割合不明を終了と誤認しない
    - 低ビットレートで出力が肥大化する動画 → **元の拡張子のまま元ファイルがコピー** され、CSV に `元ファイル維持` と記録される
    - 同一フォルダの `sample.mp4` と `sample.mov` → 上書きされず `sample.mp4` / `sample_mov.mp4` に出力される。同じ出力先で再実行しても同じ名前で上書きされる
 6. [ ] 複数動画の待機中・解析中・エンコード中・元コピー中に**停止ボタン**と**アプリ終了**のそれぞれで停止する。停止要求後に次のプロセス・コピー・ZIP再生成が始まらず、ffmpeg / ffprobe・executorが終了し、一時領域・出力ロックが後片付けされることを確認する。停止ボタンでは部分集計と中断状態が表示されて再開始できること、終了ではその後にウィンドウが閉じることを確認する。異常終了の残留領域は次回の排他取得後に限り掃除されることを確認する。
-7. [ ] ffmpegなし／ffprobeなし／検出コマンド失敗／libx265なし環境で起動し、起動直後から動画セクション全体（またはH.265のみ）が無効化され、具体的な理由が表示されること、PDF・画像圧縮が従来どおり動作することを確認する。
+7. [ ] ffmpegなし／ffprobeなし／検出コマンド失敗環境で起動し、動画セクション全体が無効化され、具体的な理由が表示されること、PDF・画像圧縮が従来どおり動作することを確認する。さらに、PATH上のsystem FFmpegが `libx265` とHEVC decoderを備えていてもUIにH.265選択肢がなく、HEVC入力の処理でffmpeg/decoderを起動しないことを確認する。
 8. [ ] UI 上で「圧縮設定」「出力設定」「アプリ設定」「ログ・進捗」の4タブが正しく表示・遷移でき、既存の出力設定（CSV出力、ZIP展開/再圧縮、ミラーコピー等）が「出力設定」タブから問題なく機能することを確認する。
 9. [ ] 開始ボタン連打・処理中クリーンアップが拒否され、別アプリインスタンスが同じ出力フォルダの圧縮・出力クリーンアップを開始できないことを確認する。残留掃除が使用中・所有不明のファイルを削除しないこと、出力クリーンアップが `.pjp_work/` を消さないこと、`.pjp_work/` がエクスプローラーで隠しフォルダになっていることを確認する。
 10. [ ] 凍結アプリ・インストーラで両ツールの起動、配布資料と対応ソースの取得を確認する。動画と画像の混在処理中にUI操作が応答し、画像タスクが動画待ちで停止しないことを実測する。CPU使用率そのものの上限保証は検証要件にしない。
+11. [ ] x264-only bundled buildの `-buildconf` / `-encoders` / `-decoders` / `-parsers` を監査し、x265 encoder、全HEVC decoder（software / hardware）、HEVC parserがないことと、必要なH.264 / AAC処理および動画受入テストが通ることを確認する。x264ソース・ライセンス・ビルド手順・パッチ・SHA256がバイナリに対応して配布資料から取得できることも検証する。
 
 ---
 
 ## Decisions
 
-- **同時実行・CPU負荷**: アプリ内の圧縮ジョブは同時に1件。汎用executorと動画専用の単一ワーカーexecutorを分離し、動画待ちが画像・PDFワーカーを塞がないようにする。ffmpegは低優先度で起動するが、内部のマルチスレッド処理によりCPUを使い切る可能性はある。初版は同時エンコード数の制限に目的を限定し、使用率の上限は保証しない。必要なら実測後にx264 / x265別のスレッド制限を追加する。
-- **品質設定のUI表現**: ユーザー向けには画像・PDFと同じ 0〜100 の品質スライダーを提示し、mapper 層で `CRF`（x264: 18〜40 / x265: 22〜44）へ変換する。backend 契約は `crf` のみを持つ。
+- **同時実行・CPU負荷**: アプリ内の圧縮ジョブは同時に1件。汎用executorと動画専用の単一ワーカーexecutorを分離し、動画待ちが画像・PDFワーカーを塞がないようにする。ffmpegは低優先度で起動するが、内部のマルチスレッド処理によりCPUを使い切る可能性はある。初版は同時エンコード数の制限に目的を限定し、使用率の上限は保証しない。スレッド制限を追加する場合もx264のみを対象にする。
+- **H.265/HEVC禁止**: H.265のエンコード・デコードはアプリ機能として禁止し、system FFmpegに実装があっても呼び出さない。HEVC映像streamを含む入力はffprobeのstream metadataで検出後、ffmpegを起動せず元ファイルをコピーして `hevc_input_prohibited` と記録する。bundled FFmpegはx264-onlyで再ビルドし、HEVC encoder・全decoder・parserを含めない。これはHEVC利用をアプリから除外する方針であり、他の動画技術の特許適用を含む法的リスク全般が解消したという意味ではない。
+- **品質設定のUI表現**: ユーザー向けには画像・PDFと同じ 0〜100 の品質スライダーを提示し、mapper 層で H.264 / x264 の `CRF`（18〜40）へ変換する。backend契約は `crf` のみを持つ。
 - **保持範囲**: 最初の非カバー本編映像、全音声・全字幕、および関連する言語・トラック名・既定選択状態・音声レイアウト・チャプター・表示向き・全体メタデータを保持する。強制選択などMP4で表現できないdispositionを持つ入力は元維持。追加映像・カバーアートは初版の対象外。字幕を黙って削除・焼き込みしない。音声の既定はコピー、明示的なAAC指定と許可リスト外トラックの通知付きAAC変換は音質維持の例外、音声なし指定だけは全音声削除の例外とする。
 - **出力コンテナ形式**: 保持条件を満たし、圧縮後に元より小さくなる場合のみMP4を出力する。保持条件をMP4統一より優先する。MKV自動選択は初版に含めない。
 - **出力名**: 同名衝突はジョブ内の候補同士だけで大文字小文字非区別に解消し（`stem.mp4` → `stem_{ext}.mp4` → `_2`…）、元維持の出力先も予約する。出力フォルダの既存ファイルは衝突判定に含めず従来どおり上書きし、再実行で名前を変えない。ZIP由来と通常入力の既定パス重複は範囲外。
@@ -515,10 +533,10 @@
 - **停止・終了保証**: 停止ボタンとアプリ終了で同じ停止処理を使う。共通停止フラグ、`wait(FIRST_COMPLETED)` ループでの監視、`shutdown(cancel_futures=True)` による未開始futureキャンセル、起動との同期、`JobControl` が保持する実行中ffmpeg / ffprobeの停止・回収、後片付け完了待ちを一体で設計する。Tkイベントループを停止待ち中も維持し、親スレッドのdaemon属性を終了保証に使わない。
 - **入力解析・進捗表示**: ffprobeを追加依存とし、JSONで保持条件と総尺を判定・出力検証する。割合は総尺と `out_time_us` から算出する。動画イベントは開始・更新・終了を区別し、`current=None` は割合不明に専用化する。全体件数と動画状態の更新・再描画はメインスレッドに統一する。
 - **タイムアウト**: エンコードは固定タイムアウトなし、ffprobeのファイル解析・出力検証は `Popen` + `communicate(timeout=30)`。両ツールをキャンセル対象にする。ストール検知は将来課題。
-- **ツール・エンコーダ互換**: ffmpeg / ffprobeの起動可否とlibx264 / libx265 / AACを検出し、理由付きでUI活性を制御する。音声コピー可否は固定許可リスト `VIDEO_MP4_AUDIO_COPY_CODECS` で事前判定し、実行時のAAC再試行は行わない。格納可否と再生機器互換性を区別する。H.265出力には `-tag:v hvc1` を付与する。
+- **ツール・エンコーダ互換**: ffmpeg / ffprobeの起動可否とlibx264 / AACを検出し、理由付きでUI活性を制御する。H.265可否は検出・表示せず、出力はH.264のみとする。音声コピー可否は固定許可リスト `VIDEO_MP4_AUDIO_COPY_CODECS` で事前判定し、実行時のAAC再試行は行わない。格納可否と再生機器互換性を区別する。
 - **ビット深度・HDR**: `yuv420p`（8bit）固定のため、8bit超とHDRの入力は元維持とする。iPhone既定のHDR動画が圧縮されないことはREADMEで明示し、10bit / HDR対応は将来課題とする。
 - **メタデータ・データストリーム**: 全体メタデータは `use_metadata_tags` で引き継ぐ。`tmcd` / `mebx` は削除を許容して notes に記録し、それ以外のデータストリーム・添付は元維持とする。
-- **配布**: 同一ビルドのffmpeg / ffprobeを固定し（採用: gyan.dev `9.0.2-full_build`、SHA256は末尾に記録）、非再配布可能なnonfreeビルドは採用しない。ライセンス互換性の確認と、バイナリに対応するソース・ビルド情報の提供（自前保管を含む）を別の受入条件とする。実行確認の成功だけでは配布完了としない。
+- **配布**: gyan.dev `9.0.2-full_build` はH.265禁止方針に適合しないため配布候補から除外する。M7でFFmpeg + x264のビルドを作成し、対応するソース・ライセンス・ビルド情報・SHA256の確保と提供を確認する。`--enable-nonfree` は採用しない。ライセンス互換性の確認と対応ソース提供は別の受入条件とし、実行確認だけで配布完了としない。
 - **タブ構成**: メインタブの肥大化を防ぐため、「出力設定」を独立した第2タブへ切り出す。
 
 ## Implementation Milestones
@@ -532,9 +550,12 @@
 | [ ] M3 | `JobControl`、出力排他（`.pjp_work/`）、入出力の重なりチェック、`wait(FIRST_COMPLETED)` ループ、`cancelled` イベント、停止ボタン・安全な終了。**画像・PDFのみで動作確認** | 2（JobControl・イベント）, 6（job_lock）, 8（ライフサイクル・executor）, 9, 12（停止・終了） | M1 |
 | [ ] M4 | 動画処理の中核: 事前判定、許可リストによる音声判定、比較ルールによる出力検証、元維持、決定的な出力名、動画executor・進捗合成、CSV notes、ロケール | 4, 5, 6（video_service）, 7, 8（動画部分）, 10, 12（進捗）, 13 | M2, M3 |
 | [ ] M5 | 採用ビルドの選定・配置（`vendor/ffmpeg-windows/`）、`requires_external` 実ファイルテスト、許可リストへの Opus / FLAC 追加判断、配布・ライセンス・対応ソース、README | 14, 15（実ファイル）, 16 | M4 |
-| [ ] M6 | M1〜M5と必要な実装・受入確認の完了後、プロジェクトのバージョンを `v2.7.0` に更新する | リリース前の最終作業 | M5 |
+| [ ] M6 | M1〜M5とM7および必要な実装・受入確認の完了後、プロジェクトのバージョンを `v2.7.0` に更新する | リリース前の最終作業 | M5, M7 |
+| [ ] M7 | H.265/HEVC禁止への移行、HEVC入力の非デコード元維持、x264-only再ビルド、ライセンス・配布資料・回帰テストの更新 | 17, Verification 5/7/11 | M5 |
 
 ## 同梱パッケージ確認結果（2026-11-01）
+
+> 以下は旧H.265対応の開発ビルドに対する履歴であり、M7で定めるH.265禁止方針に適合しない。新ビルドが完成するまでリリース・配布に使用しない。
 
 - [x] 利用者承認により gyan.dev `9.0.2-full_build` を採用し、展開フォルダを `vendor/ffmpeg-windows/` に統一した。Pythonのパス解決コードは変更していない。
 - [x] `ffmpeg -version` / `ffprobe -version` がともに成功し、バージョンとビルド設定が一致することを確認した。`--enable-gpl` / `--enable-version3` / `--enable-static` があり、`--enable-nonfree` はない。LICENSEはGPL v3、READMEにはビルド設定が記載されている。

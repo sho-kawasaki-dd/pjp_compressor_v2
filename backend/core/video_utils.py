@@ -174,6 +174,7 @@ class MediaInfo:
     attachment_count: int
     chapters: tuple[ChapterInfo, ...]
     format_tags: dict[str, str]
+    contains_hevc: bool = False
 
 
 @dataclass(frozen=True)
@@ -319,6 +320,7 @@ def parse_probe_json(payload: Any) -> MediaInfo:
     subtitles: list[SubtitleStreamInfo] = []
     data: list[DataStreamInfo] = []
     attachments = 0
+    contains_hevc = False
 
     for position, stream in enumerate(streams):
         index = _to_int(stream.get('index'))
@@ -326,7 +328,13 @@ def parse_probe_json(payload: Any) -> MediaInfo:
         kind = stream.get('codec_type')
         codec = stream.get('codec_name') if isinstance(stream.get('codec_name'), str) else None
         tags = _tags_of(stream)
+        if not isinstance(kind, str) or not kind.strip():
+            raise ValueError(f'stream {index} has no codec type')
         if kind == 'video':
+            normalized_codec = codec.casefold().strip() if isinstance(codec, str) else ''
+            if normalized_codec in {'', 'none', 'unknown'}:
+                raise ValueError(f'video stream {index} has no codec name')
+            contains_hevc = contains_hevc or normalized_codec == 'hevc'
             disposition = stream.get('disposition')
             if isinstance(disposition, dict) and disposition.get('attached_pic'):
                 continue  # カバーアートは保持対象外
@@ -393,6 +401,7 @@ def parse_probe_json(payload: Any) -> MediaInfo:
         attachment_count=attachments,
         chapters=tuple(chapters),
         format_tags=_tags_of(fmt),
+        contains_hevc=contains_hevc,
     )
 
 
@@ -614,8 +623,7 @@ def build_ffmpeg_command(
     cmd += ['-map', '0:s?']
     cmd += ['-vf', build_video_filter(config.max_long_edge)]
     cmd += ['-c:v', config.codec, '-crf', str(config.crf), '-preset', config.preset, '-pix_fmt', 'yuv420p']
-    if config.codec == 'libx265':
-        cmd += ['-tag:v', 'hvc1', '-x265-params', 'log-level=error']
+
     for position, item in enumerate(plan.audio):
         if item.action == 'copy':
             cmd += [f'-c:a:{position}', 'copy']
@@ -950,14 +958,24 @@ def _compress(
         return _keep_original(inpath, original_outpath, reason, notes, job_control, temp_dir, temps, log_language)
 
     check_cancel()
+    if not capabilities.ffprobe_path:
+        reason = _t(log_language, 'video_ffprobe_missing')
+        raise _VideoError(_t(log_language, 'video_tool_unavailable', reason=reason))
+    if capabilities.ffprobe_detection_error:
+        reason = _t(log_language, 'video_ffprobe_detect_failed', detail=capabilities.ffprobe_detection_error)
+        raise _VideoError(_t(log_language, 'video_tool_unavailable', reason=reason))
+    ffprobe_path = capabilities.ffprobe_path
+
+    info = probe_media(ffprobe_path, inpath, job_control, log_language)
+    check_cancel()
+
+    if info.contains_hevc:
+        return keep('retention', ['hevc_input_prohibited'])
+
     unavailable = tool_unavailable_reason(capabilities, config, log_language)
     if unavailable:
         raise _VideoError(_t(log_language, 'video_tool_unavailable', reason=unavailable))
     ffmpeg_path = str(capabilities.ffmpeg_path)
-    ffprobe_path = str(capabilities.ffprobe_path)
-
-    info = probe_media(ffprobe_path, inpath, job_control, log_language)
-    check_cancel()
 
     plan, reasons = plan_encode(info, config, capabilities)
     if plan is None:

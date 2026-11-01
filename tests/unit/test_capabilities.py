@@ -107,22 +107,21 @@ def test_detect_ffmpeg_collects_encoders_and_caches(monkeypatch: pytest.MonkeyPa
     first = capabilities.detect_capabilities()
     second = capabilities.detect_capabilities()
 
-    assert first.ffmpeg_encoders == frozenset({'libx264', 'libx265', 'aac'})
+    assert first.ffmpeg_encoders == frozenset({'libx264', 'aac'})
     assert first.ffmpeg_available and first.ffprobe_available and first.video_available
-    assert first.ffmpeg_hevc_available is True
     assert first.ffmpeg_source == 'system' and first.ffprobe_source == 'system'
     assert second.ffmpeg_path == first.ffmpeg_path
     assert len(calls) == 2  # ffmpeg -encoders と ffprobe -version が各1回だけ
 
 
-def test_detect_ffmpeg_without_libx265_disables_hevc(monkeypatch: pytest.MonkeyPatch) -> None:
-    output = ' V....D libx264              libx264 H.264\n'
+def test_detect_ffmpeg_ignores_hevc_encoders(monkeypatch: pytest.MonkeyPatch) -> None:
+    output = ' V....D libx264              libx264 H.264\n V....D libx265              libx265 H.265\n'
     _patch_tools(monkeypatch, lambda command, **kwargs: _completed(stdout=output))
 
     report = capabilities.detect_capabilities()
 
     assert report.ffmpeg_available is True
-    assert report.ffmpeg_hevc_available is False
+    assert report.ffmpeg_encoders == frozenset({'libx264'})
 
 
 def test_detect_ffprobe_failure_keeps_sanitized_reason(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -159,7 +158,7 @@ def test_detect_ffmpeg_start_failure_and_timeout_are_reported(monkeypatch: pytes
     assert report.ffprobe_available is False
 
 
-def test_detect_ffmpeg_bundled_fallback(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_detect_ffmpeg_does_not_use_unverified_bundled_build(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     bundled = tmp_path / 'vendor' / 'ffmpeg-windows' / 'bin' / 'ffmpeg.exe'
     bundled.parent.mkdir(parents=True)
     bundled.write_text('stub', encoding='utf-8')
@@ -170,13 +169,13 @@ def test_detect_ffmpeg_bundled_fallback(monkeypatch: pytest.MonkeyPatch, tmp_pat
 
     detection = capabilities._detect_ffmpeg()
 
-    assert detection.path == str(bundled.resolve())
-    assert detection.source == 'bundled'
-    assert 'libx264' in detection.encoders
+    assert detection.path is None
+    assert detection.source == 'unavailable'
+    assert detection.encoders == frozenset()
     assert capabilities._detect_ffprobe().source == 'unavailable'
 
 
-def test_ffprobe_uses_bundled_fallback_and_system_takes_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_ffprobe_does_not_use_unverified_bundled_build(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     bundled = tmp_path / 'vendor' / 'ffmpeg-windows' / 'bin' / 'ffprobe.exe'
     bundled.parent.mkdir(parents=True)
     bundled.write_text('stub', encoding='utf-8')
@@ -186,8 +185,8 @@ def test_ffprobe_uses_bundled_fallback_and_system_takes_precedence(monkeypatch: 
     monkeypatch.setattr(capabilities.subprocess, 'run', lambda command, **kwargs: _completed(stdout='ffprobe version'))
 
     bundled_result = capabilities._detect_ffprobe()
-    assert bundled_result.path == str(bundled.resolve())
-    assert bundled_result.source == 'bundled' and bundled_result.error is None
+    assert bundled_result.path is None
+    assert bundled_result.source == 'unavailable' and bundled_result.error is None
 
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda name: 'C:/system/ffprobe.exe' if name == 'ffprobe' else None)
     capabilities.clear_video_tool_cache()
@@ -203,12 +202,12 @@ def test_clearing_video_tool_cache_rechecks_both_tools(monkeypatch: pytest.Monke
         return _completed(stdout=encoder_output if '-encoders' in command else 'ffprobe version')
 
     calls = _patch_tools(monkeypatch, run)
-    assert capabilities.detect_capabilities().ffmpeg_hevc_available
+    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264', 'aac'})
     encoder_output = ' V....D libx264 libx264 H.264\n'
-    assert capabilities.detect_capabilities().ffmpeg_hevc_available
+    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264', 'aac'})
     assert len(calls) == 2
 
     capabilities.clear_video_tool_cache()
 
-    assert not capabilities.detect_capabilities().ffmpeg_hevc_available
+    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264'})
     assert len(calls) == 4

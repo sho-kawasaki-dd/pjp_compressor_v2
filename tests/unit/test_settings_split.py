@@ -62,7 +62,7 @@ def test_ffmpeg_ffprobe_resolution_order(monkeypatch: pytest.MonkeyPatch, tmp_pa
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda name: 'C:/sys/ffmpeg.exe' if name == 'ffmpeg' else None)
     assert runtime_paths.resolve_ffmpeg_executable().source == 'system'
     ffprobe = runtime_paths.resolve_ffprobe_executable()
-    assert ffprobe.source == 'bundled' and ffprobe.path.endswith('ffprobe.exe')
+    assert ffprobe.source == 'unavailable' and ffprobe.path is None
 
     monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path / 'missing')
     monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path / 'missing')

@@ -25,7 +25,7 @@ from shared.runtime_paths import (
 )
 
 TOOL_PROBE_TIMEOUT_SECONDS = 10
-_TRACKED_ENCODERS = ('libx264', 'libx265', 'aac')
+_TRACKED_ENCODERS = ('libx264', 'aac')
 _ERROR_DETAIL_MAX_LENGTH = 240
 
 
