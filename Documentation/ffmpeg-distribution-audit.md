@@ -11,9 +11,46 @@
 
 アプリは H.265/HEVC のエンコード・デコードを行いません。HEVC映像streamを含む入力は ffprobe のstream metadataで検出し、ffmpegを起動せず元ファイルをコピーします。未監査の `vendor/ffmpeg-windows/` gyan.dev full build は実行時fallbackと凍結版・`vendor.zip`の梱包対象から除外しました。動画機能は現在 PATH 上の system `ffmpeg` / `ffprobe` に依存します。
 
-これは一時的な安全側の配布・実行方針です。Windows向けx264-only再ビルドはまだ作成・検証されておらず、該当バイナリ・ソース・ライセンスの対応が確認できるまで、同梱版を復帰させないでください。
+これは一時的な安全側の配布・実行方針です。Windows向けx264-only再ビルドは下記のとおり作成・動作検証しましたが、配布上の条件確認は未完了です。同梱fallbackと梱包除外はそのまま維持し、新バイナリも自動で同梱版へ差し替えていません。
 
-## ローカルで確認したもの
+## x264限定のWindowsビルド（2026-11-01）
+
+成果物は [`build/ffmpeg-x264-only/package/bin/`](../build/ffmpeg-x264-only/package/bin/) に保存しています。FFmpeg内部の一般的なcodec・filter・コンテナ機能は残したため、「全機能を絞った最小サイズ」ではなく、**任意の外部メディアライブラリをx264だけに限定した静的ビルド**です。
+
+実行ファイル・ライセンス表示・対応ソースアーカイブ・ビルドと検証の記録をまとめた[保管用ZIP](../build/ffmpeg-x264-only/ffmpeg-x264-only.zip)も作成しました。公開配布を承認したものではありません。
+
+| 実行ファイル | サイズ | SHA256 |
+|---|---:|---|
+| `ffmpeg.exe` | 31,188,992 bytes | `dd8bb87fbd05be31c17c37ce2fa2e8b910ceacd4ed5bccdccb8f43e4fd8bfa7d` |
+| `ffprobe.exe` | 30,968,320 bytes | `df293436b81eda08b3b4101a9d18a2659f50d8d0bf7c8f1637e5765c378e1a89` |
+
+- 入力ソース: 提供されたFFmpeg `n9.0.2` と `x264-master`。x264のAPI番号は164、ビルド上の版表示は `0.164.x` です。Git履歴がなく、x264の上流コミットは未特定のため、使用ツリーをソースアーカイブとSHA256で固定しました。ソースへのパッチは適用していません。
+- ツール: MinGW GCC 14.2.0（`x86_64-w64-mingw32`）、GNU Make 4.4.1、NASM 3.02、pkg-config 3.0.10。並列数は4。不足していたMSYS2のmake・nasm・diffutilsを追加しました。
+- 構成: `--target-os=mingw32 --arch=x86_64 --enable-static --disable-shared --disable-autodetect --enable-gpl --enable-version3 --enable-libx264 --extra-ldflags=-static` を使用。ffplay・network・avdevice・hardware accelerationは無効化しました。
+- HEVCの全encoder・decoder・parserに加え、HEVC専用BSF・raw demuxer/muxerと `dovi_split` を明示的に無効化しました。生成設定の `CONFIG_HEVCPARSE` も0です。MP4/MOV/MKVなどのコンテナからHEVCというcodec識別情報を読むことは可能です。
+- `libx264` / `libx264rgb` と組み込みAACが有効で、x265は含まれません。`-L` の表示はGPL version 3 or laterです。x264のヘッダーとencoderソースにGPLv2-or-laterの許諾を確認しました。
+- WindowsのDLL importは両実行ファイルとも `bcrypt.dll`、`KERNEL32.dll`、`msvcrt.dll`、`SHELL32.dll` のみです。MSYS2やx264のDLLを別途置かなくても起動します。
+- アプリの全テストを新FFmpeg/ffprobeで実行し、314件成功・Tk初期化理由で1件スキップでした。GUI回帰を新しいPythonプロセスで再実行し、11件すべて成功しました。テスト入力の生成だけは旧full buildを使い、アプリの実処理には新ビルドを使用しました。
+- HEVCのMP4、MKV、H.264主映像＋HEVC追加映像のMKVについて、新ffprobeで検知し、ffmpegのエンコード実行が0回、コピー元とコピー先のSHA256一致を確認しました。
+- [監査資料](../build/ffmpeg-x264-only/audit/) にconfigure引数・生成設定・ソースアーカイブ・ライセンス・ツール情報・DLL import・テスト結果を保存しています。ソースアーカイブのSHA256は `ffmpeg-source.tar.gz`: `bfbb1d6c80bf4519449438a5992d2e683436236a78441fd9f1626278ed4fb647`、`x264-source.tar.gz`: `936243796617b86f7d6ced919c3485891a866945923b3ae07091bf688a7768f0` です。
+
+### 再ビルド
+
+[ビルドスクリプト](../scripts/build_ffmpeg_x264.sh) はMSYS2 Bashで実行します。`PATH` にMinGW GCC・pkg-config・MSYS2のmake/NASM等を配置し、ソース2つと未使用の出力ディレクトリを引数に指定してください。入力ソースはコピーして使用し、原本を変更しません。
+
+```bash
+export PATH=/c/mingw64/bin:/ucrt64/bin:/usr/bin
+bash scripts/build_ffmpeg_x264.sh \
+  'C:\Users\tohbo\Downloads\FFmpeg-n9.0.2\FFmpeg-n9.0.2' \
+  'C:\Users\tohbo\Downloads\x264-master\x264-master' \
+  'C:\Users\tohbo\python_programs\pjp_compressor_v2\build\ffmpeg-x264-new'
+```
+
+同じソース・ツールチェーンで中断したビルドを再開する場合だけ `RESUME=1` を設定します。コピー元との内容一致を確認して続行します。出力先はGit管理対象外なので、配布に採用する前に成果物と対応ソースの保管場所・提供方法を別途確定してください。
+
+**ビルド成功は再配布の法的承認ではありません。** GCC/MinGWランタイムを含む表示条件・本体との配布構成・対応ソース提供方法・H.264等の特許上の条件は引き続き確認が必要です。
+
+## 旧full buildについてローカルで確認したもの
 
 対象ディレクトリは [`vendor/ffmpeg-windows/`](../vendor/ffmpeg-windows/) です。
 
@@ -80,11 +117,11 @@ FFmpeg の `LICENSE.md` は、`libavcodec/jfdctfst.c`、`libavcodec/jfdctint_tem
 
 このアプリではH.265を使用しない方針のためx265は対象外です。x264のライセンスは採用する正確なソースリビジョンの `COPYING` で確認してください。特に `--enable-version3` のビルドに組み込む場合は、x264側のライセンス条件との整合を記録します。
 
-### 小さく再ビルドする場合の設計案（未実行）
+### 初期の再ビルド設計案（上記のWindowsビルドで具体化）
 
 FFmpeg `n9.0.2` ソースの `configure` には `--disable-autodetect`、`--disable-ffplay`、`--enable-libx264`、`--enable-libx265` があります。最初の試作では、FFmpegの既定の内部codec/demuxer/muxer/filterを不用意に削る `--disable-everything` は使わず、自動検出される任意ライブラリを切り、必要な外部エンコーダだけを明示的に有効化する方針が安全です。
 
-H.264専用の**configure設計の骨子**（実ビルドコマンドではなく、クロスコンパイル環境や依存の `--extra-*` 指定は未確定）:
+H.264専用の**configure設計の骨子**（実際に使った全引数は上記ビルドの監査資料に保存）:
 
 ```text
 --disable-autodetect
@@ -94,7 +131,7 @@ H.264専用の**configure設計の骨子**（実ビルドコマンドではな�
 --enable-libx264
 ```
 
-静的配布にするか、ツールチェーンやx264のビルドをどのように固定するかは別途設計・検証が必要です。`--disable-autodetect` を入れた後、ビルド設定・`-encoders`・`-decoders`・`-parsers` の出力を検査し、HEVC encoder/decoder/parserが有効でないことと、受入ファイルの実動作を確認します。外部ライブラリをx264に絞ることと、FFmpeg内部codecの対応形式を狭めることを混同しないでください。
+静的配布にするか、ツールチェーンやx264のビルドをどのように固定するかは別途設計・検証が必要です。`--disable-autodetect` を入れた後、ビルド設定・`-encoders`・`-decoders` と生成された `config_components.h` を検査し、HEVC encoder/decoder/parserが有効でないことと、受入ファイルの実動作を確認します。FFmpeg CLIには `-parsers` 一覧オプションがないため、parserは生成設定とビルド記録で確認します。外部ライブラリをx264に絞ることと、FFmpeg内部codecの対応形式を狭めることを混同しないでください。
 
 この再ビルドでは、FFmpegソースに加えて採用したx264の正確なソース、ライセンス文、ビルド手順・パッチを確保することになります。ビルド後に実際の設定と実行機能を監査し、表示されるライセンスやバイナリが想定どおりの範囲に収まったことを確認するまで、ソース提供義務や配布可否を確定しません。
 
