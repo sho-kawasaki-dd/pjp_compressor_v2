@@ -201,3 +201,6 @@ The development bundle uses gyan.dev FFmpeg `9.0.2-full_build` (GPL v3, static b
 
 **Distribution is not yet cleared:** the exact corresponding source, external-library revisions, patches, build scripts, and licensing compatibility still need to be obtained, retained, and reviewed. The [FFmpeg source commit](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) and [upstream builds](https://www.gyan.dev/ffmpeg/builds/) are references, not a complete corresponding-source offer. Do not redistribute the bundled binaries until these requirements are resolved.
 **配布準備は未完了です。** 対応ソース一式、外部ライブラリのリビジョン、パッチ、ビルドスクリプトの確保・保管とライセンス互換性の確認が必要です。[FFmpeg のソースコミット](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) と[上流のビルド配布元](https://www.gyan.dev/ffmpeg/builds/)は参考情報であり、対応ソース一式の提供を意味しません。これらの条件が整うまで同梱バイナリを再配布しないでください。
+
+See the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) for verified package facts and remaining checks.
+確認できたパッケージ情報と未完了項目は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)を参照してください。
