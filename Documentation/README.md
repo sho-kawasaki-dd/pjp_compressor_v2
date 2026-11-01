@@ -501,6 +501,18 @@ python -m pytest
 
 このアプリケーションは自由に改変・利用可能です。ご利用環境に応じた依存関係のライセンス条項に従ってください。
 
+### 同梱するサードパーティバイナリのソース提供
+
+Ghostscript、pngquant、FFmpeg のバイナリをインストーラーに含めるリリースでは、対応するソースアーカイブをインストーラーと同じ GitHub Release に別アセットとして掲載する方針です。対象ファイルは次のとおりです。
+
+- `libimagequant-main.zip` — libimagequant（pngquant の依存ライブラリ）
+- `pngquant-main.zip` — pngquant
+- `x264-master.zip` — x264（FFmpeg のエンコーダー依存ライブラリ）
+- `ghostpdl-10.08.0.tar.gz` — Ghostscript
+- `FFmpeg-n0.0.2.zip` — FFmpeg
+
+リリースごとに、実際に同梱したバイナリのバージョンと対応ソースが一致していること、必要なソース・ライセンス文・ビルド関連ファイルが揃っていること、ダウンロード可能な状態で同じ Release に掲載されていることを確認します。この掲載方針だけでライセンス適合性を法的に保証するものではありません。FFmpeg の確認状況は[配布物の調査記録](./ffmpeg-distribution-audit.md)を参照してください。
+
 ## バージョン情報
 
 - バージョン: 1.0.0

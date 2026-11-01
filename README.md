@@ -92,6 +92,18 @@
 > Ghostscript and pngquant are bundled with the installer and require no separate installation.
 > Ghostscript および pngquant はインストーラーにバンドルされており、別途インストールは不要です。
 
+### Third-party source code / サードパーティのソースコード
+
+For releases that include Ghostscript, pngquant, or FFmpeg binaries in the installer, the corresponding source archives will be published as separate assets in the same GitHub Release as the installer. The planned archives are:
+
+- `libimagequant-main.zip` — libimagequant (pngquant dependency)
+- `pngquant-main.zip` — pngquant
+- `x264-master.zip` — x264 (FFmpeg encoder dependency)
+- `ghostpdl-10.08.0.tar.gz` — Ghostscript
+- `FFmpeg-n0.0.2.zip` — FFmpeg
+
+インストーラーに Ghostscript、pngquant、FFmpeg のバイナリを含めるリリースでは、対応するソースアーカイブをインストーラーと同じ GitHub Release の別アセットとして掲載します。掲載予定のファイルと対応するソフトウェアは上記のとおりです。各リリースで、実際に同梱したバイナリとソースのバージョンおよび対応関係を確認してください。
+
 ---
 
 ## Usage / 使い方
@@ -195,6 +207,9 @@ uv run pytest -m unit
 
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 本プロジェクトは [GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）のもとで公開されています。
+
+The third-party source archives listed above are provided alongside the installer on GitHub Releases to make the sources corresponding to bundled binaries available. This release practice does not by itself establish that every license obligation or distribution condition has been satisfied; see the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) for the current review status.
+同梱バイナリに対応するソースを入手できるよう、上記のサードパーティソースアーカイブを GitHub Releases でインストーラーとともに提供します。この掲載方針だけで各ライセンス上の義務や配布条件をすべて満たすと判断するものではありません。確認状況は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)を参照してください。
 
 The app only uses H.264 (`libx264`) for video output. It does not encode or decode H.265/HEVC; if any video stream (including cover art) is HEVC, the app probes stream metadata and copies the original file unchanged without starting `ffmpeg`. Video compression currently requires system `ffmpeg` and `ffprobe` on `PATH`. The existing gyan.dev `9.0.2-full_build` contains x265/HEVC support and is unverified for redistribution, so it is neither used as a fallback nor included in frozen builds or `vendor.zip` while an audited x264-only replacement is unavailable. Detection is cached until the app restarts.
 アプリの動画出力は H.264（`libx264`）のみです。H.265/HEVC のエンコード・デコードは行いません。カバーアートを含むいずれかの映像ストリームが HEVC の場合、ストリーム情報だけを調べ、`ffmpeg` を起動せず元ファイルをそのままコピーします。現時点では動画圧縮に PATH 上の system `ffmpeg` と `ffprobe` が必要です。既存の gyan.dev `9.0.2-full_build` は x265/HEVC 対応で再配布の監査も未完了のため、監査済みx264-only版ができるまでfallbackとして使用せず、凍結版や `vendor.zip` にも含めません。検出結果はアプリ再起動までキャッシュされます。
