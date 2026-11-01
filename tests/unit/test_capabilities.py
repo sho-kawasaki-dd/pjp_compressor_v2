@@ -158,41 +158,40 @@ def test_detect_ffmpeg_start_failure_and_timeout_are_reported(monkeypatch: pytes
     assert report.ffprobe_available is False
 
 
-def test_detect_ffmpeg_does_not_use_unverified_bundled_build(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_ffmpeg_resolves_to_bundled_x264_only_build_when_system_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     bundled = tmp_path / 'vendor' / 'ffmpeg-windows' / 'bin' / 'ffmpeg.exe'
     bundled.parent.mkdir(parents=True)
     bundled.write_text('stub', encoding='utf-8')
     monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path)
     monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path)
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda _name: None)
-    monkeypatch.setattr(capabilities.subprocess, 'run', lambda command, **kwargs: _completed(stdout=ENCODERS_OUTPUT))
 
-    detection = capabilities._detect_ffmpeg()
+    resolution = runtime_paths.resolve_ffmpeg_executable()
 
-    assert detection.path is None
-    assert detection.source == 'unavailable'
-    assert detection.encoders == frozenset()
-    assert capabilities._detect_ffprobe().source == 'unavailable'
+    assert resolution.path == str(bundled.resolve())
+    assert resolution.source == 'bundled'
 
 
-def test_ffprobe_does_not_use_unverified_bundled_build(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_ffprobe_resolves_to_bundled_x264_only_build_when_system_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     bundled = tmp_path / 'vendor' / 'ffmpeg-windows' / 'bin' / 'ffprobe.exe'
     bundled.parent.mkdir(parents=True)
     bundled.write_text('stub', encoding='utf-8')
     monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path)
     monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path)
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda _name: None)
-    monkeypatch.setattr(capabilities.subprocess, 'run', lambda command, **kwargs: _completed(stdout='ffprobe version'))
 
-    bundled_result = capabilities._detect_ffprobe()
-    assert bundled_result.path is None
-    assert bundled_result.source == 'unavailable' and bundled_result.error is None
+    bundled_result = runtime_paths.resolve_ffprobe_executable()
+    assert bundled_result.path == str(bundled.resolve())
+    assert bundled_result.source == 'bundled'
 
     monkeypatch.setattr(runtime_paths.shutil, 'which', lambda name: 'C:/system/ffprobe.exe' if name == 'ffprobe' else None)
-    capabilities.clear_video_tool_cache()
-    system_result = capabilities._detect_ffprobe()
+    system_result = runtime_paths.resolve_ffprobe_executable()
     assert system_result.path == 'C:/system/ffprobe.exe'
-    assert system_result.source == 'system' and system_result.error is None
+    assert system_result.source == 'system'
 
 
 def test_clearing_video_tool_cache_rechecks_both_tools(monkeypatch: pytest.MonkeyPatch) -> None:

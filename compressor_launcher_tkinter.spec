@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
+import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
@@ -8,11 +9,17 @@ from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 tkdnd_datas = collect_data_files('tkinterdnd2')
 tkdnd_hiddenimports = collect_submodules('tkinterdnd2')
 project_root = Path.cwd()
+sys.path.insert(0, str(project_root))
+from scripts.verify_ffmpeg_distribution import verify_ffmpeg_vendor
+
 vendor_root = project_root / 'vendor'
+ffmpeg_vendor_root = vendor_root / 'ffmpeg-windows'
+if ffmpeg_vendor_root.exists():
+    verify_ffmpeg_vendor(project_root)
 vendor_datas = [
     (str(path), str(Path('vendor') / path.relative_to(vendor_root).parent))
     for path in vendor_root.rglob('*')
-    if path.is_file() and path.relative_to(vendor_root).parts[0].casefold() != 'ffmpeg-windows'
+    if path.is_file()
 ]
 
 

@@ -1,6 +1,6 @@
 <#
     このスクリプトは、プロジェクトルート直下の vendor フォルダーを ZIP にまとめる。
-    x264-only の監査済みビルドが用意されるまで、ffmpeg-windows は ZIP に含めない。
+    ffmpeg-windows は承認済み x264-only ビルドのハッシュを検証してから含める。
 
     実行時のカレントディレクトリに依存しないよう、スクリプト自身の配置場所を基準に
     vendor フォルダーと出力先 ZIP を決定する。
@@ -16,6 +16,14 @@ if (-not (Test-Path -LiteralPath $vendorPath -PathType Container)) {
     throw 'vendor フォルダーが見つかりません。プロジェクトルートで実行してください。'
 }
 
+if (Test-Path -LiteralPath (Join-Path $vendorPath 'ffmpeg-windows')) {
+    $verifier = Join-Path $rootPath 'scripts/verify_ffmpeg_distribution.py'
+    & python $verifier
+    if ($LASTEXITCODE -ne 0) {
+        throw '承認済み x264-only FFmpeg の検証に失敗しました。vendor.zip は作成しません。'
+    }
+}
+
 if (Test-Path -LiteralPath $archivePath) {
     Remove-Item -LiteralPath $archivePath -Force
 }
@@ -23,12 +31,9 @@ if (Test-Path -LiteralPath $archivePath) {
 Add-Type -AssemblyName System.IO.Compression
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $vendorUri = [Uri]::new(($vendorPath.TrimEnd('\') + '\'))
-$files = Get-ChildItem -LiteralPath $vendorPath -File -Recurse | Where-Object {
-    $relative = [Uri]::UnescapeDataString($vendorUri.MakeRelativeUri([Uri]::new($_.FullName)).ToString())
-    ($relative -split '[\\/]')[0] -ne 'ffmpeg-windows'
-}
+$files = Get-ChildItem -LiteralPath $vendorPath -File -Recurse
 if (-not $files) {
-    throw 'FFmpeg を除外した後に ZIP 対象の vendor ファイルがありません。'
+    throw 'ZIP 対象の vendor ファイルがありません。'
 }
 
 $stream = [System.IO.File]::Open($archivePath, [System.IO.FileMode]::Create)
@@ -49,4 +54,4 @@ finally {
     $archive.Dispose()
 }
 
-Write-Host "ffmpeg-windows を除外した vendor.zip を作成しました: $archivePath"
+Write-Host "vendor.zip を作成しました: $archivePath"

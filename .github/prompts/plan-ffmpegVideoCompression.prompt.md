@@ -1,6 +1,6 @@
 # Plan: ffmpeg 動画圧縮機能の追加と UI タブ再編
 
-**TL;DR**: `ffmpeg` を用いた動画ファイル一括圧縮を第3の圧縮ドメインとして追加する。既存のGhostscript/pngquantとは異なり、FFmpegは承認済みの同梱ビルドを再作成するまでPATH上の `system` 版のみを使用する。**製品方針としてH.265/HEVC技術の利用を禁止する**: H.265のエンコードとデコードを行わず、`libx265` を同梱・要求しない。システムFFmpegにHEVC機能があってもアプリは利用しない。HEVC映像を含む入力はffprobeの全video stream情報でエンコード前に判定し、デコードせず元ファイルのままコピーして理由を通知する。出力はH.264（`libx264`）のみとする。アプリ内の圧縮ジョブは同時に1件、動画タスクは **専用の単一ワーカー `ThreadPoolExecutor(max_workers=1)`** で直列実行する。これは同時エンコード数の制限であり、CPU使用率の上限は保証しない。UIの品質スライダー（0〜100）は mapper 層で H.264 の `CRF`（18〜40）へ変換する。**本編映像・全音声・全字幕と関連情報の保持をMP4統一より優先**し、保持条件を満たして元より小さくなる場合のみ `.mp4` を出力する。保持条件を満たせない場合と元以上サイズの場合は、ミラー設定に関係なく **元拡張子のままコピーし、元維持の理由を通知**する。音声の既定はコピーとし、MP4へのコピー可否は**固定の許可リストで事前判定**する（実行失敗からのAAC再試行は行わない）。HDR・8bit超・映像なし・字幕の装飾など安全に保持できない入力は元維持とする。出力検証は**項目別の比較ルール表**に従う。出力名はジョブ内の候補同士だけで衝突回避し、再実行で名前が変わらないようにする。**停止ボタン**とアプリ終了で共通の停止処理を使い、出力フォルダ排他（`.pjp_work/`）で一時ファイル掃除を安全に行う。動画進捗は開始・更新・終了を区別するイベントで全体進捗と合成し、「出力設定」を独立させた4タブ構成とする。M7では既存H.265対応の処理を廃止し、x264-onlyバイナリの再ビルドと配布監査が完了するまでFFmpegを同梱しない。
+**TL;DR**: `ffmpeg` を用いた動画ファイル一括圧縮を第3の圧縮ドメインとして追加する。system `ffmpeg` / `ffprobe` を優先し、未検出時は配布マニフェストで承認されたx264-onlyビルドだけをfallbackとして使用する。**製品方針としてH.265/HEVC技術の利用を禁止する**: H.265のエンコードとデコードを行わず、`libx265` を同梱・要求しない。システムFFmpegにHEVC機能があってもアプリは利用しない。HEVC映像を含む入力はffprobeの全video stream情報でエンコード前に判定し、デコードせず元ファイルのままコピーして理由を通知する。出力はH.264（`libx264`）のみとする。アプリ内の圧縮ジョブは同時に1件、動画タスクは **専用の単一ワーカー `ThreadPoolExecutor(max_workers=1)`** で直列実行する。これは同時エンコード数の制限であり、CPU使用率の上限は保証しない。UIの品質スライダー（0〜100）は mapper 層で H.264 の `CRF`（18〜40）へ変換する。**本編映像・全音声・全字幕と関連情報の保持をMP4統一より優先**し、保持条件を満たして元より小さくなる場合のみ `.mp4` を出力する。保持条件を満たせない場合と元以上サイズの場合は、ミラー設定に関係なく **元拡張子のままコピーし、元維持の理由を通知**する。音声の既定はコピーとし、MP4へのコピー可否は**固定の許可リストで事前判定**する（実行失敗からのAAC再試行は行わない）。HDR・8bit超・映像なし・字幕の装飾など安全に保持できない入力は元維持とする。出力検証は**項目別の比較ルール表**に従う。出力名はジョブ内の候補同士だけで衝突回避し、再実行で名前が変わらないようにする。**停止ボタン**とアプリ終了で共通の停止処理を使い、出力フォルダ排他（`.pjp_work/`）で一時ファイル掃除を安全に行う。動画進捗は開始・更新・終了を区別するイベントで全体進捗と合成し、「出力設定」を独立させた4タブ構成とする。FFmpegを同梱する場合はこの承認済みx264-onlyビルドに限定し、ビルドマニフェストとのハッシュ一致を検証する。
 
 ---
 
@@ -8,7 +8,7 @@
 
 > **進捗管理ルール**: 各 Step・Verification 項目・Implementation Milestones の行頭にチェックボックス（`[ ]`）を設けている。**タスクの実装・確認が完了するたびに、対応するチェックボックスを `[x]` に更新すること**（完了前に埋めない）。Milestone は、対応する Step と Verification がすべて完了した時点で `[x]` にする。
 
-> **後続の製品方針変更**: 既存のPhase 1〜5、Verification、Decisionに残るH.265/libx265の仕様は、当時の実装・検証履歴である。新規の製品要件としてはPhase 6 / Step 17とM7が優先し、そこに定めるH.265禁止・HEVC入力の元維持へ置き換える。M7完了前はsystem FFmpegのみを利用し、既存H.265対応ビルドは実行時・配布物の対象にしない。
+> **後続の製品方針変更**: 既存のPhase 1〜5、Verification、Decisionに残るH.265/libx265の仕様は、当時の実装・検証履歴である。新規の製品要件としてはPhase 6 / Step 17とM7が優先し、そこに定めるH.265禁止・HEVC入力の元維持へ置き換える。system FFmpegを優先し、bundled版は配布マニフェストで承認されたx264-onlyビルドに限る。既存H.265対応ビルドは実行時・配布物の対象にしない。
 
 ### Phase 1: 外部ツール解決とデータ契約・設定の拡張
 
@@ -446,13 +446,13 @@
 ### Phase 6: H.265/HEVC技術の利用禁止への移行
 
 17. [ ] **H.265/HEVCをアプリで使用しない製品方針への改修**
-    - **進捗注記**: H.265選択・x265補正・HEVC能力表示の削除、HEVC入力の無変換コピー、理由/CSV記録、未監査FFmpegのfallback・梱包除外を実装済み。全テストと一時ディレクトリでのPyInstaller配布確認は完了。x264-only FFmpegの再ビルド・機能監査・対応ソースとライセンスの記録は未完了のため、Step 17とM7は未完了のままにする。
+    - **進捗注記**: H.265選択・x265補正・HEVC能力表示の削除、HEVC入力の無変換コピー、理由/CSV記録、x264-only FFmpegの再ビルド・機能監査・対応ソースとライセンスの記録、および限定再配布の承認は完了。承認対象ビルドのfallback・梱包も有効化し、マニフェストSHA256を検証する。Step 17とM7は、残る実機・GUI受入確認と実際のReleaseでのソース提供確認が終わるまで未完了とする。
     - **方針・境界**: このアプリはH.265/HEVCのエンコード・デコードを行わない。システムFFmpegがHEVC対応でも、その機能を呼び出さない。HEVC映像を含む入力（主映像・追加映像・カバーアートを含む全video stream）はffprobeのstream情報で検出し、ffmpegを起動せず入力を元拡張子のままバイト単位でコピーする。ffprobeのコンテナ/stream metadata読取りは許すが、HEVC frame解析・デコードは行わない。ログ・CSVに `hevc_input_prohibited` と説明を記録する。
     - **契約・backend**: `VideoCompressionConfig.codec` と `VIDEO_ALLOWED_CODECS` をH.264 / `libx264` のみに制限する。旧保存値・旧dictから `libx265` が渡った場合、H.264へ黙ってフォールバックせず明示的に拒否する。`CapabilityReport.ffmpeg_hevc_available` とH.265専用コードパスを削除する。ffmpeg検出は `libx264` / 組み込み `aac` のみを必要条件として扱う。
     - **HEVC入力の安全な元維持**: ffprobe JSONから全video streamのcodec名を調べる。いずれかが `hevc` なら、通常の `plan_encode()`・ffmpeg起動より前に `hevc_input_prohibited` の保持結果を返す。実ファイルテストで、ffmpegが一度も起動されないこと、元ファイルと出力のSHA256が一致すること、元拡張子・CSV action・理由通知が正しいことを確認する。ffprobe結果が不完全でHEVCか判定できない異常入力は、圧縮継続せず既存の明示的な解析失敗経路にする。
     - **UI・設定移行**: H.265 Radiobutton、codec選択state、CRFのx265補正、H.265可否表示・注記・localeキーを削除する。出力コーデックはH.264固定と表示する。旧設定に `libx265` が残っていても、起動・設定読込みでHEVCを利用可能にせず、ログまたは標準の設定補正経路で明示する。HEVC入力元維持の理由 `hevc_input_prohibited` を日英localeへ追加する。
-    - **FFmpeg能力を越えた禁止**: ffmpeg executableがsystem PATHからのみ解決される移行中の方針を維持し、system版が `libx265` / HEVC encoder・decoderを備えていてもUIやbackendで利用可能扱いしない。HEVC入力の事前判定がデコード起動前に実行されることをsystem版で実ファイル検証する。
-    - **x264専用再ビルド**: gyan.dev full buildは廃止し、FFmpeg `n9.0.2` とx264の採用ソースを使う再ビルドを行う。設計の出発点は `--disable-autodetect --disable-ffplay --enable-gpl --enable-version3 --enable-libx264` とし、`--enable-libx265`、すべてのHEVC encoder/decoder（software・hardware）を有効化しない。生成後の `-buildconf` / `-encoders` / `-decoders` / `-parsers` を監査する。検証済みビルドが完成するまで既存 `vendor/ffmpeg-windows/` を実行時・PyInstaller・vendor.zipの対象から除外する。FFmpeg内部codecや入力demuxerを不用意に一括削除しない。
+    - **FFmpeg能力を越えた禁止**: system版を優先し、PATHにない場合は承認済みx264-only bundled版を解決する。system版が `libx265` / HEVC encoder・decoderを備えていてもUIやbackendで利用可能扱いしない。HEVC入力の事前判定がデコード起動前に実行されることを両供給元で実ファイル検証する。
+    - **x264専用再ビルド**: gyan.dev full buildは廃止し、FFmpeg `n9.0.2` とx264の採用ソースを使う再ビルドを行う。設計の出発点は `--disable-autodetect --disable-ffplay --enable-gpl --enable-version3 --enable-libx264` とし、`--enable-libx265`、すべてのHEVC encoder/decoder（software・hardware）を有効化しない。生成後の `-buildconf` / `-encoders` / `-decoders` / `-parsers` を監査する。配布時は承認マニフェストとバイナリのSHA256を照合し、gyan.dev full buildは実行時・PyInstaller・vendor.zipに含めない。FFmpeg内部codecや入力demuxerを不用意に一括削除しない。
     - **ライセンス・特許の扱い**: x264/FFmpegの正確なソース、COPYING、依存ソース、パッチ、ビルドスクリプト、設定、SHA256を対応づけて保管し、配布資料へ反映する。H.265機能を除外しても、H.264等の特許・第三者ライセンス問題まで解消したとは表示しない。特許適用の最終判断は対象地域・配布形態に応じて専門家に確認する。
     - **テスト・文書**: `libx265` を前提にしたunit/integration/UI回帰テスト・README・Documentation・ビルド受入結果を更新する。H.265エンコード成功テストは削除し、旧設定拒否、x265 encoderがあるsystem FFmpegでも選択不可、HEVC入力の非デコード元維持、H.264処理回帰、x264-only bundled buildの構成監査を追加する。README・配布資料ではHEVCを使わない旨とHEVC入力が元維持になる旨を説明し、特許リスク全般の不存在を示唆しない。
 

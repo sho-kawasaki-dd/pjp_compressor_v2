@@ -37,7 +37,7 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
     - パフォーマンス最適化：幅/高さの入力は処理開始時に一度だけ数値化し、空欄・非数値は0に自動補正（入力時の逐次検証は行わずUIを軽量化）
 - 動画圧縮（ffmpeg / ffprobe が必要）
   - 対象は `.mp4/.mov/.avi/.mkv/.webm/.wmv/.m4v`。出力はH.264（libx264）のみ。H.265/HEVCはエンコード・デコードせず、HEVC映像streamを含む入力はffprobeのstream情報で検出してffmpegを起動せず元ファイルをコピー
-  - 動画機能はPATH上のsystem `ffmpeg` / `ffprobe` を必要とする。既存の未監査gyan.dev full buildはfallback・配布物から除外し、監査済みx264-only版の再ビルド完了まで同梱しない
+  - PATH上のsystem `ffmpeg` / `ffprobe` を優先し、未検出時は `vendor/ffmpeg-windows/` の承認済みx264-only版を利用する。gyan.dev full buildは使用・同梱しない
   - 最初のカバーアート以外の本編映像、全音声・全字幕と、言語・トラック名・既定選択・音声レイアウト・チャプター・表示向き・対象メタデータを保持対象とする。追加映像・カバーアートは対象外
   - 音声の既定はコピー。MP4 へのコピー許可リストは AAC / MP3 / AC-3 / E-AC-3 / ALAC / FLAC で、Opus などそれ以外は該当トラックのみ AAC に変換してログに通知する。AAC 指定は音質を変え、「音声なし」は全音声を削除する。MP4 格納可否と再生機器の互換性は別
   - HDR（iPhone の HDR 撮影を含む）・8bit 超・映像なし・字幕変換が必要な形式・強制字幕・添付・未対応データストリームなどは元維持。MP4 出力時は `tmcd` / `mebx` の削除を許容し、CSV 備考に記録する
@@ -135,14 +135,14 @@ uv run python -m PyInstaller --clean .\compressor_launcher_tkinter.spec
 
 補足:
 
-- one-folder 配布では `sounds/`、`images/`、`frontend/config_data/ui_catalogs.json` に加えて、存在する場合は `vendor/` のうち `ffmpeg-windows/` を除外して同梱します。
+- one-folder 配布では `sounds/`、`images/`、`frontend/config_data/ui_catalogs.json` に加えて、存在する `vendor/` のファイルを同梱します。`ffmpeg-windows/` がある場合は配布マニフェストとのバイナリSHA256一致を検証します。
 - UI の表示用カタログと `app_settings` は JSON から読み込むため、spec を介さず独自ビルドする場合も `frontend/config_data/` を配布物へ含めてください。
-- `vendor/` が無い状態でもビルドは継続します。その場合、外部ツールは system PATH 上のもののみを利用します。ffmpeg / ffprobe は未監査の同梱版を避けるため、vendorの有無にかかわらずsystem PATHからのみ解決します。
+- `vendor/` が無い状態でもビルドは継続します。その場合、外部ツールは system PATH 上のもののみを利用します。
 - インストーラを既存アプリと分離して検証する場合、ISCC に `/DMyAppSourceDir=...`、一意の `/DMyAppId=...`、`/DMyAppSkipShortcuts` を指定できます。`/O` で別の出力先を指定し、インストール時の `/DIR` にも未使用の専用フォルダを指定してください。これらを省略した通常ビルドでは従来のソース・AppId・ショートカット設定が使われます。
 
 外部ツールの探索順:
 
-- Ghostscript / pngquant は `system PATH` を先に探索し、見つからない場合だけ `vendor/` 配下の bundled 版へフォールバックします。ffmpeg / ffprobe は現行の未監査バイナリを使わないため、system PATHのみを探索します。
+- Ghostscript / pngquant / ffmpeg / ffprobe は `system PATH` を先に探索し、見つからない場合だけ `vendor/` 配下の bundled 版へフォールバックします。
 - どちらにも無い場合、UI には `system` / `bundled` / `未検出` のいずれかが表示されます。
 - Ghostscript 実行が失敗した PDF はそのファイルだけをスキップし、元 PDF を出力側へ維持します。
 - pngquant 実行が失敗した PNG は Pillow フォールバックで継続します。
@@ -155,13 +155,17 @@ vendor/
     bin/gswin64c.exe
   pngquant-windows/
     pngquant/pngquant.exe
+  ffmpeg-windows/
+    bin/ffmpeg.exe
+    bin/ffprobe.exe
+    licenses/
 ```
 
 ライセンス確認:
 
 - `vendor/` に同梱する Ghostscript / pngquant の再配布条件とライセンス確認は利用者側の責務です。
-- 既存のgyan.dev `9.0.2-full_build` はlibx265/HEVC対応であり、未監査のため利用・梱包を停止しました。監査済みx264-onlyビルドを作成して構成・ライセンス・対応ソースを確認するまで、動画ツールはsystem PATHからのみ利用します。
-- **動画ツールの再配布は未承認です。** 対応する FFmpeg・外部ライブラリの正確なソース、ライセンス、適用パッチ、ビルドスクリプトを確保して自前で保管し、GPL v3 と本体 AGPL-3.0 の配布構成を確認する必要があります。[上流のビルド](https://www.gyan.dev/ffmpeg/builds/)と[FFmpeg ソースコミット](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b)は参考情報であり、対応ソース一式を提供できていることにはなりません。条件を満たすまでこの同梱バイナリを再配布しないでください。
+- gyan.dev `9.0.2-full_build` はlibx265/HEVC対応のため承認対象外であり、利用・梱包しません。承認対象は[マニフェスト](./ffmpeg-x264-only-manifest.json)に記載した FFmpeg 9.0.2 x264-only ビルドだけです。
+- **動画ツールの再配布は限定承認済みです。** 対象ビルドのSHA256、対応ソース、ライセンス、ビルド情報を確認し、`ffmpeg-source.tar.gz` と `x264-source.tar.gz`、付属表示をインストーラーと同じ GitHub Release に掲載します。承認はプロジェクト上の判断であり、法的助言や第三者権利の保証ではありません。詳細は[配布監査記録](./ffmpeg-distribution-audit.md)を参照してください。
 
 PowerShell スクリプト経由で実行する場合:
 
@@ -178,7 +182,7 @@ PCのOSがWindowsの場合は、CLIパッケージ管理ツールChocolateyを�
 補足:
 
 - system 版が導入されている環境では、`vendor/` を置いていても system 版が優先されます。
-- bundled 版を使わせたい場合は system PATH から対象ツールを外し、上記の `vendor/` 配置規約に従って同梱してください（Ghostscript / pngquant のみ。ffmpeg / ffprobe は再ビルド・監査完了まで同梱不可）。
+- bundled 版を使わせたい場合は system PATH から対象ツールを外し、上記の `vendor/` 配置規約に従って同梱してください。FFmpeg は承認対象ビルドのみで、PyInstaller と `vendor_zip.ps1` がマニフェスト照合を行います。
 
 ## 使い方（手順）
 
@@ -507,11 +511,11 @@ Ghostscript、pngquant、FFmpeg のバイナリをインストーラーに含め
 
 - `libimagequant-main.zip` — libimagequant（pngquant の依存ライブラリ）
 - `pngquant-main.zip` — pngquant
-- `x264-master.zip` — x264（FFmpeg のエンコーダー依存ライブラリ）
+- `x264-source.tar.gz` — 承認対象の FFmpeg ビルドに使用したx264ソース
 - `ghostpdl-10.08.0.tar.gz` — Ghostscript
-- `FFmpeg-n0.0.2.zip` — FFmpeg
+- `ffmpeg-source.tar.gz` — 承認対象の FFmpeg n9.0.2 ソース
 
-リリースごとに、実際に同梱したバイナリのバージョンと対応ソースが一致していること、必要なソース・ライセンス文・ビルド関連ファイルが揃っていること、ダウンロード可能な状態で同じ Release に掲載されていることを確認します。この掲載方針だけでライセンス適合性を法的に保証するものではありません。FFmpeg の確認状況は[配布物の調査記録](./ffmpeg-distribution-audit.md)を参照してください。
+FFmpeg x264-only 承認ビルドを含むリリースでは、`ffmpeg-source.tar.gz` と `x264-source.tar.gz`、必要なライセンス文・ビルド記録をインストーラーと同じ GitHub Release に掲載します。ダウンロード可能な状態であり、バイナリと対応ソースがマニフェストのSHA256に一致することを確認します。この承認はプロジェクト上の判断であり、法的助言や第三者権利の保証ではありません。詳細は[配布物の調査記録](./ffmpeg-distribution-audit.md)を参照してください。
 
 ## バージョン情報
 
@@ -600,7 +604,7 @@ Ghostscript、pngquant、FFmpeg のバイナリをインストーラーに含め
   - リリース日: 2026年4月25日
   - 主な変更点:
     - Ghostscript / pngquant の外部ツール探索を system 優先・bundled fallback・未検出の共通 resolver に統一
-    - bundled 配置の `vendor/` を PyInstaller one-folder 配布へ条件付きで同梱し、ビルドスクリプトでは vendor 不在時も警告のみで継続
+    - bundled 配置の `vendor/` を PyInstaller one-folder 配布へ条件付きで同梱し、FFmpegは承認マニフェストと照合
     - Ghostscript 実行失敗時は対象 PDF をスキップして元ファイルを維持し、ジョブ全体は継続するよう整理
     - pngquant は通常 PNG と PDF 内 PNG の両方で source 表示付きにし、失敗時は Pillow フォールバックを維持
     - UI の依存表示を system / bundled / 未検出 に更新し、起動時ログにも検出結果を出すようにした
@@ -626,7 +630,7 @@ Ghostscript、pngquant、FFmpeg のバイナリをインストーラーに含め
 - 未リリース（次期版）
   - 動画圧縮、4タブ構成、停止ボタン、出力先の排他制御を追加
   - **入力クリーンアップに動画ファイルを追加**。動画圧縮の設定に関係なく、対象フォルダとそのサブフォルダの動画が取り消し不可で削除される
-  - 動画ツールのライセンス・対応ソースの配布条件は確認中。確認完了までは同梱バイナリを再配布しない
+  - FFmpeg x264-only の限定再配布を承認し、同梱・fallback と対応ソースの同一Release掲載を有効化
 
 ---
 

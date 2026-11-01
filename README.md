@@ -98,9 +98,9 @@ For releases that include Ghostscript, pngquant, or FFmpeg binaries in the insta
 
 - `libimagequant-main.zip` — libimagequant (pngquant dependency)
 - `pngquant-main.zip` — pngquant
-- `x264-master.zip` — x264 (FFmpeg encoder dependency)
+- `x264-source.tar.gz` — x264 source used by the approved FFmpeg build
 - `ghostpdl-10.08.0.tar.gz` — Ghostscript
-- `FFmpeg-n0.0.2.zip` — FFmpeg
+- `ffmpeg-source.tar.gz` — FFmpeg n9.0.2 source used by the approved build
 
 インストーラーに Ghostscript、pngquant、FFmpeg のバイナリを含めるリリースでは、対応するソースアーカイブをインストーラーと同じ GitHub Release の別アセットとして掲載します。掲載予定のファイルと対応するソフトウェアは上記のとおりです。各リリースで、実際に同梱したバイナリとソースのバージョンおよび対応関係を確認してください。
 
@@ -208,8 +208,8 @@ uv run pytest -m unit
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 本プロジェクトは [GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）のもとで公開されています。
 
-The third-party source archives listed above are provided alongside the installer on GitHub Releases to make the sources corresponding to bundled binaries available. This release practice does not by itself establish that every license obligation or distribution condition has been satisfied; see the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) for the current review status.
-同梱バイナリに対応するソースを入手できるよう、上記のサードパーティソースアーカイブを GitHub Releases でインストーラーとともに提供します。この掲載方針だけで各ライセンス上の義務や配布条件をすべて満たすと判断するものではありません。確認状況は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)を参照してください。
+For the approved FFmpeg 9.0.2 x264-only build, publish the exact `ffmpeg-source.tar.gz` and `x264-source.tar.gz` archives with the installer in the same GitHub Release. Verify that the binaries, sources, licenses, and build records match the [distribution manifest](Documentation/ffmpeg-x264-only-manifest.json). This project approval is limited to that build and is not legal advice or a warranty of third-party rights.
+承認対象の FFmpeg 9.0.2 x264-only ビルドについては、対応する `ffmpeg-source.tar.gz` と `x264-source.tar.gz` をインストーラーと同じ GitHub Release に掲載してください。バイナリ・ソース・ライセンス・ビルド記録が[配布マニフェスト](Documentation/ffmpeg-x264-only-manifest.json)と一致することを確認します。この承認は当該ビルドに限定され、法的助言や第三者権利の保証を意味しません。
 
 For the FFmpeg n9.0.2 x264-only build candidate, executable-only distribution documentation must include this IJG notice:
 FFmpeg n9.0.2 x264-only ビルド候補を実行ファイルのみで配布する場合、付属文書に次の IJG 表示を含めてください。
@@ -219,14 +219,14 @@ This software is based in part on the work of the Independent JPEG Group.
 For the FFmpeg n9.0.2 source used in this build, no changes, additions, or deletions were made to libavcodec/jfdctfst.c, libavcodec/jfdctint_template.c, or libavcodec/jrevdct.c.
 ```
 
-The change statement is relative to the FFmpeg n9.0.2 source used for this candidate: its build script applies no source patches. It does not claim that the IJG-derived files are identical to the original IJG files, and it does not apply to other FFmpeg builds. Include and verify this notice with the exact binaries in any eventual installer; redistribution remains uncleared.
-変更内容は、この候補で使用した FFmpeg n9.0.2 ソースを基準とした記述です。ビルドスクリプトはソースパッチを適用していません。この記述は IJG 由来ファイルが IJG 原典と同一であることを意味せず、他の FFmpeg ビルドにも適用されません。将来インストーラーを作成する際は、実際のバイナリとともにこの表示を含めて確認してください。再配布の確認は未完了です。
+The change statement is relative to the FFmpeg n9.0.2 source used for this build: its build script applies no source patches. It does not claim that the IJG-derived files are identical to the original IJG files, and it does not apply to other FFmpeg builds. The exact binaries, this notice, and corresponding source archives are covered by the approval recorded in the [distribution manifest](Documentation/ffmpeg-x264-only-manifest.json).
+変更内容は、このビルドで使用した FFmpeg n9.0.2 ソースを基準とした記述です。ビルドスクリプトはソースパッチを適用していません。この記述は IJG 由来ファイルが IJG 原典と同一であることを意味せず、他の FFmpeg ビルドにも適用されません。対象バイナリ・この表示・対応ソースアーカイブは[配布マニフェスト](Documentation/ffmpeg-x264-only-manifest.json)に記録された承認範囲に含まれます。
 
-The app only uses H.264 (`libx264`) for video output. It does not encode or decode H.265/HEVC; if any video stream (including cover art) is HEVC, the app probes stream metadata and copies the original file unchanged without starting `ffmpeg`. Video compression currently requires system `ffmpeg` and `ffprobe` on `PATH`. The existing gyan.dev `9.0.2-full_build` contains x265/HEVC support and is unverified for redistribution, so it is neither used as a fallback nor included in frozen builds or `vendor.zip` while an audited x264-only replacement is unavailable. Detection is cached until the app restarts.
-アプリの動画出力は H.264（`libx264`）のみです。H.265/HEVC のエンコード・デコードは行いません。カバーアートを含むいずれかの映像ストリームが HEVC の場合、ストリーム情報だけを調べ、`ffmpeg` を起動せず元ファイルをそのままコピーします。現時点では動画圧縮に PATH 上の system `ffmpeg` と `ffprobe` が必要です。既存の gyan.dev `9.0.2-full_build` は x265/HEVC 対応で再配布の監査も未完了のため、監査済みx264-only版ができるまでfallbackとして使用せず、凍結版や `vendor.zip` にも含めません。検出結果はアプリ再起動までキャッシュされます。
+The app only uses H.264 (`libx264`) for video output. It does not encode or decode H.265/HEVC; if any video stream (including cover art) is HEVC, the app probes stream metadata and copies the original file unchanged without starting `ffmpeg`. System `ffmpeg` and `ffprobe` on `PATH` take priority; the approved x264-only build under `vendor/ffmpeg-windows/` is the fallback and is included in frozen builds and `vendor.zip` after manifest hash verification. The gyan.dev `9.0.2-full_build` is not approved and must not be used or bundled. Detection is cached until the app restarts.
+アプリの動画出力は H.264（`libx264`）のみです。H.265/HEVC のエンコード・デコードは行いません。カバーアートを含むいずれかの映像ストリームが HEVC の場合、ストリーム情報だけを調べ、`ffmpeg` を起動せず元ファイルをそのままコピーします。PATH 上の system `ffmpeg` / `ffprobe` を優先し、未検出の場合は `vendor/ffmpeg-windows/` の承認済みx264-only版をfallbackとして使用します。凍結版と `vendor.zip` にもマニフェストのハッシュ検証後に同梱します。gyan.dev `9.0.2-full_build` は承認対象外であり、使用・梱包しません。検出結果はアプリ再起動までキャッシュされます。
 
-**Distribution is not yet cleared:** the exact corresponding source, external-library revisions, patches, build scripts, and licensing compatibility still need to be obtained, retained, and reviewed. The [FFmpeg source commit](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) and [upstream builds](https://www.gyan.dev/ffmpeg/builds/) are references, not a complete corresponding-source offer. Do not redistribute the bundled binaries until these requirements are resolved.
-**配布準備は未完了です。** 対応ソース一式、外部ライブラリのリビジョン、パッチ、ビルドスクリプトの確保・保管とライセンス互換性の確認が必要です。[FFmpeg のソースコミット](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b) と[上流のビルド配布元](https://www.gyan.dev/ffmpeg/builds/)は参考情報であり、対応ソース一式の提供を意味しません。これらの条件が整うまで同梱バイナリを再配布しないでください。
+**Redistribution approval:** the exact FFmpeg 9.0.2 x264-only build identified by the [manifest](Documentation/ffmpeg-x264-only-manifest.json) is approved for distribution with its corresponding source archives and notices. This does not approve the gyan.dev full build, other builds, or any package that omits the corresponding sources and notices. The approval is a project decision, not legal advice or a warranty of third-party rights.
+**再配布承認:** [マニフェスト](Documentation/ffmpeg-x264-only-manifest.json)で特定した FFmpeg 9.0.2 x264-only ビルドは、対応ソースアーカイブと表示を併せた配布を承認済みです。gyan.dev full build、他のビルド、または対応ソースと表示を欠く配布物は承認対象外です。この承認はプロジェクト上の判断であり、法的助言や第三者権利の保証ではありません。
 
-See the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) for verified package facts and remaining checks.
-確認できたパッケージ情報と未完了項目は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)を参照してください。
+See the [FFmpeg distribution audit](Documentation/ffmpeg-distribution-audit.md) and [manifest](Documentation/ffmpeg-x264-only-manifest.json) for the approved build identity and release checklist.
+承認対象ビルドの識別情報とリリース時の確認事項は[FFmpeg 配布物の調査記録](Documentation/ffmpeg-distribution-audit.md)および[マニフェスト](Documentation/ffmpeg-x264-only-manifest.json)を参照してください。

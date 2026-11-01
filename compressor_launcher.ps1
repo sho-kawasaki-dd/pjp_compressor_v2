@@ -37,9 +37,6 @@ if ($Mode -eq 'Build') {
 	if (-not (Test-Path ./vendor)) {
 		Write-Warning 'vendor/ が見つからないため、system 優先のみの構成でビルドします。bundled fallback は同梱されません。'
 	}
-	elseif (Test-Path ./vendor/ffmpeg-windows) {
-		Write-Warning '未監査の vendor/ffmpeg-windows は使用・梱包されません。動画圧縮には system の ffmpeg / ffprobe が必要です。'
-	}
 
 	python -m PyInstaller --clean --noconfirm ./compressor_launcher_tkinter.spec
 	if ($LASTEXITCODE -ne 0) {

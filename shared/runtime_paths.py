@@ -110,18 +110,18 @@ def resolve_pngquant_executable() -> ExternalToolResolution:
 
 
 def resolve_ffmpeg_executable() -> ExternalToolResolution:
-    """system の ffmpeg だけを解決する。承認済みの再ビルド版ができるまで同梱版は使わない。"""
+    """承認済みx264-only版を system 優先で解決する。"""
     return resolve_external_tool(
         system_candidates=('ffmpeg',),
-        bundled_relative_candidates=(),
+        bundled_relative_candidates=('ffmpeg-windows/bin/ffmpeg.exe',),
     )
 
 
 def resolve_ffprobe_executable() -> ExternalToolResolution:
-    """system の ffprobe だけを解決する。承認済みの再ビルド版ができるまで同梱版は使わない。"""
+    """承認済みx264-only版を system 優先で解決する。"""
     return resolve_external_tool(
         system_candidates=('ffprobe',),
-        bundled_relative_candidates=(),
+        bundled_relative_candidates=('ffmpeg-windows/bin/ffprobe.exe',),
     )
 
 

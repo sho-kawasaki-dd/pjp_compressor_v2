@@ -1,7 +1,12 @@
 {
   "manifest_version": 1,
   "created": "2026-11-01",
-  "status": "not_cleared_for_redistribution",
+  "status": "approved_for_redistribution",
+  "approval": {
+    "approved_on": "2026-11-02",
+    "scope": "The exact FFmpeg 9.0.2 x264-only build and corresponding source archives identified by this manifest.",
+    "basis": "Project redistribution approval; not legal advice or a warranty of third-party rights."
+  },
   "product": "pjp_compressor_v2",
   "artifact": {
     "name": "FFmpeg 9.0.2 x264-only",
@@ -75,6 +80,16 @@
       "name": "x264-COPYING",
       "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/x264-COPYING",
       "sha256": "32b1062f7da84967e7019d01ab805935caa7ab7321a7ced0e30ebe75e5df1670"
+    },
+    {
+      "name": "FFmpeg-CREDITS",
+      "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/FFmpeg-CREDITS",
+      "sha256": "28ecc96d495fa5ad48c76739a8f8d2c8980548d7a171585a6eb3f27a9ac8e4a2"
+    },
+    {
+      "name": "NOTICE.txt",
+      "local_path": "build/ffmpeg-x264-0480cb05/package/licenses/NOTICE.txt",
+      "sha256": "0c437ffeca8fdb53dd4f6a9ab1c479fb5456803fe19a06f5ecef193614248c0a"
     }
   ],
   "verification": {
@@ -84,11 +99,11 @@
     "pytest_passed": 315,
     "pytest_skipped": 0,
     "test_record": "build/ffmpeg-x264-0480cb05/audit/test-result.json",
-    "details": "Hashes were recomputed on 2026-11-01 and match the build audit's SHA256SUMS. App tests use the new candidate; stock FFmpeg is used only to generate test inputs. HEVC inputs were copied unchanged with zero encoding calls. The existing vendor binaries were not replaced."
+    "details": "Hashes were recomputed on 2026-11-01 and match the build audit's SHA256SUMS. App tests use the new candidate; stock FFmpeg is used only to generate test inputs. HEVC inputs were copied unchanged with zero encoding calls. vendor/ffmpeg-windows/bin contains the exact binaries identified by this manifest."
   },
   "distribution_caveats": [
-    "This manifest records file identity and build inputs; it is not legal advice or confirmation that redistribution is permitted.",
-    "This manifest describes the new independent build, not the older binaries still present under vendor/ffmpeg-windows.",
-    "Review of all applicable license conditions, the application's AGPL-3.0 distribution arrangement, and required corresponding-source delivery remains incomplete. Do not publish or redistribute these binaries until those reviews and delivery requirements are resolved."
+    "Approval is limited to the exact binaries, sources, licenses, and build identified in this manifest. It does not cover gyan.dev full builds or other FFmpeg/x264 versions and configurations.",
+    "This project approval is not legal advice or a warranty that third-party license, patent, or other rights requirements have been independently adjudicated.",
+    "A release that distributes these binaries must make ffmpeg-source.tar.gz and x264-source.tar.gz, the applicable notices, and the build information available alongside the installer, and verify that the assets are downloadable and match this manifest."
   ]
 }
