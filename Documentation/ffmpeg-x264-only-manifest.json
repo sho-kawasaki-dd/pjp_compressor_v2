@@ -1,0 +1,92 @@
+{
+  "manifest_version": 1,
+  "created": "2026-11-01",
+  "status": "not_cleared_for_redistribution",
+  "product": "pjp_compressor_v2",
+  "artifact": {
+    "name": "FFmpeg 9.0.2 x264-only",
+    "target": "Windows x86_64",
+    "binaries": [
+      {
+        "name": "ffmpeg.exe",
+        "local_path": "vendor/ffmpeg-windows/bin/ffmpeg.exe",
+        "size_bytes": 31188992,
+        "sha256": "dd8bb87fbd05be31c17c37ce2fa2e8b910ceacd4ed5bccdccb8f43e4fd8bfa7d",
+        "built_from": [
+          "ffmpeg-source.tar.gz",
+          "x264-source.tar.gz"
+        ]
+      },
+      {
+        "name": "ffprobe.exe",
+        "local_path": "vendor/ffmpeg-windows/bin/ffprobe.exe",
+        "size_bytes": 30968320,
+        "sha256": "df293436b81eda08b3b4101a9d18a2659f50d8d0bf7c8f1637e5765c378e1a89",
+        "built_from": [
+          "ffmpeg-source.tar.gz",
+          "x264-source.tar.gz"
+        ]
+      }
+    ]
+  },
+  "sources": [
+    {
+      "name": "ffmpeg-source.tar.gz",
+      "local_path": "build/ffmpeg-x264-only/audit/ffmpeg-source.tar.gz",
+      "size_bytes": 17323112,
+      "sha256": "bfbb1d6c80bf4519449438a5992d2e683436236a78441fd9f1626278ed4fb647",
+      "upstream_version": "9.0.2",
+      "upstream_ref": "n9.0.2"
+    },
+    {
+      "name": "x264-source.tar.gz",
+      "local_path": "build/ffmpeg-x264-only/audit/x264-source.tar.gz",
+      "size_bytes": 1033601,
+      "sha256": "936243796617b86f7d6ced919c3485891a866945923b3ae07091bf688a7768f0",
+      "upstream_version": "master (API 164; build version 0.164.x)",
+      "upstream_commit": null,
+      "provenance_note": "The original source tree had no Git history. This checksum identifies the archived tree used for the build; the upstream commit is not established."
+    }
+  ],
+  "build": {
+    "configuration": "Static Windows x86_64 build; FFmpeg GPL and version 3 enabled; libx264 enabled; autodetection disabled; HEVC encoder, decoder, parser, HEVC-specific bitstream filters, raw demuxer and muxer disabled; x265 not included.",
+    "patches": "No source patches were applied.",
+    "build_script": {
+      "name": "build_ffmpeg_x264.sh",
+      "local_path": "build/ffmpeg-x264-only/audit/build_ffmpeg_x264.sh",
+      "sha256": "f3c491cafc0c79c5904ceb7cb1b760ff5ef165f1ed20c31c067164e300444896"
+    },
+    "toolchain_record": "build/ffmpeg-x264-only/audit/toolchain.txt"
+  },
+  "license_notices": [
+    {
+      "name": "FFmpeg-COPYING.GPLv3",
+      "local_path": "vendor/ffmpeg-windows/licenses/FFmpeg-COPYING.GPLv3",
+      "sha256": "8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903"
+    },
+    {
+      "name": "FFmpeg-LICENSE.md",
+      "local_path": "vendor/ffmpeg-windows/licenses/FFmpeg-LICENSE.md",
+      "sha256": "2e1d16c72fd74e12063776371da757322f8b77589386532f4fd8634bde7de1af"
+    },
+    {
+      "name": "x264-COPYING",
+      "local_path": "vendor/ffmpeg-windows/licenses/x264-COPYING",
+      "sha256": "32b1062f7da84967e7019d01ab805935caa7ab7321a7ced0e30ebe75e5df1670"
+    }
+  ],
+  "verification": {
+    "binary_hashes_match_build_package": true,
+    "build_package_paths": [
+      "build/ffmpeg-x264-only/package/bin/ffmpeg.exe",
+      "build/ffmpeg-x264-only/package/bin/ffprobe.exe"
+    ],
+    "source_archive_hashes_recomputed": true,
+    "details": "Hashes were recomputed from the files present in this checkout on 2026-11-01 and match the build audit's SHA256SUMS."
+  },
+  "distribution_caveats": [
+    "This manifest records file identity and build inputs; it is not legal advice or confirmation that redistribution is permitted.",
+    "The x264 upstream commit is unknown; the source archive checksum pins the exact archived tree used for this build.",
+    "Review of all applicable license conditions, the application's AGPL-3.0 distribution arrangement, and required corresponding-source delivery remains incomplete. Do not publish or redistribute these binaries until those reviews and delivery requirements are resolved."
+  ]
+}
