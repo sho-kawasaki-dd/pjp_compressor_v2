@@ -77,8 +77,8 @@ VIDEO_PRESERVED_METADATA_KEYS = frozenset({
     'com.apple.quicktime.creationdate',
 })
 
-# MP4 へ音声コピーを許可するコーデック。opus / flac は採用ビルドの検証後に追加する。
-VIDEO_MP4_AUDIO_COPY_CODECS = frozenset({'aac', 'mp3', 'ac3', 'eac3', 'alac'})
+# Opus は MP4 コピー時にデコード後のサンプル数・位置が変わる入力があるため対象外。
+VIDEO_MP4_AUDIO_COPY_CODECS = frozenset({'aac', 'mp3', 'ac3', 'eac3', 'alac', 'flac'})
 # 削除を許容し notes に記録するデータストリーム。
 VIDEO_DROPPABLE_DATA_CODECS = frozenset({'tmcd', 'mebx'})
 # MOV / MP4 のチャプタートラック（QuickTime 形式のテキストトラック）。チャプターがある入力では

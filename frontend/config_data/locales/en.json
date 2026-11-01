@@ -238,6 +238,7 @@
   "video_ffmpeg_failed": "Video compression failed ({name}): {detail}",
   "video_output_missing": "ffmpeg produced no output ({name})",
   "video_success": "Video compression: {name} -> done",
+  "video_audio_aac_converted": "Audio converted to AAC: {tracks}",
   "video_kept_original_no_gain": "Video compression: {name} -> no size reduction (original kept)",
   "video_kept_original_retention": "Video compression: {name} -> original kept because it cannot be preserved in MP4 ({reasons})",
   "video_cancelled": "Video processing cancelled: {name}",

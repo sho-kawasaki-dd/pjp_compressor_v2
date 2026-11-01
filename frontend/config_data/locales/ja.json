@@ -238,6 +238,7 @@
   "video_ffmpeg_failed": "動画圧縮に失敗しました ({name}): {detail}",
   "video_output_missing": "ffmpeg の出力が生成されませんでした ({name})",
   "video_success": "動画圧縮: {name} -> 完了",
+  "video_audio_aac_converted": "音声を AAC に変換しました: {tracks}",
   "video_kept_original_no_gain": "動画圧縮: {name} -> サイズ削減なし（元ファイルを維持）",
   "video_kept_original_retention": "動画圧縮: {name} -> MP4 で保持できないため元ファイルを維持 ({reasons})",
   "video_cancelled": "動画処理を中断しました: {name}",

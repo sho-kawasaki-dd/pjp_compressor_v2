@@ -174,3 +174,41 @@ def test_detect_ffmpeg_bundled_fallback(monkeypatch: pytest.MonkeyPatch, tmp_pat
     assert detection.source == 'bundled'
     assert 'libx264' in detection.encoders
     assert capabilities._detect_ffprobe().source == 'unavailable'
+
+
+def test_ffprobe_uses_bundled_fallback_and_system_takes_precedence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    bundled = tmp_path / 'vendor' / 'ffmpeg-windows' / 'bin' / 'ffprobe.exe'
+    bundled.parent.mkdir(parents=True)
+    bundled.write_text('stub', encoding='utf-8')
+    monkeypatch.setattr(runtime_paths, 'APP_BASE_DIR', tmp_path)
+    monkeypatch.setattr(runtime_paths, 'RESOURCE_BASE_DIR', tmp_path)
+    monkeypatch.setattr(runtime_paths.shutil, 'which', lambda _name: None)
+    monkeypatch.setattr(capabilities.subprocess, 'run', lambda command, **kwargs: _completed(stdout='ffprobe version'))
+
+    bundled_result = capabilities._detect_ffprobe()
+    assert bundled_result.path == str(bundled.resolve())
+    assert bundled_result.source == 'bundled' and bundled_result.error is None
+
+    monkeypatch.setattr(runtime_paths.shutil, 'which', lambda name: 'C:/system/ffprobe.exe' if name == 'ffprobe' else None)
+    capabilities.clear_video_tool_cache()
+    system_result = capabilities._detect_ffprobe()
+    assert system_result.path == 'C:/system/ffprobe.exe'
+    assert system_result.source == 'system' and system_result.error is None
+
+
+def test_clearing_video_tool_cache_rechecks_both_tools(monkeypatch: pytest.MonkeyPatch) -> None:
+    encoder_output = ENCODERS_OUTPUT
+
+    def run(command, **kwargs):
+        return _completed(stdout=encoder_output if '-encoders' in command else 'ffprobe version')
+
+    calls = _patch_tools(monkeypatch, run)
+    assert capabilities.detect_capabilities().ffmpeg_hevc_available
+    encoder_output = ' V....D libx264 libx264 H.264\n'
+    assert capabilities.detect_capabilities().ffmpeg_hevc_available
+    assert len(calls) == 2
+
+    capabilities.clear_video_tool_cache()
+
+    assert not capabilities.detect_capabilities().ffmpeg_hevc_available
+    assert len(calls) == 4

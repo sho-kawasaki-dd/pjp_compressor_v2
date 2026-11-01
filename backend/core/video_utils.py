@@ -630,6 +630,7 @@ def build_ffmpeg_command(
         '-map_metadata', '0',
         '-map_chapters', '0',
         '-movflags', '+faststart+use_metadata_tags',
+        '-write_tmcd', '0',
         '-progress', 'pipe:1', '-nostats',
         str(temp_out),
     ]
@@ -997,9 +998,13 @@ def _compress(
             final_outpath=None,
             notes=(*plan.notes, *verify_notes),
         )
+    message = _t(log_language, 'video_success', name=name)
+    for note in plan.notes:
+        if note.startswith('audio_aac_converted='):
+            message += ' / ' + _t(log_language, 'video_audio_aac_converted', tracks=note.partition('=')[2])
     return VideoCompressResult(
         ok=True,
-        message=_t(log_language, 'video_success', name=name),
+        message=message,
         final_outpath=str(outpath),
         notes=(*plan.notes, *verify_notes),
     )

@@ -378,7 +378,7 @@
 
 ### Phase 5: 多言語カタログ・ビルド定義・テスト・ドキュメントの更新
 
-13. [ ] **[frontend/config_data/locales/ja.json](../../frontend/config_data/locales/ja.json) & [frontend/config_data/locales/en.json](../../frontend/config_data/locales/en.json)**
+13. [x] **[frontend/config_data/locales/ja.json](../../frontend/config_data/locales/ja.json) & [frontend/config_data/locales/en.json](../../frontend/config_data/locales/en.json)**
     - 日英両方に以下を追加する:
       - タブ・セクション: `tab_output`、`section_video_settings`、動画UIラベル群・注記
       - CSV アクション: `csv_action_video`、`csv_action_video_kept_original`、`csv_action_video_kept_retention`、`csv_action_cancelled`
@@ -396,7 +396,7 @@
     - **ライセンス・対応ソース**: LICENSEの同梱だけで完了としない。配布バイナリに対応するFFmpeg・外部ライブラリのソース、適用パッチ、ビルド設定・再現情報を、採用ライセンスに従って提供できるようにする。上流のタグ・ビルドスクリプトに加え、対応ソース一式を自前でも保管し、単なる上流トップページや消失し得る第三者URLだけに依存しない。
     - GPLビルドと本体AGPL-3.0の関係は配布構成に基づいて確認し、互換性と対応ソース提供義務を別に扱う。ダウンロード案内・配布ドキュメントにもライセンスと対応ソース入手方法を記載する。
 
-15. [ ] **テストの追加・更新**
+15. [x] **テストの追加・更新**
     - `tests/unit/test_video_utils.py`（新規）:
       - コマンド生成（`-map 0:V:0`、全音声 `0:a?`、全字幕 `0:s?`、`-map_chapters 0`、`-movflags +faststart+use_metadata_tags`、`-nostdin`、`-y`、`-pix_fmt`、libx265 時の `-tag:v hvc1`）
       - 映像フィルタ式（リサイズ有無、偶数丸め）
@@ -473,10 +473,10 @@
 
 ## Verification
 
-1. [ ] `pytest tests/unit/test_capabilities.py tests/unit/test_contracts.py tests/unit/test_ui_tkinter_mapper.py tests/unit/test_video_utils.py tests/unit/test_job_lock.py tests/unit/test_path_utils.py tests/unit/test_file_ops.py tests/unit/test_locale_catalog.py tests/unit/test_settings_split.py`
-2. [ ] `pytest tests/integration/test_job_runner.py tests/integration/test_ui_controller.py tests/regression/test_tkinter_regression.py`
-3. [ ] `pytest`（全体回帰）
-4. [ ] 採用ffmpeg / ffprobeビルドで `pytest tests/integration/test_video_ffmpeg.py` を実行する。保持可能な入力だけがMP4になり、保持不可入力は元拡張子・同一内容で出力されることを確認する。全体進捗と動画名・割合（不明時は割合なし）が合成表示され、画像完了でちらつかないことを確認する。
+1. [x] `pytest tests/unit/test_capabilities.py tests/unit/test_contracts.py tests/unit/test_ui_tkinter_mapper.py tests/unit/test_video_utils.py tests/unit/test_job_lock.py tests/unit/test_path_utils.py tests/unit/test_file_ops.py tests/unit/test_locale_catalog.py tests/unit/test_settings_split.py`
+2. [x] `pytest tests/integration/test_job_runner.py tests/integration/test_ui_controller.py tests/regression/test_tkinter_regression.py`
+3. [x] `pytest`（全体回帰）
+4. [x] 採用ffmpeg / ffprobeビルドで `pytest tests/integration/test_video_ffmpeg.py` を実行する。保持可能な入力だけがMP4になり、保持不可入力は元拡張子・同一内容で出力されることを確認する。全体進捗と動画名・割合（不明時は割合なし）が合成表示され、画像完了でちらつかないことを確認する。
 5. [ ] 以下の動画で手動確認する:
    - 奇数解像度（例: 1279x719）→ エラーなく偶数丸めで出力される
    - 音声なし動画・字幕なし動画 → optional mapによりエラーなく出力される
@@ -543,6 +543,13 @@
 - [x] 利用者承認により `bin/ffplay.exe` / `doc/` / `presets/` を削除した。削減量は約229.8 MiB（未圧縮）。`bin/ffmpeg.exe` / `bin/ffprobe.exe` / `LICENSE` / `README.txt` は残した。両実行ファイル合計は約434.35 MiB。
 - [x] 既存の `vendor_zip.ps1` で `vendor.zip` を再生成した。ZIP全体は約196.59 MiB。FFmpeg配下が上記4ファイルだけであること、ZIP全体のCRC、展開前ファイルとの内容一致を確認した。
 - [x] 既存specによるPyInstallerビルドが成功した。さらに検証専用の一時runtime hookを加えた凍結実行体で、PATH制限下の `_MEIPASS/vendor/ffmpeg-windows/bin/` 解決、両ツールの検出コマンド成功、3エンコーダ検出、下記SHA256との一致を確認した。hookはGUI起動前に終了するため、この確認はGUI操作・インストーラ試験の代替ではない。検証用ビルドは既存の `dist/` を上書きせず、確認後に削除した。
+- [x] 上流の `9.0.2-full_build` 元アーカイブは、配布元チェックサムおよび公開リリースの digest と一致した（SHA256: `f0e46253c70dfe902bac915dfb4224f0cf1b7c6eeab9da2ccc9a5581f9a71b13`）。配置済みの実行ファイル2件・LICENSE・READMEは、元アーカイブ内の対応ファイルと一致した。
+- [x] PATHをWindows標準ディレクトリに制限した採用ビルドで、実動画テスト20件と指定unitテスト175件が成功した。FLACは非無音サンプルと6ch音声のデコード結果を維持したためコピーを許可した。一方、OpusのMKV→MP4直接コピーではデコード後のサンプル数と位置が変わったためAAC変換を維持した。変換通知が実ジョブのログとCSVに届くことも確認した。
+- [x] `tmcd` のあるMOVで、MP4 muxerがタイムコードを再生成しないよう `-write_tmcd 0` を指定し、出力にデータストリームが残らないことを確認した。カバーアートの存在下での本編選択も実ファイルで確認したが、カバーが本編より先に格納された実ファイルの手動確認は残る。
+- [x] 現行変更のPyInstallerビルドを独立ディレクトリで作成した（1703ファイル、617,742,172 bytes）。動画・ロック関連モジュールの収集と上記4ファイルの一致を確認し、凍結GUIの起動・正常終了およびPATH制限下の同梱ツール解決と起動を検証した。
+- [x] 通常のAppId・ショートカット設定を維持したまま検証時だけソースディレクトリ、AppId、ショートカット有無を上書きできるようにした。ショートカットを含まない専用インストーラ（180,642,761 bytes）を一意のAppIdと独立ディレクトリへインストールし、23.69秒、インストール後1707ファイル・623,001,640 bytesと実測した。同梱ツール4ファイルと本体LICENSE・README、凍結GUI起動・正常終了、インストール後のツール解決と両ツール起動を確認し、検証後は専用インストールとそのレジストリ項目を削除した。
+- [x] インストール後の同じPythonコードと同梱リソースを検証専用フックから起動し、実動画とJPEGの混在処理中に画像が先に完了し、動画名・割合表示と30回のタブ切替が継続することを確認した。2.016秒の処理中のUI定期処理の最大間隔は約144msで、動画・画像・CSVが生成され、開始／停止ボタンと全スレッドも正常に復帰した。これは測定結果であり応答時間の保証ではない。
+- [x] 最終回帰は採用FFmpegを使用して **312 passed**。対象integration・Tk回帰は **74 passed**、指定unitは **175 passed**、実動画は **20 passed**。途中の一部実行ではTkのTcl初期化が断続的に失敗してskipされたため、該当の既存Tkケースをそれぞれ独立プロセスでも成功させ、最終の対象実行と全体回帰ではskipがなかった。
 
 | 対象 | SHA256（配置済みファイルの実測値） |
 |---|---|
@@ -551,10 +558,10 @@
 | `LICENSE` | `8ceb4b9ee5adedde47b31e975c1d90c73ad27b6b165a1dcd80c7c545eb65b903` |
 | `README.txt` | `e7db34704804ed8844e837714eebbf843ca0a499555541df9e47fa2cc033dcb1` |
 
-- 入手元の確認先: [gyan.dev Windows builds](https://www.gyan.dev/ffmpeg/builds/)。READMEと配布ページが示すFFmpegソースコミットは [`946fcce07b`](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b)。上記SHA256はローカル実測であり、元のダウンロードアーカイブに対する配布元チェックサム照合ではない。
-- [ ] 元アーカイブと配布元SHA256の照合、外部ライブラリの正確なリビジョン・ライセンス・適用パッチ・ビルドスクリプトを含む対応ソース一式の確保と自前保管。READMEのFFmpegコミットとライブラリ一覧だけで完了としない。
+- 入手元の確認先: [gyan.dev Windows builds](https://www.gyan.dev/ffmpeg/builds/)。READMEと配布ページが示すFFmpegソースコミットは [`946fcce07b`](https://github.com/FFmpeg/FFmpeg/commit/946fcce07b)。上表は配置済み各ファイルのSHA256で、元アーカイブの配布元チェックサム照合とは区別する。
+- [ ] 外部ライブラリの正確なリビジョン・ライセンス・適用パッチ・ビルドスクリプトを含む対応ソース一式の確保と自前保管。付属READMEは多くのライブラリのバージョンを記載するが、FFmpegコミットと一覧だけで対応ソース一式の提供完了とはしない。
 - [ ] GPL v3ビルドと本体AGPL-3.0の配布構成に基づく互換性確認、対応ソース提供方法とダウンロード案内の整備。FFmpeg legalページの直接取得は通信エラーとなり、この実行ではライセンス適合の最終判断は行っていない。
-- [ ] インストーラ構築・インストール時間・GUI操作・残る実ファイルケースの検証、配布READMEの更新。Step 14、Verification 10、M5は未完了のままとする。
+- [ ] 実機・GUIによる残る受入ケースと、対応ソース入手方法を含む配布案内の最終確認。Step 14、Step 16、Verification 10、M5は未完了のままとする。
 
 ## References
 

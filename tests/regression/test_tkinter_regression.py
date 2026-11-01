@@ -6,9 +6,13 @@ unit/integration では表現しづらい GUI 導線、ZIP 組み合わせ行列
 guard の連携を、実 App に近い形で崩れていないか確認する。
 """
 
+import json
 import shutil
+import subprocess
+import sys
 import time
 import zipfile
+from dataclasses import asdict, replace
 from itertools import product
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,11 +22,22 @@ from PIL import Image
 from tkinter import filedialog, messagebox
 
 import frontend.ui_tkinter_controller as controller_module
+from backend.contracts import CapabilityReport
 from backend.orchestrator.job_runner import run_compression_request
 from frontend.ui_tkinter_mapper import build_compression_request
+from shared.locale_catalog import translate
 
 
 pytestmark = [pytest.mark.regression, pytest.mark.requires_tk]
+
+VIDEO_CAPABILITIES = CapabilityReport(
+    True, True, None, None,
+    ffmpeg_path='C:\\tools\\ffmpeg.exe',
+    ffmpeg_source='system',
+    ffmpeg_encoders=frozenset({'libx264', 'libx265', 'aac'}),
+    ffprobe_path='C:\\tools\\ffprobe.exe',
+    ffprobe_source='system',
+)
 
 
 def wait_threads(app, timeout: float = 15.0) -> None:
@@ -275,3 +290,73 @@ def test_app_settings_tab_is_built_with_sound_toggles(tk_regression_app) -> None
     assert len(app.notebook.tabs()) == 4
     assert app.play_startup_sound.get() is True
     assert app.play_cleanup_sound.get() is True
+
+
+@pytest.mark.parametrize(
+    ('report', 'available', 'enabled', 'hevc', 'reason_key'),
+    [
+        pytest.param(
+            replace(VIDEO_CAPABILITIES, ffmpeg_path=None, ffmpeg_source='unavailable'),
+            False, True, False, 'video_ffmpeg_missing', id='ffmpeg-missing',
+        ),
+        pytest.param(
+            replace(VIDEO_CAPABILITIES, ffprobe_path=None, ffprobe_source='unavailable'),
+            False, True, False, 'video_ffprobe_missing', id='ffprobe-missing',
+        ),
+        pytest.param(
+            replace(VIDEO_CAPABILITIES, ffmpeg_detection_error='broken binary'),
+            False, True, False, None, id='ffmpeg-detection-failed',
+        ),
+        pytest.param(
+            replace(VIDEO_CAPABILITIES, ffmpeg_encoders=frozenset({'libx264', 'aac'})),
+            True, True, False, None, id='no-hevc',
+        ),
+        pytest.param(VIDEO_CAPABILITIES, True, False, True, None, id='video-disabled'),
+        pytest.param(VIDEO_CAPABILITIES, True, True, True, None, id='video-enabled'),
+    ],
+)
+def test_video_controls_and_tabs_at_startup(
+    report: CapabilityReport, available: bool, enabled: bool, hevc: bool, reason_key: str | None, tmp_path: Path,
+) -> None:
+    pytest.importorskip('tkinterdnd2')
+    input_dir = tmp_path / 'input'
+    output_dir = tmp_path / 'output'
+    input_dir.mkdir()
+    output_dir.mkdir()
+    report_data = asdict(report)
+    report_data['ffmpeg_encoders'] = sorted(report.ffmpeg_encoders)
+    payload = json.dumps({
+        'report': report_data, 'enabled': enabled, 'input_dir': str(input_dir), 'output_dir': str(output_dir),
+    })
+    probe = Path(__file__).with_name('video_ui_probe.py')
+    completed = subprocess.run(
+        [sys.executable, str(probe), payload],
+        capture_output=True,
+        text=True,
+        encoding='utf-8',
+        errors='replace',
+        timeout=30,
+        creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
+    )
+    assert completed.returncode == 0, completed.stderr
+    result_lines = [line.removeprefix('PJP_UI_RESULT=') for line in completed.stdout.splitlines() if line.startswith('PJP_UI_RESULT=')]
+    assert len(result_lines) == 1, completed.stdout
+    state = json.loads(result_lines[0])
+    if 'skip' in state:
+        pytest.skip(state['skip'])
+
+    assert state['tab_order_ok'] and state['tab_selection_ok']
+    assert state['stop_state'] == 'disabled'
+    assert state['enable_disabled'] is not available
+    assert state['quality_state'] == ('normal' if available and enabled else 'disabled')
+    assert state['h265_disabled'] is not (available and enabled and hevc)
+    assert state['combos_readonly'] == [available and enabled] * 3
+    assert state['combos_disabled'] == [not (available and enabled)] * 3
+    if reason_key:
+        assert translate('ja', reason_key) in state['engine_status']
+    if report.ffmpeg_detection_error:
+        assert report.ffmpeg_detection_error in state['engine_status']
+    if available:
+        assert state['combos_disabled_after_toggle']
+        assert state['combos_readonly_after_toggle']
+        assert state['h265_disabled_after_toggle'] is not hevc

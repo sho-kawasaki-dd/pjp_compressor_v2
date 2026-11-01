@@ -7,6 +7,7 @@ from __future__ import annotations
 ことで、テストごとの差分が意図か偶然かを見分けやすくしている。
 """
 
+import gc
 import io
 import zipfile
 from dataclasses import dataclass
@@ -137,7 +138,12 @@ def tk_regression_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     pytest.importorskip('tkinterdnd2')
 
     import tkinter as tk
+    import frontend.i18n as ui_i18n
     import frontend.ui_tkinter as ui_module
+
+    monkeypatch.setattr(ui_i18n, '_current_language', 'ja')
+    monkeypatch.setattr(ui_i18n, '_current', {})
+    ui_i18n.load('ja')
 
     input_dir = tmp_path / 'input'
     output_dir = tmp_path / 'output'
@@ -165,5 +171,7 @@ def tk_regression_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     finally:
         try:
             app.destroy()
-        except Exception:
+        except tk.TclError:
             pass
+        del app
+        gc.collect()

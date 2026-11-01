@@ -5,6 +5,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
+import time
 from pathlib import Path
 
 import pytest
@@ -69,9 +70,19 @@ def test_lock_is_released_when_owner_process_dies(tmp_path: Path) -> None:
     finally:
         proc.kill()
         proc.wait()
+        if proc.stdout is not None:
+            proc.stdout.close()
 
-    with acquire_output_lock(tmp_path):
-        pass
+    # Windows may signal process exit just before its file handles are released.
+    deadline = time.monotonic() + 5.0
+    while True:
+        try:
+            with acquire_output_lock(tmp_path):
+                break
+        except OutputLockError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.01)
 
 
 @pytest.mark.skipif(sys.platform != 'win32', reason='hidden attribute is Windows-only')

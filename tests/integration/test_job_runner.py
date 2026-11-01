@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from backend.contracts import CompressionRequest, ProgressEvent
+from backend.contracts import CompressionRequest, JobControl, ProgressEvent, VideoCompressionConfig
 from backend.core import compressor_utils
 from backend.orchestrator import job_runner
 from frontend.settings import PDF_LOSSY_DPI_RANGE
@@ -92,6 +92,8 @@ def snapshot_tree(root: Path) -> dict[str, int]:
 
 def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict[str, object] = {}
+    video_config = VideoCompressionConfig(codec='libx265', crf=44)
+    control = JobControl()
 
     def fake_run_compression_job(**kwargs):
         captured.update(kwargs)
@@ -122,13 +124,16 @@ def test_run_compression_request_forwards_debug_mode(monkeypatch: pytest.MonkeyP
         debug_mode=True,
         copy_non_target_files=False,
         log_language='ja',
+        video_config=video_config,
     )
 
-    job_runner.run_compression_request(request=request, event_callback=events.append)
+    job_runner.run_compression_request(request=request, event_callback=events.append, job_control=control)
 
     assert captured['debug_mode'] is True
     assert captured['log_language'] == 'ja'
     assert captured['pdf_png_quality'] == 55
+    assert captured['video_config'] is video_config
+    assert captured['job_control'] is control
     assert events == []
 
 

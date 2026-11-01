@@ -4,10 +4,16 @@
 #define MyAppName "PDF_JPG_PNG_Compressor"
 #define MyAppPublisher "Kawasaki Sho"
 #define MyAppExeName "PDF_JPG_PNG_Compressor.exe"
+; Optional overrides isolate packaging tests without changing release defaults.
+#ifndef MyAppSourceDir
 #define MyAppSourceDir "dist\PDF_JPG_PNG_Compressor"
+#endif
+#ifndef MyAppId
+#define MyAppId "{{D0B6D2D6-8E4F-4F9B-AB5B-2B5D3D4E9E11}"
+#endif
 
 [Setup]
-AppId={{D0B6D2D6-8E4F-4F9B-AB5B-2B5D3D4E9E11}
+AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppVerName={#MyAppName} {#MyAppVersion}
@@ -38,9 +44,11 @@ Source: "{#MyAppSourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesub
 Source: "LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 Source: "Documentation\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
+#ifndef MyAppSkipShortcuts
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+#endif
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

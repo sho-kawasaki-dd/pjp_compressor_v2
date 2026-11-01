@@ -224,13 +224,17 @@ def plan_for(info: MediaInfo, config: VideoCompressionConfig | None = None, caps
 
 
 def test_plan_encode_accepts_preservable_input_and_copies_allowed_audio() -> None:
-    info = make_info(audio=(make_audio(codec='aac'), make_audio(2, codec='ac3', channels=6, layout='5.1(side)')))
+    info = make_info(audio=(
+        make_audio(codec='aac'),
+        make_audio(2, codec='ac3', channels=6, layout='5.1(side)'),
+        make_audio(3, codec='flac'),
+    ))
 
     plan, reasons = plan_for(info)
 
     assert reasons == []
     assert plan is not None
-    assert [(p.action, p.bitrate) for p in plan.audio] == [('copy', None), ('copy', None)]
+    assert [(p.action, p.bitrate) for p in plan.audio] == [('copy', None), ('copy', None), ('copy', None)]
 
 
 def test_plan_encode_keeps_original_without_primary_video() -> None:
@@ -371,6 +375,7 @@ def test_build_ffmpeg_command_contains_required_arguments_in_order() -> None:
     assert cmd[cmd.index('-c:s') + 1] == 'copy'
     assert cmd[cmd.index('-map_chapters') + 1] == '0'
     assert cmd[cmd.index('-movflags') + 1] == '+faststart+use_metadata_tags'
+    assert cmd[cmd.index('-write_tmcd') + 1] == '0'
     assert cmd[cmd.index('-progress') + 1] == 'pipe:1' and '-nostats' in cmd
     assert cmd[-1] == 'out.mp4'
     assert '-ac' not in cmd  # 暗黙のダウンミックスをしない
@@ -738,7 +743,13 @@ class Flow:
             self.on_ffmpeg()
         return self.ffmpeg_returncode, 'Error opening input'
 
-    def run(self, config: VideoCompressionConfig | None = None, caps: CapabilityReport | None = None):
+    def run(
+        self,
+        config: VideoCompressionConfig | None = None,
+        caps: CapabilityReport | None = None,
+        *,
+        log_language: str = 'en',
+    ):
         return video_utils.compress_video_ffmpeg(
             str(self.src),
             str(self.out_dir / 'clip.mp4'),
@@ -747,7 +758,7 @@ class Flow:
             capabilities=caps or make_caps(),
             job_control=self.control,
             temp_dir=self.work,
-            log_language='en',
+            log_language=log_language,
         )
 
     def leftovers(self) -> list[str]:
@@ -767,6 +778,31 @@ def test_compress_places_mp4_when_smaller(flow: Flow) -> None:
     assert (flow.out_dir / 'clip.mp4').stat().st_size == 400
     assert not (flow.out_dir / 'clip.mov').exists()
     assert flow.leftovers() == []
+
+
+@pytest.mark.parametrize('language', ['ja', 'en'])
+def test_compress_reports_automatic_aac_conversion(flow: Flow, language: str) -> None:
+    flow.src_info = make_info(audio=(make_audio(codec='opus'),))
+    flow.out_info = make_info(audio=(make_audio(codec='aac'),))
+
+    result = flow.run(log_language=language)
+
+    assert result.ok and not result.kept_original
+    assert result.notes == ('audio_aac_converted=a0:opus->aac@128k',)
+    assert 'AAC' in result.message
+    assert 'opus' in result.message and '128k' in result.message
+
+
+def test_compress_does_not_report_conversion_when_original_is_kept(flow: Flow) -> None:
+    flow.src_info = make_info(audio=(make_audio(codec='opus'),))
+    flow.out_info = make_info(audio=(make_audio(codec='aac'),))
+    flow.out_size = flow.src.stat().st_size
+
+    result = flow.run()
+
+    assert result.ok and result.kept_original and result.kept_original_reason == 'no_gain'
+    assert 'AAC' not in result.message
+    assert result.notes == ()
 
 
 def test_compress_keeps_original_with_original_extension_when_not_smaller(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

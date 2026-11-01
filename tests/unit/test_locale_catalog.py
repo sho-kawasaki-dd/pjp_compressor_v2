@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from string import Formatter
 
 import pytest
 
@@ -38,3 +39,20 @@ def test_translate_uses_english_when_language_is_unknown(tmp_path: Path, monkeyp
     monkeypatch.setattr(locale_catalog, 'LOCALES_DIR', locales_dir)
 
     assert locale_catalog.translate('fr', 'greeting', name='Alice') == 'Hello Alice'
+
+
+def test_project_catalogs_have_matching_keys_and_placeholders() -> None:
+    locales_dir = Path(__file__).resolve().parents[2] / 'frontend' / 'config_data' / 'locales'
+    catalogs = {
+        language: json.loads((locales_dir / f'{language}.json').read_text(encoding='utf-8'))
+        for language in ('ja', 'en')
+    }
+
+    assert catalogs['ja'].keys() == catalogs['en'].keys()
+    assert 'video_audio_aac_converted' in catalogs['ja']
+    for key in catalogs['ja']:
+        fields = [
+            {name for _, name, _, _ in Formatter().parse(catalogs[language][key]) if name is not None}
+            for language in ('ja', 'en')
+        ]
+        assert fields[0] == fields[1], key
