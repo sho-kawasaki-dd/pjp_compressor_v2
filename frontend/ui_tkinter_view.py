@@ -358,6 +358,12 @@ class TkUiViewMixin:
             foreground='gray',
         ).pack(fill='x', padx=10, pady=(0, 6))
 
+        ttk.Label(
+            app_container,
+            text=t('app_copyright_notice'),
+            foreground='gray',
+        ).pack(anchor='e', padx=5, pady=(8, 0))
+
     def _build_settings_tab(self):
         """設定タブ内に PDF・画像・動画の 3 セクションを並べる。"""
         pdf_outer = tk.LabelFrame(

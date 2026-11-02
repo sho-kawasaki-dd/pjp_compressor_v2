@@ -208,6 +208,8 @@ uv run pytest -m unit
 This project is licensed under the [GNU Affero General Public License v3.0 or later](LICENSE) (AGPL-3.0-or-later).
 本プロジェクトは [GNU Affero General Public License v3.0 以降](LICENSE)（AGPL-3.0-or-later）のもとで公開されています。
 
+Copyright (C) 2026 Kawasaki Sho
+
 For the approved FFmpeg 9.0.2 x264-only build, publish the exact `ffmpeg-source.tar.gz` and `x264-source.tar.gz` archives with the installer in the same GitHub Release. Verify that the binaries, sources, licenses, and build records match the [distribution manifest](Documentation/ffmpeg-x264-only-manifest.json). This project approval is limited to that build and is not legal advice or a warranty of third-party rights.
 承認対象の FFmpeg 9.0.2 x264-only ビルドについては、対応する `ffmpeg-source.tar.gz` と `x264-source.tar.gz` をインストーラーと同じ GitHub Release に掲載してください。バイナリ・ソース・ライセンス・ビルド記録が[配布マニフェスト](Documentation/ffmpeg-x264-only-manifest.json)と一致することを確認します。この承認は当該ビルドに限定され、法的助言や第三者権利の保証を意味しません。
 
