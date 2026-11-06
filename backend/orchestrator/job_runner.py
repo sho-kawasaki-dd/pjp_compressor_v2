@@ -24,6 +24,8 @@ from typing import Any, Callable
 from backend.settings import (
     APP_WORK_DIR_NAME,
     GS_DEFAULT_PRESET,
+    IMAGE_WORK_OWNER_TOKEN,
+    IMAGE_WORK_SUBDIR,
     PDF_LOSSLESS_OPTIONS_DEFAULT,
     PDF_LOSSY_DPI_DEFAULT,
     PDF_LOSSY_JPEG_QUALITY_DEFAULT,
@@ -41,11 +43,20 @@ from backend.services.video_service import (
     tool_unavailable_reason,
 )
 from backend.core.archive_utils import zip_directory
+from backend.core.image_utils import (
+    cleanup_stale_image_temps,
+    converted_image_extension,
+    create_image_job_dir,
+    place_image_original_copy,
+)
+from backend.core.job_files import remove_owned_job_dir
 from backend.contracts import (
     CapabilityReport,
     CompressionRequest,
+    ImageCompressionConfig,
     JobControl,
     ProgressEvent,
+    ToolSource,
     VideoCompressionConfig,
 )
 from backend.orchestrator.job_lock import OutputLockError, acquire_output_lock
@@ -145,7 +156,7 @@ def _csv_action_label(catalog: dict[str, str], ext: str, *, processed: bool) -> 
     return catalog.get('csv_action_failed', 'Compression failed')
 
 
-def _video_tool_part(catalog: dict[str, str], label_key: str, default_label: str, source: str, error: str | None) -> str:
+def _video_tool_part(catalog: dict[str, str], label_key: str, default_label: str, source: ToolSource, error: str | None) -> str:
     label = catalog.get(label_key, default_label)
     detected = catalog.get(f'tool_source.{source}', describe_tool_source(source))
     return f'{label}{detected} ({error})' if error else f'{label}{detected}'
@@ -181,42 +192,72 @@ class _TaskCandidate:
     csv_notes: str
 
 
-def _plan_video_outputs(candidates: list[_TaskCandidate], is_video: Callable[[_TaskCandidate], bool]) -> dict[int, Path]:
-    """拡張子が変わる動画の出力名を、ジョブ内の候補同士だけで衝突しないよう決める。
+@dataclass(frozen=True)
+class _PlannedOutput:
+    outpath: Path
+    original_outpath: Path
+
+
+def _plan_converted_outputs(
+    candidates: list[_TaskCandidate],
+    target_extension: Callable[[_TaskCandidate], str | None],
+) -> dict[int, _PlannedOutput]:
+    """変換先と元拡張子の出力名を、ジョブ内の候補同士で衝突しないよう決める。
 
     出力フォルダの既存ファイルは判定に含めないため、同じ入力・出力先で再実行しても名前は
     変わらない。キーは Windows の大文字小文字非区別に合わせて casefold する。
     """
     claimed = {str(candidate.outpath).casefold() for candidate in candidates}
-    planned: dict[int, Path] = {}
-    video_indexes = sorted(
-        (index for index, candidate in enumerate(candidates) if is_video(candidate)),
-        key=lambda index: str(candidates[index].outpath).casefold(),
+    reserved_originals: set[str] = set()
+    original_paths: dict[int, Path] = {}
+    indexes = sorted(
+        range(len(candidates)),
+        key=lambda index: (
+            str(candidates[index].outpath).casefold(),
+            candidates[index].csv_input.casefold(),
+            candidates[index].csv_input,
+        ),
     )
-    for index in video_indexes:
+    for index in indexes:
         candidate = candidates[index]
-        ext = candidate.inpath.suffix.lower().lstrip('.')
-        if ext == 'mp4':
-            planned[index] = candidate.outpath
+        path = candidate.outpath
+        key = str(path).casefold()
+        if key in reserved_originals:
+            src_ext = candidate.inpath.suffix.lower().lstrip('.') or 'file'
+            for name in _candidate_converted_names(path.stem, src_ext, path.suffix):
+                proposed = path.parent / name
+                if str(proposed).casefold() not in claimed:
+                    path = proposed
+                    claimed.add(str(path).casefold())
+                    break
+        reserved_originals.add(str(path).casefold())
+        original_paths[index] = path
+
+    planned: dict[int, _PlannedOutput] = {}
+    for index in indexes:
+        candidate = candidates[index]
+        original = original_paths[index]
+        extension = target_extension(candidate)
+        if extension is None or extension.casefold() == original.suffix.casefold():
+            planned[index] = _PlannedOutput(original, original)
             continue
-        stem = candidate.outpath.stem
-        parent = candidate.outpath.parent
-        for name in _candidate_video_names(stem, ext):
-            path = parent / name
+        src_ext = candidate.inpath.suffix.lower().lstrip('.') or 'file'
+        for name in _candidate_converted_names(original.stem, src_ext, extension):
+            path = original.parent / name
             if str(path).casefold() not in claimed:
                 claimed.add(str(path).casefold())
-                planned[index] = path
+                planned[index] = _PlannedOutput(path, original)
                 break
     return planned
 
 
-def _candidate_video_names(stem: str, ext: str):
-    """`stem.mp4` → `stem_{ext}.mp4` → `stem_{ext}_2.mp4` → … の順に候補名を返す。"""
-    yield f'{stem}.mp4'
-    yield f'{stem}_{ext}.mp4'
+def _candidate_converted_names(stem: str, src_ext: str, target_ext: str):
+    """`stem.ext` → `stem_{src_ext}.ext` → `stem_{src_ext}_2.ext` の順に返す。"""
+    yield f'{stem}{target_ext}'
+    yield f'{stem}_{src_ext}{target_ext}'
     serial = 2
     while True:
-        yield f'{stem}_{ext}_{serial}.mp4'
+        yield f'{stem}_{src_ext}_{serial}{target_ext}'
         serial += 1
 
 
@@ -362,7 +403,7 @@ def _run_locked_job(
     後片付けは `cleanup` に登録して呼び出し側へ任せ、完了・中断の通知は戻り値の関数として返す。
     """
 
-    from backend.core.worker_ops import process_single_file
+    from backend.core.worker_ops import WorkerFileResult, process_single_file
     from backend.core.format_utils import human_readable
 
     catalog = load_locale_catalog(log_language)
@@ -415,9 +456,11 @@ def _run_locked_job(
 
     # 前回の異常終了で残った作業領域は、排他を取得した今だけ安全に掃除できる。
     cleanup_stale_video_temps(output_base)
+    cleanup_stale_image_temps(output_base)
 
     # 検出結果はジョブ開始時に 1 回だけ取得し、ワーカーへ渡して再解決させない。
     report = detect_capabilities()
+    image_cfg = ImageCompressionConfig()
     video_unavailable_reason: str | None = None
     video_enabled = False
     if video_cfg is not None and video_cfg.enabled:
@@ -458,11 +501,10 @@ def _run_locked_job(
     #   jpg_quality, png_quality, use_pngquant, resize_cfg, debug_mode,
     #   csv_input_path, csv_output_path, csv_notes, log_language,
     #   video_config, video_progress_callback, original_outpath,
-    #   job_control, capabilities, video_temp_dir,
+    #   job_control, capabilities, video_temp_dir, image_config, image_temp_dir,
     # )
     #
-    # 出力パスは全候補が出揃ってから確定する（動画は拡張子が .mp4 に変わり得るため、
-    # ジョブ内の候補同士で名前が衝突しないよう 2 パスで割り当てる）。
+    # 出力パスは全候補が出揃ってから、元拡張子のパスも含めて予約する。
     candidates: list[_TaskCandidate] = []
 
     def append_task(
@@ -491,6 +533,11 @@ def _run_locked_job(
 
     def is_video_candidate(candidate: _TaskCandidate) -> bool:
         return video_enabled and candidate.inpath.suffix.lower().lstrip('.') in VIDEO_EXTENSIONS
+
+    def target_extension(candidate: _TaskCandidate) -> str | None:
+        if is_video_candidate(candidate):
+            return '.mp4'
+        return converted_image_extension(candidate.inpath.suffix, image_cfg)
 
     # ZIP は展開有無で扱いが変わるため、通常走査からは除外して別フェーズへ回す。
     # アプリ専用作業領域は入力側にあっても処理対象にしない。
@@ -571,29 +618,42 @@ def _run_locked_job(
         # 動画を処理できない理由は、動画が入力にあるときだけ通知する。
         log_func(t('video_tool_unavailable', reason=video_unavailable_reason))
 
-    # 出力パスの確定（全候補の既定出力先を先に予約し、その上で動画の .mp4 名を割り当てる）。
-    planned_outputs = _plan_video_outputs(candidates, is_video_candidate)
+    planned_outputs = _plan_converted_outputs(candidates, target_extension)
 
     video_job_dir: Path | None = None
+    image_job_dir: Path | None = None
     general_tasks: list[tuple[Any, ...]] = []
     video_tasks: list[tuple[Any, ...]] = []
 
     def make_video_callback(name: str) -> Callable[[int | None], None] | None:
-        if event_func is None:
+        callback = event_func
+        if callback is None:
             return None
 
         def on_video_update(pct: int | None) -> None:
             # 割合不明の None も更新として扱い、開始・終了イベントとは混同させない。
-            event_func(ProgressEvent(kind='video_progress', message=name, current=pct, video_phase='updated'))
+            callback(ProgressEvent(kind='video_progress', message=name, current=pct, video_phase='updated'))
 
         return on_video_update
 
     for index, candidate in enumerate(candidates):
         ext = candidate.inpath.suffix.lower().lstrip('.')
         is_video = is_video_candidate(candidate)
+        is_converted_image = converted_image_extension(ext, image_cfg) is not None
+        planned = planned_outputs[index]
         if is_video and video_job_dir is None:
             video_job_dir = create_video_job_dir(output_base)
             cleanup.callback(shutil.rmtree, video_job_dir, ignore_errors=True)
+        if is_converted_image and image_job_dir is None:
+            image_job_dir = create_image_job_dir(output_base)
+
+            def cleanup_image_dir(path: Path) -> None:
+                try:
+                    remove_owned_job_dir(output_base, IMAGE_WORK_SUBDIR, path, IMAGE_WORK_OWNER_TOKEN)
+                except OSError as exc:
+                    log_func(t('image_work_cleanup_failed', detail=str(exc)))
+
+            cleanup.callback(cleanup_image_dir, image_job_dir)
 
         if pdf_lossless_options is None:
             # 可変 dict を共有すると task ごとの編集が他へ波及するため既定値は複製する。
@@ -603,7 +663,7 @@ def _run_locked_job(
 
         task = (
             str(candidate.inpath),
-            str(planned_outputs.get(index, candidate.outpath)),
+            str(planned.outpath),
             ext,
             pdf_engine,
             pdf_mode,
@@ -619,15 +679,17 @@ def _run_locked_job(
             rcfg,
             debug_mode,
             candidate.csv_input,
-            candidate.csv_output,
+            planned.outpath.relative_to(output_base).as_posix(),
             candidate.csv_notes,
             log_language,
             video_cfg if is_video else None,
             make_video_callback(candidate.inpath.name) if is_video else None,
-            str(candidate.outpath),
+            str(planned.original_outpath),
             control,
             report,
             str(video_job_dir) if is_video and video_job_dir is not None else None,
+            image_cfg,
+            str(image_job_dir) if is_converted_image and image_job_dir is not None else None,
         )
         (video_tasks if is_video else general_tasks).append(task)
 
@@ -665,13 +727,17 @@ def _run_locked_job(
     compressible_extensions = {'pdf', 'jpg', 'jpeg', 'png'}
     if video_enabled:
         compressible_extensions |= VIDEO_EXTENSIONS
+    if image_cfg.avif_to_jpeg_compat:
+        compressible_extensions.add('avif')
 
     def close_csv() -> None:
+        nonlocal csv_file
+        handle, csv_file = csv_file, None
         try:
-            if csv_file:
-                csv_file.close()
-        except Exception:
-            pass
+            if handle:
+                handle.close()
+        except OSError as exc:
+            log_func(t('log_csv_write_failed', exc=exc))
 
     cleanup.callback(close_csv)
 
@@ -732,20 +798,62 @@ def _run_locked_job(
         if future.cancelled():
             # 停止要求で未開始のまま破棄された。処理エラーではなく中断件数として数える。
             cancelled_files += 1
+            if task[27] is not None and csv_writer:
+                try:
+                    input_path = Path(task[0])
+                    try:
+                        input_size: int | str = input_path.stat().st_size
+                    except OSError as exc:
+                        input_size = ''
+                        log_func(t('worker_input_stat_failed', name=input_path.name, detail=str(exc)))
+                    csv_writer.writerow([
+                        datetime.now().isoformat(),
+                        task[16],
+                        '',
+                        task[2],
+                        t('csv_action_cancelled'),
+                        input_size,
+                        '',
+                        '',
+                        '',
+                        task[18],
+                    ])
+                except (OSError, csv.Error) as exc:
+                    log_func(t('log_csv_write_failed', exc=exc))
             return
         try:
-            raw_result = future.result()
             inpath_task = Path(task[0])
             outpath_task = Path(task[1])
             ext_task = task[2]
             csv_input = task[16]
             csv_output = task[17]
-            csv_notes = task[18] if len(task) > 18 else ''
-            is_video_task = len(task) > 20 and task[20] is not None
+            csv_notes = task[18]
+            is_video_task = task[20] is not None
+            is_image_task = ext_task in {'jpg', 'jpeg', 'png', 'avif'}
+            is_converted_image_task = is_image_task and task[27] is not None
+            raw_result: WorkerFileResult | tuple[str, int, int, bool]
+            try:
+                raw_result = future.result()
+            except Exception as exc:
+                if not is_converted_image_task:
+                    raise
+                try:
+                    size = inpath_task.stat().st_size
+                except OSError as stat_exc:
+                    size = 0
+                    log_func(t('worker_input_stat_failed', name=inpath_task.name, detail=str(stat_exc)))
+                raw_result = WorkerFileResult(
+                    action_key='csv_action_failed',
+                    message=t('image_conversion_failed', name=inpath_task.name, detail=f'{type(exc).__name__}: {exc}'),
+                    orig_size=size,
+                    out_size=0,
+                    processed=False,
+                    cancelled=control.is_cancelled,
+                )
             final_outpath: str | None = None
             cancelled_flag = False
             result_notes = ''
-            if hasattr(raw_result, 'action_key'):
+            if isinstance(raw_result, WorkerFileResult):
                 result = raw_result
                 action_key = result.action_key
                 msg = result.message
@@ -759,25 +867,37 @@ def _run_locked_job(
                 msg, orig_size, out_size, processed_flag = raw_result
                 action_key = _csv_action_label(catalog, ext_task, processed=processed_flag)
 
+            if processed_flag and out_size is None:
+                processed_flag = False
+                msg = t('image_conversion_failed', name=inpath_task.name, detail='output size could not be determined')
+            elif is_converted_image_task and processed_flag and not final_outpath:
+                processed_flag = False
+                msg = t('image_conversion_failed', name=inpath_task.name, detail='conversion reported success without an output')
+
             copied_to: Path | None = None
             is_non_target = ext_task not in compressible_extensions
             if cancelled_flag:
                 pass
-            elif processed_flag:
+            elif processed_flag and out_size is not None:
                 orig_total += orig_size
                 out_total += out_size
                 processed_files += 1
-            elif copy_non_target_files:
+            elif copy_non_target_files and final_outpath is None:
                 if control.is_cancelled:
                     # 停止要求後はフォールバックコピーを始めない。
                     cancelled_flag = True
                 else:
                     # 非圧縮対象や圧縮失敗ファイルもミラー圧縮では出力に揃えておく。
-                    # 動画は拡張子を変えず、予約済みの元拡張子パスへ一時領域経由で配置する。
-                    copy_dest = Path(task[22]) if is_video_task and task[22] else outpath_task
+                    # 拡張子が変わる画像・動画は、予約済みの元拡張子へ一時領域経由で配置する。
+                    copy_dest = Path(task[22]) if (is_video_task or is_converted_image_task) and task[22] else outpath_task
                     try:
                         if is_video_task:
                             placed = place_original_copy(inpath_task, copy_dest, task[25], control)
+                        elif is_converted_image_task:
+                            image_temp_dir = task[27]
+                            if image_temp_dir is None:
+                                raise ValueError('converted image task is missing its work directory')
+                            placed = place_image_original_copy(inpath_task, copy_dest, image_temp_dir, control, log_language=log_language)
                         else:
                             copy_dest.parent.mkdir(parents=True, exist_ok=True)
                             shutil.copy2(inpath_task, copy_dest)
@@ -788,10 +908,18 @@ def _run_locked_job(
                                 log_func(f"{t('log_non_target_copy')}: {csv_input}")
                             else:
                                 log_func(f"{t('log_fallback_copy')}: {csv_input}")
+                            if is_image_task:
+                                try:
+                                    out_size = copied_to.stat().st_size
+                                except OSError as exc:
+                                    out_size = None
+                                    log_func(t('image_conversion_failed', name=inpath_task.name, detail=str(exc)))
                         else:
                             cancelled_flag = True
                     except Exception as copy_exc:
                         log_func(f"{t('log_copy_failed')}: {csv_input} ({copy_exc})")
+                        if control.is_cancelled:
+                            cancelled_flag = True
 
             if cancelled_flag:
                 cancelled_files += 1
@@ -814,12 +942,20 @@ def _run_locked_job(
                         csv_output = ''
                     elif final_outpath:
                         csv_output = rel_output(final_outpath)
-                    elif copied_to is not None and is_video_task:
+                    elif copied_to is not None:
                         csv_output = rel_output(copied_to)
-                    elif is_video_task and not processed_flag:
+                    elif (is_video_task or is_image_task) and not processed_flag:
                         csv_output = ''
-                    saved = orig_size - out_size
-                    saved_pct = (saved / orig_size * 100) if orig_size > 0 else 0.0
+                    if out_size is None or (is_image_task and not csv_output):
+                        csv_out_size: int | str = ''
+                        csv_saved: int | str = ''
+                        csv_saved_pct = ''
+                    else:
+                        csv_out_size = out_size
+                        saved_size = orig_size - out_size
+                        csv_saved = saved_size
+                        saved_pct = (saved_size / orig_size * 100) if orig_size > 0 else 0.0
+                        csv_saved_pct = f"{saved_pct:.1f}"
                     timestamp = datetime.now().isoformat()
                     csv_writer.writerow([
                         timestamp,
@@ -828,13 +964,13 @@ def _run_locked_job(
                         ext_task,
                         action,
                         orig_size,
-                        out_size,
-                        saved,
-                        f"{saved_pct:.1f}",
+                        csv_out_size,
+                        csv_saved,
+                        csv_saved_pct,
                         ';'.join(part for part in (csv_notes, result_notes) if part),
                     ])
-            except Exception:
-                pass
+            except (OSError, csv.Error) as exc:
+                log_func(t('log_csv_write_failed', exc=exc))
 
             if not cancelled_flag:
                 progress_func(cnt, total_len)

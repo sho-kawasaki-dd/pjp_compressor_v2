@@ -81,25 +81,27 @@ AV1 を読めない環境では、変換を始める前に AV1 の入力を見�
 
 AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファイルを残す」場合もある。動画にしか無いこの仕組みを、画像にも使えるようにする。
 
-- [ ] 1-1. [image_utils.py](../../backend/core/image_utils.py) で、`compress_image_pillow()` と `compress_png_pngquant()` に重複しているリサイズ処理を、helper 関数 `_apply_resize(img, resize_cfg)` に切り出す。既存の JPEG / PNG 圧縮の動作は変えない。
-- [ ] 1-2. 新規経路（AVIF 出力・AVIF→JPEG 互換変換）向けに、EXIF・ICC プロファイル・画像の向きを引き継ぐ helper を追加する（既存の `compress_image_pillow()` には適用せず既存挙動を維持する）。
+- [x] 1-1. [image_utils.py](../../backend/core/image_utils.py) で、`compress_image_pillow()` と `compress_png_pngquant()` に重複しているリサイズ処理を、helper 関数 `_apply_resize(img, resize_cfg)` に切り出す。既存の JPEG / PNG 圧縮の動作は変えない。
+- [x] 1-2. 新規経路（AVIF 出力・AVIF→JPEG 互換変換）向けに、EXIF・ICC プロファイル・画像の向きを引き継ぐ helper を追加する（既存の `compress_image_pillow()` には適用せず既存挙動を維持する）。
   - リサイズ前に `ImageOps.exif_transpose(img)` を適用してピクセルを正立させ、Orientation タグがリセットされた `exif` を保存時に渡す（ビューアでの二重回転と、縦横指定リサイズ時の向きずれを防ぐ）。
   - `_convert_cmyk_to_rgb()` で CMYK から RGB に変換した場合（`_cmyk_converted == True`）は、元の CMYK 用 `icc_profile` を破棄し、RGB 画像に CMYK プロファイルが埋め込まれないようにする。もともと RGB 系だった場合のみ `icc_profile` を引き継ぐ。
-- [ ] 1-3. 画像処理の戻り値用に `ImageCompressResult` dataclass（`ok`, `message`, `final_outpath`, `kept_original`, `kept_original_reason: Literal['no_gain', 'retention'] | None`, `cancelled: bool`, `notes: tuple[str, ...]`）を追加し、動画の `VideoCompressResult` と同じ2階層の理由管理（`kept_original_reason` + `notes`）に揃える。停止は失敗・保持と区別して返す。既存の `(ok, message)` を返す関数は、互換のため残す。
-- [ ] 1-4. [contracts.py](../../backend/contracts.py) に `ImageCompressionConfig` dataclass（`output_format`, `avif_quality`, `avif_speed`, `avif_include_png`, `avif_to_jpeg_compat`）を追加し、[worker_ops.py](../../backend/core/worker_ops.py) のタスクタプルには個別の設定値を増やすのではなく `ImageCompressionConfig` としてまとめて渡す。画像の結果からも `final_outpath`、`kept_original_reason`、`notes` を受け取り、出力サイズと CSV に反映する。
-- [ ] 1-5. [job_runner.py](../../backend/orchestrator/job_runner.py) の `_plan_video_outputs()` を、拡張子が変わるファイルなら何でも扱える `_plan_converted_outputs()` に一般化する。
+- [x] 1-3. 画像処理の戻り値用に `ImageCompressResult` dataclass（`ok`, `message`, `final_outpath`, `kept_original`, `kept_original_reason: Literal['no_gain', 'retention'] | None`, `cancelled: bool`, `notes: tuple[str, ...]`）を追加し、動画の `VideoCompressResult` と同じ2階層の理由管理（`kept_original_reason` + `notes`）に揃える。停止は失敗・保持と区別して返す。既存の `(ok, message)` を返す関数は、互換のため残す。
+- [x] 1-4. [contracts.py](../../backend/contracts.py) に `ImageCompressionConfig` dataclass（`output_format`, `avif_quality`, `avif_speed`, `avif_include_png`, `avif_to_jpeg_compat`）を追加し、[worker_ops.py](../../backend/core/worker_ops.py) のタスクタプルには個別の設定値を増やすのではなく `ImageCompressionConfig` としてまとめて渡す。画像の結果からも `final_outpath`、`kept_original_reason`、`notes` を受け取り、出力サイズと CSV に反映する。
+- [x] 1-5. [job_runner.py](../../backend/orchestrator/job_runner.py) の `_plan_video_outputs()` を、拡張子が変わるファイルなら何でも扱える `_plan_converted_outputs()` に一般化する。
   - 変換後の拡張子は、入力の拡張子と設定から決める関数で返す（例: `.jpg→.avif`、`.avif→.jpg`、動画 `→.mp4`）。
   - 元ファイルを残す場合（`kept_original`）に備えて、元と同じ拡張子の出力パス（`original_outpath`）も画像のタスクに持たせ、予約済みパス（`claimed`）に含める。
   - 名前が衝突したら `{stem}_{src_ext}.{target_ext}` 形式で回避する（例: 入力に `photo.jpg` と `photo.avif` が両方あり、AVIF 出力が ON の場合は `photo_jpg.avif`）。
-- [ ] 1-6. 「容量が増えたら元ファイルを残す」および「保持理由により元ファイルを残す」画像用の共通処理を追加する。並列実行（`max(4, cpu_count)`）で競合しないよう `.pjp_tmp_<uuid>` 形式の一時ファイルに書き出し、サイズ比較や保持判定のあとで `JobControl.launch_lock` 内で停止確認を行ってから正式な場所（`outpath` または `original_outpath`）に `replace()` する。起動時の残留一時ファイル掃除の対象にも含める。
+- [x] 1-6. 「容量が増えたら元ファイルを残す」および「保持理由により元ファイルを残す」画像用の共通処理を追加する。並列実行（`max(4, cpu_count)`）で競合しないよう `.pjp_tmp_<uuid>` 形式の一時ファイルに書き出し、サイズ比較や保持判定のあとで `JobControl.launch_lock` 内で停止確認を行ってから正式な場所（`outpath` または `original_outpath`）に `replace()` する。起動時の残留一時ファイル掃除の対象にも含める。
   - 一時ファイルは出力先と同じファイルシステム上の、アプリが所有を確認できる作業領域に置く。異常終了後の掃除は出力排他を取得してから行い、接頭辞だけを根拠に所有不明のファイルを削除しない。
-- [ ] 1-7. テストを追加する: リサイズ helper の切り出しで動作が変わらないこと、EXIF Orientation の二重回転が起きないこと、CMYK 変換時に CMYK ICC が残らないこと、拡張子が変わる出力名の計画と名前の衝突回避。
-- [ ] 1-8. [job_runner.py](../../backend/orchestrator/job_runner.py) の失敗時フォールバックコピーを、動画だけでなく拡張子が変わる画像にも適用する。
+- [x] 1-7. テストを追加する: リサイズ helper の切り出しで動作が変わらないこと、EXIF Orientation の二重回転が起きないこと、CMYK 変換時に CMYK ICC が残らないこと、拡張子が変わる出力名の計画と名前の衝突回避。
+- [x] 1-8. [job_runner.py](../../backend/orchestrator/job_runner.py) の失敗時フォールバックコピーを、動画だけでなく拡張子が変わる画像にも適用する。
   - ミラー出力（`copy_non_target_files=True`）では、予約済みの `original_outpath` に元拡張子のままコピーする。JPEG の実体を `.avif`、AVIF の実体を `.jpg` として配置しない。
   - コピーも一時領域を経由し、停止確認と正式配置を `JobControl.launch_lock` 内で行う。停止後はフォールバックコピーを開始せず、中断として扱う。
   - CSV の出力パスは今回実際に配置したパスだけを記録する。ミラー OFF の失敗、コピー失敗、中断などで配置されなかった場合は空欄にする。
   - 今回配置されなかった画像では、過去の出力ファイルを今回の成果物や出力サイズとして扱わない。失敗・中断は処理件数と前後サイズの集計から除外する。
-- [ ] 1-9. 新画像経路のテストを追加する: 両方向の変換で保存失敗・正式配置失敗・保持コピー失敗を再現し、ミラー ON / OFF ごとの元拡張子へのコピー、CSV の実出力パス、集計を確認する。停止と正式配置の競合、既存出力の保護、一時ファイルの回収、異常終了後の所有確認付き掃除も検証する。
+- [x] 1-9. 新画像経路のテストを追加する: 両方向の変換で保存失敗・正式配置失敗・保持コピー失敗を再現し、ミラー ON / OFF ごとの元拡張子へのコピー、CSV の実出力パス、集計を確認する。停止と正式配置の競合、既存出力の保護、一時ファイルの回収、異常終了後の所有確認付き掃除も検証する。
+
+フェーズ1の障害・停止・集計テストでは、後続フェーズのエンコーダーを模擬し、共通の一時配置から CSV までを実行する。AVIF 出力と AVIF→JPEG の変換器および設定入口は、フェーズ2・3で実装する。EXIF・ICC の受け渡しは、利用可能な Pillow の JPEG・PNG・AVIF 保存でも確認する。
 
 ---
 
@@ -316,3 +318,4 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 | 2026-11-06 | レビュー結果を反映: 互換変換ON時は対象ファイルのみ処理し対象外には触らない方針（画像・動画個別設定）、EXIF/ICC引き継ぎの安全化、完了画面集計のA案、FFmpegビルド要件（CMake/Meson/Ninja）と契約検証を明記 |
 | 2026-11-06 | 追加レビューを反映: workerからCSV・コピー・集計までの対象外判定、動画の判定順序、画像失敗時の元拡張子コピーと停止・既存出力保護、明示的なディザ指定と画素検証を追加。UI設定正規化を実装前の未決事項D-13・D-14として整理し、互換変換8通りの統合テストとAVIFのCPU・メモリ測定を追記 |
 | 2026-11-06 | フェーズ0を実装。デコーダー検出失敗時は詳細を通知し、AV1以外の動画処理を継続する方針を追加 |
+| 2026-11-06 | フェーズ1を実装。画像と動画で停止安全な配置処理を共有し、画像の所有確認付き作業領域・元拡張子へのフォールバック・CSV/集計を追加。形式変換器はフェーズ2・3に残し、共通基盤の両方向テストではエンコーダーを模擬 |

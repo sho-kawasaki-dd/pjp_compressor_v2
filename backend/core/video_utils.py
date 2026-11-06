@@ -15,20 +15,18 @@ import collections
 import dataclasses
 import json
 import math
-import os
 import re
-import shutil
 import subprocess
 import time
-import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal
 
 from backend.contracts import CapabilityReport, JobControl, VideoCompressionConfig
+from backend.core import job_files
+from backend.core.job_files import JobCancelled as _Cancelled
 from backend.core.subprocess_utils import sanitize_subprocess_error
 from backend.settings import (
-    APP_WORK_DIR_NAME,
     VIDEO_CHAPTER_TRACK_TAGS,
     VIDEO_COPY_CHUNK_BYTES,
     VIDEO_DROPPABLE_DATA_CODECS,
@@ -36,8 +34,6 @@ from backend.settings import (
     VIDEO_MP4_AUDIO_COPY_CODECS,
     VIDEO_PRESERVED_METADATA_KEYS,
     VIDEO_PROBE_TIMEOUT_SECONDS,
-    VIDEO_TEMP_PREFIX,
-    VIDEO_WORK_OWNER_MARKER,
     VIDEO_WORK_OWNER_TOKEN,
     VIDEO_WORK_SUBDIR,
     aac_bitrate_for_channels,
@@ -91,10 +87,6 @@ class VideoCompressResult:
 
 class _VideoError(Exception):
     """通常失敗。メッセージは翻訳済みで、そのまま `VideoCompressResult.message` になる。"""
-
-
-class _Cancelled(Exception):
-    """停止要求を受けた。"""
 
 
 # ---------------------------------------------------------------------------
@@ -833,40 +825,21 @@ def verify_output(src: MediaInfo, out: MediaInfo, plan: EncodePlan) -> tuple[lis
 
 
 def _temp_path(temp_dir: Path, suffix: str) -> Path:
-    return temp_dir / f'{VIDEO_TEMP_PREFIX}{uuid.uuid4().hex}{suffix}'
+    return job_files.temp_path(temp_dir, suffix)
 
 
 def _publish(temp_path: Path, dest: Path, job_control: JobControl) -> None:
     """停止要求が受理されていないことを確認した上で配置する。確認と `replace` は同じロック内。"""
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with job_control.launch_lock:
-        if job_control.is_cancelled:
-            raise _Cancelled()
-        temp_path.replace(dest)
+    job_files.publish(temp_path, dest, job_control)
 
 
 def _copy_with_cancel(src: Path, dest: Path, job_control: JobControl) -> None:
     """ブロック単位で停止要求を確認しながらコピーし、更新時刻等を引き継ぐ。"""
-    with open(src, 'rb') as fin, open(dest, 'wb') as fout:
-        while True:
-            if job_control.is_cancelled:
-                raise _Cancelled()
-            chunk = fin.read(VIDEO_COPY_CHUNK_BYTES)
-            if not chunk:
-                break
-            fout.write(chunk)
-    shutil.copystat(src, dest)
+    job_files.copy_with_cancel(src, dest, job_control, chunk_size=VIDEO_COPY_CHUNK_BYTES)
 
 
 def _remove_temps(paths: list[Path], log_language: str) -> list[str]:
-    failures: list[str] = []
-    for path in paths:
-        try:
-            path.unlink(missing_ok=True)
-        except OSError as exc:
-            detail = sanitize_subprocess_error(str(exc), path)
-            failures.append(_t(log_language, 'video_temp_delete_failed', detail=f'{path.name}: {detail}'))
-    return failures
+    return job_files.remove_temps(paths, log_language, message_key='video_temp_delete_failed')
 
 
 def _reason_label(token: str, log_language: str) -> str:
@@ -895,6 +868,7 @@ def _keep_original(
         temps.append(staged)
         _copy_with_cancel(inpath, staged, job_control)
         _publish(staged, original_outpath, job_control)
+        temps.remove(staged)
     except OSError as exc:
         detail = sanitize_subprocess_error(str(exc), inpath, original_outpath)
         return VideoCompressResult(
@@ -1019,6 +993,7 @@ def _compress(
 
     try:
         _publish(temp_out, outpath, job_control)
+        temps.remove(temp_out)
     except OSError as exc:
         detail = sanitize_subprocess_error(str(exc), temp_out, outpath)
         return VideoCompressResult(
@@ -1127,33 +1102,12 @@ def place_original_copy(inpath: str | Path, dest: str | Path, temp_dir: str | Pa
     停止要求を受理していて配置しなかった場合は False、配置できた場合は True を返す。
     コピー・配置の失敗は OSError のまま送出する。
     """
-    temp_dir = Path(temp_dir)
-    temps: list[Path] = []
-    try:
-        if job_control.is_cancelled:
-            return False
-        temp_dir.mkdir(parents=True, exist_ok=True)
-        staged = _temp_path(temp_dir, '.orig')
-        temps.append(staged)
-        _copy_with_cancel(Path(inpath), staged, job_control)
-        _publish(staged, Path(dest), job_control)
-        return True
-    except _Cancelled:
-        return False
-    finally:
-        _remove_temps(temps, 'ja')
-
-
-def _is_link(path: Path) -> bool:
-    return path.is_symlink() or os.path.isjunction(path)
+    return job_files.place_original_copy(inpath, dest, temp_dir, job_control)
 
 
 def create_video_job_dir(output_dir: str | Path, job_id: str | None = None) -> Path:
     """`<出力>/.pjp_work/video/<job_uuid>/` を所有マーカー付きで作成する。出力排他の取得後に呼ぶ。"""
-    job_dir = Path(output_dir) / APP_WORK_DIR_NAME / VIDEO_WORK_SUBDIR / (job_id or uuid.uuid4().hex)
-    job_dir.mkdir(parents=True, exist_ok=True)
-    (job_dir / VIDEO_WORK_OWNER_MARKER).write_text(VIDEO_WORK_OWNER_TOKEN, encoding='utf-8')
-    return job_dir
+    return job_files.create_owned_job_dir(output_dir, VIDEO_WORK_SUBDIR, VIDEO_WORK_OWNER_TOKEN, job_id)
 
 
 def cleanup_stale_video_temps(output_dir: str | Path) -> int:
@@ -1162,31 +1116,4 @@ def cleanup_stale_video_temps(output_dir: str | Path) -> int:
     対象は `.pjp_work/video/` 直下で所有マーカーを確認できるジョブ用ディレクトリのみ。
     所有不明のディレクトリ・ファイル、リンク、作業領域外を指すものは削除しない。
     """
-    work_dir = Path(output_dir) / APP_WORK_DIR_NAME
-    video_root = work_dir / VIDEO_WORK_SUBDIR
-    if _is_link(work_dir) or _is_link(video_root) or not video_root.is_dir():
-        return 0
-    try:
-        resolved_root = video_root.resolve()
-        entries = list(os.scandir(video_root))
-    except OSError:
-        return 0
-
-    removed = 0
-    for entry in entries:
-        path = Path(entry.path)
-        try:
-            if _is_link(path) or not entry.is_dir(follow_symlinks=False):
-                continue
-            if path.resolve().parent != resolved_root:
-                continue
-            marker = path / VIDEO_WORK_OWNER_MARKER
-            if _is_link(marker) or not marker.is_file():
-                continue
-            if marker.read_text(encoding='utf-8').strip() != VIDEO_WORK_OWNER_TOKEN:
-                continue
-            shutil.rmtree(path)
-            removed += 1
-        except OSError:
-            continue
-    return removed
+    return job_files.cleanup_owned_job_dirs(output_dir, VIDEO_WORK_SUBDIR, VIDEO_WORK_OWNER_TOKEN)

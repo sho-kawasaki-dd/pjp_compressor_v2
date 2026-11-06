@@ -458,8 +458,8 @@ def test_plan_video_outputs_avoids_case_insensitive_collisions_in_any_order() ->
     results: set[tuple[tuple[str, str], ...]] = set()
     for ordering in (names, list(reversed(names)), [names[2], names[0], names[3], names[1]]):
         candidates = [candidate(name) for name in ordering]
-        planned = job_runner._plan_video_outputs(candidates, lambda c: c.inpath.suffix != '')
-        by_input = {candidates[i].inpath.name: planned[i].name for i in planned}
+        planned = job_runner._plan_converted_outputs(candidates, lambda c: '.mp4')
+        by_input = {candidates[i].inpath.name: planned[i].outpath.name for i in planned}
         results.add(tuple(sorted(by_input.items())))
 
     assert len(results) == 1

@@ -53,6 +53,29 @@ class ProgressEvent:
 
 
 @dataclass(frozen=True)
+class ImageCompressionConfig:
+    """画像出力の設定。新形式の処理は各機能の実装後に有効化する。"""
+
+    output_format: Literal['original', 'avif'] = 'original'
+    avif_quality: int = 60
+    avif_speed: int = 6
+    avif_include_png: bool = False
+    avif_to_jpeg_compat: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.output_format, str) or self.output_format not in {'original', 'avif'}:
+            raise ValueError(f'unsupported image output format: {self.output_format!r}')
+        if isinstance(self.avif_quality, bool) or not isinstance(self.avif_quality, int) or not 0 <= self.avif_quality <= 100:
+            raise ValueError(f'avif_quality must be an int within 0-100: {self.avif_quality!r}')
+        if isinstance(self.avif_speed, bool) or not isinstance(self.avif_speed, int) or not 0 <= self.avif_speed <= 10:
+            raise ValueError(f'avif_speed must be an int within 0-10: {self.avif_speed!r}')
+        if not isinstance(self.avif_include_png, bool):
+            raise ValueError(f'avif_include_png must be bool: {self.avif_include_png!r}')
+        if not isinstance(self.avif_to_jpeg_compat, bool):
+            raise ValueError(f'avif_to_jpeg_compat must be bool: {self.avif_to_jpeg_compat!r}')
+
+
+@dataclass(frozen=True)
 class VideoCompressionConfig:
     """動画圧縮設定。backend は CRF のみを正とし、UI の品質値は保持しない。"""
 

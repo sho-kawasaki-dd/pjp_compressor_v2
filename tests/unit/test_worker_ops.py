@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from backend.contracts import CapabilityReport, JobControl, VideoCompressionConfig
+from backend.contracts import CapabilityReport, ImageCompressionConfig, JobControl, VideoCompressionConfig
 from backend.core import worker_ops
 from backend.core.video_utils import VideoCompressResult
 
@@ -71,6 +71,34 @@ def test_process_single_file_rejects_video_task_without_required_context(tmp_pat
         worker_ops.process_single_file(
             build_task(source, tmp_path / 'out' / 'clip.mp4', 'mov', *video_extra())
         )
+
+
+@pytest.mark.parametrize(
+    ('input_ext', 'output_ext', 'config'),
+    [
+        ('jpg', 'avif', ImageCompressionConfig(output_format='avif')),
+        ('avif', 'jpg', ImageCompressionConfig(avif_to_jpeg_compat=True)),
+    ],
+)
+def test_new_image_codecs_remain_explicitly_unavailable_until_later_phases(
+    tmp_path: Path,
+    input_ext: str,
+    output_ext: str,
+    config: ImageCompressionConfig,
+) -> None:
+    source = tmp_path / f'photo.{input_ext}'
+    source.write_bytes(b'original')
+    output = tmp_path / 'out' / f'photo.{output_ext}'
+    original = output.parent / source.name
+
+    result = worker_ops.process_single_file(
+        build_task(source, output, input_ext, None, None, str(original), JobControl(), None, None, config, str(tmp_path / 'work'))
+    )
+
+    assert not result.processed and result.final_outpath is None
+    assert result.action_key == 'csv_action_failed'
+    assert 'まだ利用できません' in result.message
+    assert not output.exists() and not original.exists()
 
 
 def test_process_single_file_preserves_hevc_prohibition_in_csv_notes(

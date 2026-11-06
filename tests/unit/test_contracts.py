@@ -8,6 +8,7 @@ from dataclasses import replace
 from backend.contracts import (
     CapabilityReport,
     CompressionRequest,
+    ImageCompressionConfig,
     JobControl,
     ProgressEvent,
     VideoCompressionConfig,
@@ -15,6 +16,35 @@ from backend.contracts import (
 
 
 pytestmark = pytest.mark.unit
+
+
+def test_image_config_defaults_and_bounds() -> None:
+    config = ImageCompressionConfig()
+    assert (config.output_format, config.avif_quality, config.avif_speed) == ('original', 60, 6)
+    assert not config.avif_include_png and not config.avif_to_jpeg_compat
+    assert ImageCompressionConfig(avif_quality=0, avif_speed=10).avif_speed == 10
+    assert ImageCompressionConfig(avif_quality=100, avif_speed=0).avif_quality == 100
+
+
+@pytest.mark.parametrize(
+    'payload',
+    [
+        {'output_format': 'jpeg'},
+        {'output_format': []},
+        {'avif_quality': -1},
+        {'avif_quality': 101},
+        {'avif_quality': True},
+        {'avif_quality': '60'},
+        {'avif_speed': -1},
+        {'avif_speed': 11},
+        {'avif_speed': False},
+        {'avif_include_png': 1},
+        {'avif_to_jpeg_compat': 'yes'},
+    ],
+)
+def test_image_config_rejects_invalid_values(payload: dict) -> None:
+    with pytest.raises(ValueError):
+        ImageCompressionConfig(**payload)
 
 
 def test_video_config_defaults_and_validation() -> None:

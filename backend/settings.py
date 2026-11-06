@@ -50,14 +50,16 @@ VIDEO_ALLOWED_PRESETS = frozenset({
 VIDEO_ALLOWED_AUDIO_MODES = frozenset({'aac', 'copy', 'none'})
 VIDEO_CRF_RANGE = (0, 51)
 
-# 出力フォルダ直下のアプリ専用作業領域（ロックファイルと動画の一時ファイル）。
+# 出力フォルダ直下のアプリ専用作業領域（ロックファイルと画像・動画の一時ファイル）。
 VIDEO_TEMP_PREFIX = '.pjp_tmp_'
 APP_WORK_DIR_NAME = '.pjp_work'
 JOB_LOCK_FILENAME = 'job.lock'
 VIDEO_WORK_SUBDIR = 'video'
+IMAGE_WORK_SUBDIR = 'image'
 # 所有確認用マーカー。これを持つジョブ作業領域だけを残留掃除の対象にする。
 VIDEO_WORK_OWNER_MARKER = '.pjp_owner'
 VIDEO_WORK_OWNER_TOKEN = 'pjp_compressor_video_job_v1'
+IMAGE_WORK_OWNER_TOKEN = 'pjp_compressor_image_job_v1'
 
 # ffprobe の解析・出力検証のタイムアウト（秒）。エンコード自体には固定タイムアウトを設けない。
 VIDEO_PROBE_TIMEOUT_SECONDS = 30

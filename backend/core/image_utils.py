@@ -8,16 +8,44 @@ from __future__ import annotations
 """
 
 import io
+import dataclasses
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, Callable, Literal, Mapping
 
-from PIL import Image, ImageCms
+from PIL import Image, ImageCms, ImageOps
+
+from backend.contracts import ImageCompressionConfig, JobControl
+from backend.core import job_files
+from backend.core.subprocess_utils import sanitize_subprocess_error
+from backend.settings import APP_WORK_DIR_NAME, IMAGE_WORK_OWNER_TOKEN, IMAGE_WORK_SUBDIR
 from shared.locale_catalog import translate
 from shared.runtime_paths import resolve_pngquant_executable
 
 
 MAX_IMAGE_QUALITY = 100
 PNGQUANT_TIMEOUT_SECONDS = 300
+
+
+@dataclass(frozen=True)
+class ImageCompressResult:
+    ok: bool
+    message: str
+    final_outpath: str | None
+    kept_original: bool = False
+    kept_original_reason: Literal['no_gain', 'retention'] | None = None
+    cancelled: bool = False
+    notes: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class ImageEncodeOutcome:
+    """画像エンコーダーが一時出力または元画像の保持を選んだ結果。"""
+
+    message: str
+    retention: bool = False
+    notes: tuple[str, ...] = ()
 
 
 def _append_pngquant_fallback_details(message: str, *, source: str, reason: str, log_language: str) -> str:
@@ -55,8 +83,9 @@ def _convert_cmyk_to_rgb(img: Image.Image) -> tuple[Image.Image, bool]:
             src_profile = ImageCms.ImageCmsProfile(io.BytesIO(icc_profile))
             dst_profile = ImageCms.createProfile('sRGB')
             converted = ImageCms.profileToProfile(img, src_profile, dst_profile, outputMode='RGB')
-            converted.load()
-            return converted, True
+            if converted is not None:
+                converted.load()
+                return converted, True
         except Exception:
             pass
 
@@ -64,6 +93,212 @@ def _convert_cmyk_to_rgb(img: Image.Image) -> tuple[Image.Image, bool]:
     converted = img.convert('RGB')
     converted.load()
     return converted, True
+
+
+def _apply_resize(img: Image.Image, resize_cfg: Mapping[str, Any] | None) -> Image.Image:
+    if not resize_cfg or not resize_cfg.get('enabled'):
+        return img
+    orig_w, orig_h = img.size
+    if resize_cfg.get('mode', 'manual') == 'long_edge':
+        target = int(resize_cfg.get('long_edge', 0) or 0)
+        if target <= 0:
+            return img
+        scale = target / max(orig_w, orig_h)
+        new_w = max(1, int(orig_w * scale))
+        new_h = max(1, int(orig_h * scale))
+    else:
+        w = int(resize_cfg.get('width', 0) or 0)
+        h = int(resize_cfg.get('height', 0) or 0)
+        if w <= 0 and h <= 0:
+            return img
+        if bool(resize_cfg.get('keep_aspect', True)):
+            if w > 0 and h > 0:
+                scale = min(w / orig_w, h / orig_h)
+                new_w = max(1, int(orig_w * scale))
+                new_h = max(1, int(orig_h * scale))
+            elif w > 0:
+                scale = w / orig_w
+                new_w = w
+                new_h = max(1, int(orig_h * scale))
+            else:
+                scale = h / orig_h
+                new_h = h
+                new_w = max(1, int(orig_w * scale))
+        else:
+            new_w = w if w > 0 else orig_w
+            new_h = h if h > 0 else orig_h
+    return img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+
+def _prepare_image_for_conversion(
+    img: Image.Image,
+    resize_cfg: Mapping[str, Any] | None = None,
+) -> tuple[Image.Image, dict[str, bytes]]:
+    """新しい画像経路用に向きと色空間を整え、保存可能なメタデータを返す。"""
+    oriented = ImageOps.exif_transpose(img)
+    exif = oriented.getexif()
+    metadata: dict[str, bytes] = {}
+    if exif:
+        metadata['exif'] = exif.tobytes()
+    icc_profile = oriented.info.get('icc_profile')
+    rgb_source = oriented.mode in {'RGB', 'RGBA', 'RGBX', 'RGBa', 'P', 'PA'}
+    converted, cmyk_converted = _convert_cmyk_to_rgb(oriented)
+    if rgb_source and not cmyk_converted and isinstance(icc_profile, bytes) and icc_profile:
+        metadata['icc_profile'] = icc_profile
+    else:
+        converted.info.pop('icc_profile', None)
+    return _apply_resize(converted, resize_cfg), metadata
+
+
+def converted_image_extension(ext: str, config: ImageCompressionConfig) -> str | None:
+    """設定により画像の拡張子が変わる場合だけ、変換先の拡張子を返す。"""
+    ext = ext.lower().lstrip('.')
+    if config.avif_to_jpeg_compat:
+        return '.jpg' if ext == 'avif' else None
+    if config.output_format == 'avif' and (
+        ext in {'jpg', 'jpeg'} or (ext == 'png' and config.avif_include_png)
+    ):
+        return '.avif'
+    return None
+
+
+def create_image_job_dir(output_dir: str | Path, job_id: str | None = None) -> Path:
+    return job_files.create_owned_job_dir(output_dir, IMAGE_WORK_SUBDIR, IMAGE_WORK_OWNER_TOKEN, job_id)
+
+
+def cleanup_stale_image_temps(output_dir: str | Path) -> int:
+    return job_files.cleanup_owned_job_dirs(output_dir, IMAGE_WORK_SUBDIR, IMAGE_WORK_OWNER_TOKEN)
+
+
+def _validate_image_work_and_destination(temp_dir: Path, dest: Path) -> None:
+    work_root = temp_dir.parent
+    work_dir = work_root.parent
+    if work_root.name != IMAGE_WORK_SUBDIR or work_dir.name != APP_WORK_DIR_NAME:
+        raise OSError(f'not an image job work directory: {temp_dir}')
+    output_root = work_dir.parent
+    job_files.verify_owned_job_dir(output_root, IMAGE_WORK_SUBDIR, temp_dir, IMAGE_WORK_OWNER_TOKEN)
+    resolved_root = output_root.resolve()
+    resolved_parent = dest.parent.resolve()
+    if resolved_parent != resolved_root and resolved_root not in resolved_parent.parents:
+        raise OSError(f'image output is outside the output folder: {dest}')
+    existing_parent = dest.parent
+    while not existing_parent.exists():
+        if existing_parent == existing_parent.parent:
+            raise OSError(f'image output parent does not exist: {dest}')
+        existing_parent = existing_parent.parent
+    if existing_parent.stat().st_dev != temp_dir.stat().st_dev:
+        raise OSError(f'image output is on a different filesystem: {dest}')
+
+
+def place_image_original_copy(
+    inpath: str | Path,
+    dest: str | Path,
+    temp_dir: str | Path,
+    job_control: JobControl,
+    *,
+    log_language: str = 'ja',
+) -> bool:
+    src, target, work = Path(inpath), Path(dest), Path(temp_dir)
+    if job_control.is_cancelled:
+        return False
+    if src.suffix.lower() != target.suffix.lower() or src.resolve() == target.resolve():
+        raise ValueError('original image destination must be distinct and retain the input extension')
+    _validate_image_work_and_destination(work, target)
+    return job_files.place_original_copy(
+        src, target, work, job_control,
+        log_language=log_language, temp_delete_message_key='image_temp_delete_failed',
+    )
+
+
+def save_converted_image(
+    inpath: str | Path,
+    outpath: str | Path,
+    original_outpath: str | Path,
+    *,
+    encode: Callable[[Path], ImageEncodeOutcome],
+    keep_if_not_smaller: bool,
+    job_control: JobControl,
+    temp_dir: Path,
+    log_language: str = 'ja',
+) -> ImageCompressResult:
+    """所有済み一時領域で変換・保持を判定し、停止確認後に正式配置する。"""
+    src, dest, original_dest = Path(inpath), Path(outpath), Path(original_outpath)
+    temps: list[Path] = []
+    notes: tuple[str, ...] = ()
+
+    def t(key: str, **kwargs: Any) -> str:
+        return translate(log_language, key, **kwargs)
+
+    try:
+        if job_control.is_cancelled:
+            raise job_files.JobCancelled()
+        if src.suffix.lower() != original_dest.suffix.lower() or dest.suffix.lower() == src.suffix.lower():
+            raise ValueError('converted and original image destinations must use the correct extensions')
+        if src.resolve() in {dest.resolve(), original_dest.resolve()}:
+            raise ValueError('image output must not overwrite the input')
+        _validate_image_work_and_destination(temp_dir, dest)
+        _validate_image_work_and_destination(temp_dir, original_dest)
+        staged = job_files.temp_path(temp_dir, dest.suffix)
+        temps.append(staged)
+        outcome = encode(staged)
+        notes = outcome.notes
+        if job_control.is_cancelled:
+            raise job_files.JobCancelled()
+
+        reason: Literal['no_gain', 'retention'] | None = 'retention' if outcome.retention else None
+        if reason is None:
+            if not staged.is_file() or staged.stat().st_size == 0:
+                raise OSError('image encoder did not produce an output file')
+            output_size = staged.stat().st_size
+            input_size = src.stat().st_size
+            if keep_if_not_smaller and output_size >= input_size:
+                reason = 'no_gain'
+            elif not keep_if_not_smaller and output_size > input_size and 'size_increased' not in notes:
+                notes = (*notes, 'size_increased')
+
+        if reason is not None:
+            staged_original = job_files.temp_path(temp_dir, '.orig')
+            temps.append(staged_original)
+            try:
+                job_files.copy_with_cancel(src, staged_original, job_control)
+                job_files.publish(staged_original, original_dest, job_control)
+                temps.remove(staged_original)
+            except OSError as exc:
+                detail = sanitize_subprocess_error(str(exc), src, original_dest, staged_original)
+                result = ImageCompressResult(False, t('image_copy_failed', name=src.name, detail=detail), None, notes=notes)
+            else:
+                key = 'image_kept_original_no_gain' if reason == 'no_gain' else 'image_kept_original_retention'
+                result = ImageCompressResult(
+                    True,
+                    t(key, name=src.name),
+                    str(original_dest),
+                    kept_original=True,
+                    kept_original_reason=reason,
+                    notes=notes,
+                )
+        else:
+            try:
+                job_files.publish(staged, dest, job_control)
+                temps.remove(staged)
+            except OSError as exc:
+                detail = sanitize_subprocess_error(str(exc), dest, staged)
+                result = ImageCompressResult(False, t('image_place_failed', name=src.name, detail=detail), None, notes=notes)
+            else:
+                result = ImageCompressResult(True, outcome.message, str(dest), notes=notes)
+    except job_files.JobCancelled:
+        result = ImageCompressResult(False, t('image_cancelled', name=src.name), None, cancelled=True, notes=notes)
+    except Exception as exc:
+        detail = sanitize_subprocess_error(f'{type(exc).__name__}: {exc}', src, dest, original_dest)
+        result = ImageCompressResult(False, t('image_conversion_failed', name=src.name, detail=detail), None, notes=notes)
+
+    failures = job_files.remove_temps(temps, log_language, message_key='image_temp_delete_failed')
+    if failures:
+        result = dataclasses.replace(
+            result,
+            message=' / '.join([result.message, *failures]),
+            notes=(*result.notes, 'temp_delete_failed'),
+        )
+    return result
 
 
 def compress_image_pillow(input_path, output_path, quality, resize_cfg=None, log_language: str = 'ja'):
@@ -84,44 +319,8 @@ def compress_image_pillow(input_path, output_path, quality, resize_cfg=None, log
         img = Image.open(str(input_file))
         img.load()
         # 保存形式や resize ロジックは RGB 系モードの方が安定するため、最上流で吸収する。
-        img, _cmyk_converted = _convert_cmyk_to_rgb(img)
-        if resize_cfg and resize_cfg.get('enabled'):
-            # UI 側では複数の入力形式を許容しているため、ここで mode を見て
-            # 実際のリサイズ戦略へ落とし込む。
-            mode = resize_cfg.get('mode', 'manual')
-            orig_w, orig_h = img.size
-            if mode == 'long_edge':
-                target = int(resize_cfg.get('long_edge', 0) or 0)
-                if target > 0:
-                    # 長辺基準は縦横の向きを問わず同じ UI 設定で扱える点が利点。
-                    long = max(orig_w, orig_h)
-                    scale = target / long
-                    new_w = max(1, int(orig_w * scale))
-                    new_h = max(1, int(orig_h * scale))
-                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-            else:
-                w = int(resize_cfg.get('width', 0) or 0)
-                h = int(resize_cfg.get('height', 0) or 0)
-                keep = bool(resize_cfg.get('keep_aspect', True))
-                if w > 0 or h > 0:
-                    if keep:
-                        # 枠内に収めるモードなので、両方指定時は小さい方の倍率を使う。
-                        if w > 0 and h > 0:
-                            scale = min(w / orig_w, h / orig_h)
-                            new_w = max(1, int(orig_w * scale))
-                            new_h = max(1, int(orig_h * scale))
-                        elif w > 0:
-                            scale = w / orig_w
-                            new_w = w
-                            new_h = max(1, int(orig_h * scale))
-                        else:
-                            scale = h / orig_h
-                            new_h = h
-                            new_w = max(1, int(orig_w * scale))
-                    else:
-                        new_w = w if w > 0 else orig_w
-                        new_h = h if h > 0 else orig_h
-                    img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        img, _ = _convert_cmyk_to_rgb(img)
+        img = _apply_resize(img, resize_cfg)
         img.save(str(output_file), optimize=True, quality=safe_quality)
         msg_extra = ""
         if resize_cfg and resize_cfg.get('enabled'):
@@ -167,41 +366,11 @@ def compress_png_pngquant(input_path, output_path, quality_min, quality_max, spe
                 img = Image.open(str(input_file))
                 img.load()
                 # 量子化用の一時 PNG も RGB 前提で作ることで、CMYK 入力をここで閉じ込める。
-                img, _cmyk_converted = _convert_cmyk_to_rgb(img)
-                mode = resize_cfg.get('mode', 'manual')
-                orig_w, orig_h = img.size
-                if mode == 'long_edge':
-                    target = int(resize_cfg.get('long_edge', 0) or 0)
-                    if target > 0:
-                        long = max(orig_w, orig_h)
-                        scale = target / long
-                        new_w = max(1, int(orig_w * scale))
-                        new_h = max(1, int(orig_h * scale))
-                        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                        resized_wh = (new_w, new_h)
-                else:
-                    w = int(resize_cfg.get('width', 0) or 0)
-                    h = int(resize_cfg.get('height', 0) or 0)
-                    keep = bool(resize_cfg.get('keep_aspect', True))
-                    if w > 0 or h > 0:
-                        if keep:
-                            if w > 0 and h > 0:
-                                scale = min(w / orig_w, h / orig_h)
-                                new_w = max(1, int(orig_w * scale))
-                                new_h = max(1, int(orig_h * scale))
-                            elif w > 0:
-                                scale = w / orig_w
-                                new_w = w
-                                new_h = max(1, int(orig_h * scale))
-                            else:
-                                scale = h / orig_h
-                                new_h = h
-                                new_w = max(1, int(orig_w * scale))
-                        else:
-                            new_w = w if w > 0 else orig_w
-                            new_h = h if h > 0 else orig_h
-                        img = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                        resized_wh = (new_w, new_h)
+                img, _ = _convert_cmyk_to_rgb(img)
+                resized = _apply_resize(img, resize_cfg)
+                if resized is not img:
+                    resized_wh = resized.size
+                img = resized
                 img.save(str(tmp_path), optimize=True)
                 src_path = tmp_path
             except Exception:

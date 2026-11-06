@@ -7,11 +7,17 @@ from __future__ import annotations
 """
 
 from backend.core.image_utils import (
+    ImageCompressResult,
+    ImageEncodeOutcome,
     compress_image_pillow,
     compress_png_pngquant,
+    save_converted_image,
 )
 
 __all__ = [
+    'ImageCompressResult',
+    'ImageEncodeOutcome',
     'compress_image_pillow',
     'compress_png_pngquant',
+    'save_converted_image',
 ]

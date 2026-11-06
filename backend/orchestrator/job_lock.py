@@ -42,8 +42,12 @@ def _hide_path(path: Path) -> None:
 def ensure_app_work_dir(output_root: str | Path) -> Path:
     """出力ルート直下に `.pjp_work/` を作成（隠し属性付与）して返す。"""
     work_dir = Path(output_root) / APP_WORK_DIR_NAME
+    if work_dir.is_symlink() or os.path.isjunction(work_dir):
+        raise OSError(f'work directory is a link: {work_dir}')
     created = not work_dir.exists()
     work_dir.mkdir(parents=True, exist_ok=True)
+    if work_dir.is_symlink() or os.path.isjunction(work_dir):
+        raise OSError(f'work directory is a link: {work_dir}')
     if created:
         _hide_path(work_dir)
     return work_dir
