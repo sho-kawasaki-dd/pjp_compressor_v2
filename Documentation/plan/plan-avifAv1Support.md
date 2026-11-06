@@ -60,6 +60,7 @@
 
 - 画像の作業（フェーズ1〜3）は FFmpeg と関係ないので、フェーズ4 と並行して進められる。
 - **フェーズ4の再承認が下りるまで、フェーズ5・6 の成果物を配布物に入れない。**
+- UI・request の設定正規化に関する D-13・D-14 は、フェーズ2-2・6-1・7-2・7-4 の実装前に確定する。
 
 ---
 
@@ -68,7 +69,7 @@
 AV1 を読めない環境では、変換を始める前に AV1 の入力を見つけて元ファイルを残す。
 
 - [ ] 0-1. [capabilities.py](../../backend/capabilities.py) に `_TRACKED_DECODERS = ('libdav1d', 'libaom-av1')` を追加し、`FfmpegDetection` に `decoders: frozenset[str]` を持たせて `-decoders` の一覧から検出する。結果は [contracts.py](../../backend/contracts.py) の `CapabilityReport` に `av1_decode_available: bool` プロパティ（またはフィールド）として追加する。
-- [ ] 0-2. [video_utils.py](../../backend/core/video_utils.py) の `_compress()` で、HEVC の判定のすぐ後に AV1 の判定を入れる。入力が AV1（`info.contains_av1`）で、かつ `av1_decode_available` が False なら `keep('retention', ['av1_decoder_unavailable'])` を返す。
+- [ ] 0-2. [video_utils.py](../../backend/core/video_utils.py) の `_compress()` で、HEVC の判定のすぐ後に AV1 の判定を入れる。入力が AV1（`info.contains_av1`）で、かつ `av1_decode_available` が False なら `keep('retention', ['av1_decoder_unavailable'])` を返す。フェーズ6で互換変換モードを追加したあとは、互換変換の対象外判定を HEVC・AV1 の保持判定より先に行う（6-2）。
 - [ ] 0-3. `parse_probe_json()` の `MediaInfo` に、`contains_hevc` と同じ形で `contains_av1`（全映像ストリーム対象、フェーズ0のデコード不可判定用）を追加する。フェーズ6の互換変換対象かどうかの判定には、主映像（`info.video is not None and info.video.codec == 'av1'`）を使い分ける。
 - [ ] 0-4. 元ファイルを残した理由 `av1_decoder_unavailable` の表示文言を [ja.json](../../frontend/config_data/locales/ja.json) と [en.json](../../frontend/config_data/locales/en.json) に追加する。
 - [ ] 0-5. テストを追加する: `test_capabilities.py`（デコーダーの検出）、`test_video_utils.py`（AV1 入力で元ファイルが残る）、`test_video_ffmpeg.py`（同梱 FFmpeg で、理由が `av1_decoder_unavailable` になる）。
@@ -83,14 +84,21 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 - [ ] 1-2. 新規経路（AVIF 出力・AVIF→JPEG 互換変換）向けに、EXIF・ICC プロファイル・画像の向きを引き継ぐ helper を追加する（既存の `compress_image_pillow()` には適用せず既存挙動を維持する）。
   - リサイズ前に `ImageOps.exif_transpose(img)` を適用してピクセルを正立させ、Orientation タグがリセットされた `exif` を保存時に渡す（ビューアでの二重回転と、縦横指定リサイズ時の向きずれを防ぐ）。
   - `_convert_cmyk_to_rgb()` で CMYK から RGB に変換した場合（`_cmyk_converted == True`）は、元の CMYK 用 `icc_profile` を破棄し、RGB 画像に CMYK プロファイルが埋め込まれないようにする。もともと RGB 系だった場合のみ `icc_profile` を引き継ぐ。
-- [ ] 1-3. 画像処理の戻り値用に `ImageCompressResult` dataclass（`ok`, `message`, `final_outpath`, `kept_original`, `kept_original_reason: Literal['no_gain', 'retention'] | None`, `notes: tuple[str, ...]`）を追加し、動画の `VideoCompressResult` と同じ2階層の理由管理（`kept_original_reason` + `notes`）に揃える。既存の `(ok, message)` を返す関数は、互換のため残す。
+- [ ] 1-3. 画像処理の戻り値用に `ImageCompressResult` dataclass（`ok`, `message`, `final_outpath`, `kept_original`, `kept_original_reason: Literal['no_gain', 'retention'] | None`, `cancelled: bool`, `notes: tuple[str, ...]`）を追加し、動画の `VideoCompressResult` と同じ2階層の理由管理（`kept_original_reason` + `notes`）に揃える。停止は失敗・保持と区別して返す。既存の `(ok, message)` を返す関数は、互換のため残す。
 - [ ] 1-4. [contracts.py](../../backend/contracts.py) に `ImageCompressionConfig` dataclass（`output_format`, `avif_quality`, `avif_speed`, `avif_include_png`, `avif_to_jpeg_compat`）を追加し、[worker_ops.py](../../backend/core/worker_ops.py) のタスクタプルには個別の設定値を増やすのではなく `ImageCompressionConfig` としてまとめて渡す。画像の結果からも `final_outpath`、`kept_original_reason`、`notes` を受け取り、出力サイズと CSV に反映する。
 - [ ] 1-5. [job_runner.py](../../backend/orchestrator/job_runner.py) の `_plan_video_outputs()` を、拡張子が変わるファイルなら何でも扱える `_plan_converted_outputs()` に一般化する。
   - 変換後の拡張子は、入力の拡張子と設定から決める関数で返す（例: `.jpg→.avif`、`.avif→.jpg`、動画 `→.mp4`）。
   - 元ファイルを残す場合（`kept_original`）に備えて、元と同じ拡張子の出力パス（`original_outpath`）も画像のタスクに持たせ、予約済みパス（`claimed`）に含める。
   - 名前が衝突したら `{stem}_{src_ext}.{target_ext}` 形式で回避する（例: 入力に `photo.jpg` と `photo.avif` が両方あり、AVIF 出力が ON の場合は `photo_jpg.avif`）。
 - [ ] 1-6. 「容量が増えたら元ファイルを残す」および「保持理由により元ファイルを残す」画像用の共通処理を追加する。並列実行（`max(4, cpu_count)`）で競合しないよう `.pjp_tmp_<uuid>` 形式の一時ファイルに書き出し、サイズ比較や保持判定のあとで `JobControl.launch_lock` 内で停止確認を行ってから正式な場所（`outpath` または `original_outpath`）に `replace()` する。起動時の残留一時ファイル掃除の対象にも含める。
+  - 一時ファイルは出力先と同じファイルシステム上の、アプリが所有を確認できる作業領域に置く。異常終了後の掃除は出力排他を取得してから行い、接頭辞だけを根拠に所有不明のファイルを削除しない。
 - [ ] 1-7. テストを追加する: リサイズ helper の切り出しで動作が変わらないこと、EXIF Orientation の二重回転が起きないこと、CMYK 変換時に CMYK ICC が残らないこと、拡張子が変わる出力名の計画と名前の衝突回避。
+- [ ] 1-8. [job_runner.py](../../backend/orchestrator/job_runner.py) の失敗時フォールバックコピーを、動画だけでなく拡張子が変わる画像にも適用する。
+  - ミラー出力（`copy_non_target_files=True`）では、予約済みの `original_outpath` に元拡張子のままコピーする。JPEG の実体を `.avif`、AVIF の実体を `.jpg` として配置しない。
+  - コピーも一時領域を経由し、停止確認と正式配置を `JobControl.launch_lock` 内で行う。停止後はフォールバックコピーを開始せず、中断として扱う。
+  - CSV の出力パスは今回実際に配置したパスだけを記録する。ミラー OFF の失敗、コピー失敗、中断などで配置されなかった場合は空欄にする。
+  - 今回配置されなかった画像では、過去の出力ファイルを今回の成果物や出力サイズとして扱わない。失敗・中断は処理件数と前後サイズの集計から除外する。
+- [ ] 1-9. 新画像経路のテストを追加する: 両方向の変換で保存失敗・正式配置失敗・保持コピー失敗を再現し、ミラー ON / OFF ごとの元拡張子へのコピー、CSV の実出力パス、集計を確認する。停止と正式配置の競合、既存出力の保護、一時ファイルの回収、異常終了後の所有確認付き掃除も検証する。
 
 ---
 
@@ -122,9 +130,16 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
   - 動く AVIF（複数フレーム: `getattr(img, 'is_animated', False)` または `getattr(img, 'n_frames', 1) > 1`）は変換せず、元ファイルを残す（`kept_original_reason='retention'`, `notes=('animated_avif',)`）。
   - Pillow は `Image.open()` 時点で AVIF を 8bit RGB/RGBA にデコードするため、そのまま 8bit JPEG として出力する。`img.info`（ICC プロファイル名やメタデータ等）から HDR / 広色域が判別できた場合はベストエフォートで注記 `hdr_or_high_bitdepth_flattened` を残す。
   - **元より大きくても出力する**。容量が増えた場合は注記 `size_increased` を残す。
-- [ ] 3-3. [worker_ops.py](../../backend/core/worker_ops.py) に `avif` の分岐を追加する。`avif_to_jpeg_compat` が ON のときだけ `.avif` を処理し、`.jpg` / `.jpeg` / `.png` / `.pdf` は対象外のファイル（触らない）として扱う。OFF なら今までどおり `.avif` を対象外のファイルとして扱う。
-- [ ] 3-4. [job_runner.py](../../backend/orchestrator/job_runner.py) で、互換変換（画像または動画）が ON のときは `compressible_extensions` を互換変換の対象拡張子だけに絞る（`avif_to_jpeg_compat` が ON なら `'avif'`、`av1_to_h264_compat` が ON なら `VIDEO_EXTENSIONS` のみとし、`'pdf'`, `'jpg'`, `'jpeg'`, `'png'` は含めない）。
+- [ ] 3-3. [worker_ops.py](../../backend/core/worker_ops.py) に `avif` の分岐と、通常圧縮より先に行う互換変換モードの対象判定を追加する。
+  - ジョブ全体のモード（`avif_to_jpeg_compat or av1_to_h264_compat`）を worker でも参照できるようにし、画像・動画どちらかの互換変換が ON なら `.jpg` / `.jpeg` / `.png` / `.pdf` の通常圧縮を呼ばない。動画互換変換だけが ON の場合も同じとする。
+  - `.avif` は `avif_to_jpeg_compat` が ON のときだけ処理する。OFF なら対象外とする。動画の対象判定は6-2に従う。
+- [ ] 3-4. [job_runner.py](../../backend/orchestrator/job_runner.py) で、互換変換（画像または動画）が ON のときは `compressible_extensions` を互換変換の対象拡張子だけに絞る（`avif_to_jpeg_compat` が ON なら `'avif'`、`av1_to_h264_compat` が ON なら `VIDEO_EXTENSIONS` を含め、両方 ON ならその和集合とする。`'pdf'`, `'jpg'`, `'jpeg'`, `'png'` は含めない）。この集合は拡張子段階の候補判定であり、worker の通常圧縮を止める3-3の分岐や、動画コーデック判定の代わりにはしない。
 - [ ] 3-5. テストを追加する: 容量が増えても出力されること、動く AVIF は元ファイルが残ること、透過が白になること、互換変換 ON のときは JPEG / PNG / PDF には触れず `.avif` のみ変換されること、OFF のとき `.avif` が対象外のファイルとして扱われること。
+- [ ] 3-6. 対象外という判定を、worker からコピー・CSV・集計まで引き継ぐ。
+  - `WorkerFileResult` に `is_non_target: bool` を追加し、未処理の失敗や中断と対象外を区別する。動画コーデック判定による対象外も `VideoCompressResult` から引き継ぐ。
+  - orchestrator は拡張子だけで対象外を再判定せず、worker の確定結果を使う。対象外は `processed=False`、`final_outpath=None`、保持理由なしで返し、元ファイル保持の成功として数えない。
+  - ミラー ON では `csv_action_non_target_copy` として元拡張子へコピーし、`csv_action_fallback_copy` と区別する。ミラー OFF ではファイルを出力せず、ログ・CSV の処理種別も圧縮失敗ではなく対象外スキップとして明示する（`csv_action_non_target_skip` を追加）。コピー失敗は明示的な失敗として記録する。
+  - 対象外はミラーコピーの有無によらず `processed_files`・`orig_total`・`out_total` に含めない。進捗は対象外も1件として完了させる。
 
 ---
 
@@ -176,22 +191,28 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 
 - [ ] 6-1. `VideoCompressionConfig` に `av1_to_h264_compat: bool` を追加する。既定は False。エンコードには既存の x264 の CRF とプリセットを使う（`av1_to_h264_compat=True` のときは `codec == 'libx264'` であることを契約で保証する）。
 - [ ] 6-2. [video_utils.py](../../backend/core/video_utils.py) の `_compress()` で、主映像（`info.video`）のコーデックと設定に応じて次のとおり処理する。
+  - ffprobe の解析後、互換変換モードの対象外判定を最初に行い、その後に対象ファイルの HEVC・AV1 デコード不可・保持条件を判定する。主映像が AV1 でない動画（主映像なしを含む）は、HEVC を含む場合や副映像だけが AV1 の場合も対象外として返す。ffprobe の起動・解析失敗は対象外と決めつけず、明示的な失敗として返す。
 
   | 入力（主映像） | 条件 | 動作 |
   |---|---|---|
-  | AV1（または `contains_av1`） | AV1 を読めない | 元ファイルを残す（`av1_decoder_unavailable`。フェーズ0） |
+  | AV1 以外（主映像なしを含む） | **互換変換 ON** | **最初に対象外として返す。保持処理やエンコードは行わない（`copy_non_target_files` が ON のときだけ orchestrator で無変換コピー）** |
+  | AV1（通常圧縮では `contains_av1` も対象） | 対象外ではなく、AV1 を読めない | 元ファイルを残す（`av1_decoder_unavailable`。フェーズ0。HEVC も含む場合は既存の HEVC 保持判定を優先） |
   | AV1 | 互換変換 ON、8bit以下、SDR、色域がBT.709または未指定 | x264 で出力する。音声・字幕などを保持できるかの判定と、出力の検証は行う。**元より小さいかどうかの判定だけ省く** |
   | AV1 | 互換変換 ON、10bit SDR、色域がBT.709または未指定 | 10bitから8bitへディザを用いて変換し、x264で出力する。注記 `bit_depth_reduced=10->8` を記録する |
   | AV1 | 互換変換 ON、HDR / 色域がBT.2020等 / 12bit以上 | トーンマッピング等は行わず、元ファイルを残す |
   | AV1 | 互換変換 OFF | 選んだコーデックで、通常の圧縮として扱う |
-  | AV1 以外 | **互換変換 ON** | **変換せず対象外のファイルとしてスキップする（触らない。`copy_non_target_files` が ON のときだけ無変換でコピー）** |
   | AV1 以外 | 互換変換 OFF | 今までと同じ（通常の動画圧縮） |
 
 - [ ] 6-3. `VideoStreamInfo` に `color_primaries`、`color_transfer`、`color_space` を追加し、10bit SDR の許可条件を実装する。互換変換が ON の場合に限り、ビット深度が10bitで、HDR（PQ / HLG / Dolby Vision等）ではなく、3つの色特性がいずれも `{'bt709', 'unknown', 'unspecified', None}` に収まる入力を8bit変換の対象にする。12bit以上、HDR、`bt2020nc` 等の広色域は `retention` とする。通常の圧縮とAV1出力では、従来どおり8bitを超える入力を許可しない。
-- [ ] 6-4. 10bit SDRから8bitへの変換時は、`-vf` の scale にディザ有効フラグ（`flags=bicubic+accurate_rnd+full_chroma_int` 等）と `,format=yuv420p` を適用し、出力引数に `-color_primaries bt709 -color_trc bt709 -colorspace bt709` を明示する。ffprobe（`verify_output()`）で出力の画素形式（`yuv420p`）と色特性（BT.709）を確認し、出力検証に含める。入力の色特性が未指定の場合のBT.709扱いもテストで固定する。
+- [ ] 6-4. 10bit SDRから8bitへの変換時は、`-vf` の scale にディザ方式を明示し（候補: `sws_dither=ed`）、`,format=yuv420p` を適用する。
+  - `accurate_rnd` は丸め精度、`full_chroma_int` はクロマ補間の指定であり、ディザ方式の指定として扱わない（[FFmpeg scaler 公式仕様](https://ffmpeg.org/ffmpeg-scaler.html)）。
+  - フェーズ4で固定したビルドで候補方式の対応状況と実際の画素変換を確認し、採用方式を確定する。既存のリサイズ・偶数丸めのフィルターと統合し、ディザを指定した変換より前に暗黙の8bit化が起きないようにする。
+  - 出力引数に `-color_primaries bt709 -color_trc bt709 -colorspace bt709` を明示する。ffprobe（`verify_output()`）で出力の画素形式（`yuv420p`）と色特性（BT.709）を確認し、入力の色特性が未指定の場合のBT.709扱いもテストで固定する。
+  - ffprobe の画素形式・色タグ検証はディザ実施の証明にはしない。10bit グラデーション素材を実変換し、エンコード前の8bit変換画素をディザ無効時と比較して、採用方式による量子化の違いを検証する。圧縮後の映像でも階調の見え方を確認する。
 - [ ] 6-5. 動画の互換変換が OFF で画像の互換変換（`avif_to_jpeg_compat`）だけが ON のときは、動画ファイル自体を処理対象から外し、動画には一切触らないようにする。
 - [ ] 6-6. 互換変換で出力したら、結果の注記に `compat_conversion` を入れる。容量が増えた場合は `size_increased` も入れる。10bit SDRを8bitにした場合は `bit_depth_reduced=10->8` も記録する。
 - [ ] 6-7. テストを追加する: 容量が増えても出力されること、10bit SDRが8bitで変換されBT.709タグを持つこと、10bit HDR・BT.2020・12bit入力は互換変換 ON でも元ファイルが残ること、**互換変換 ON のとき AV1 以外の動画（H.264 等）には触れない（エンコードされない）こと**、互換変換 OFFでは従来どおり8bit超の入力が保持されること。
+  - H.264、HEVC、主映像が非AV1で副映像だけが AV1、主映像なしの各入力で、保持処理も呼ばれず対象外になることを確認する。ミラー OFF ではファイルが出力されず、ON では対象外コピーになり、集計から除外されることまで検証する。
 
 ---
 
@@ -204,8 +225,11 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
   - PNG も対象にするか
   - 対象: [ui_tkinter_view.py](../../frontend/ui_tkinter_view.py)、[ui_tkinter_state.py](../../frontend/ui_tkinter_state.py)、[ui_contracts.py](../../frontend/ui_contracts.py)、[ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py)
 - [ ] 7-2. 画像の設定にチェックボックス「AVIF を JPEG に変換（互換性優先・容量が増える場合あり）」を追加する。ON のときは画像の出力形式（AVIF出力）や PNG 圧縮設定をグレーアウトする。
+  - D-13を先に確定し、「AVIF出力を選択 → 画像互換変換 ON」でも、無効化された値がそのまま request に残って2-2の契約違反にならないようにする。UI 表示値と実効値の変換は [ui_tkinter_mapper.py](../../frontend/ui_tkinter_mapper.py) の request 生成経路で整合させ、backend の契約検証は残す。
 - [ ] 7-3. 動画の設定で、固定表示のコーデック欄（`video_codec_label`）を、H.264 / AV1 を選べるコンボボックスに変える。コーデックに合わせて、品質の目安表示（CRF）とプリセットの選択肢を切り替える。
 - [ ] 7-4. 動画の設定にチェックボックス「AV1 動画を H.264 に変換（互換性優先・容量が増える場合あり）」を追加する。画像・動画の互換変換は別々に ON / OFF でき、いずれかの互換変換が ON のときは、非対象の通常圧縮設定（PDF 設定、互換変換 OFF 側のカテゴリ設定、AV1 出力コーデック選択など）をグレーアウトして「互換変換の対象ファイルのみ処理される」ことが分かるようにする。
+  - D-14を先に確定し、動画の `enabled=False` または `video_config=None` と、動画互換変換 ON の関係を UI・mapper・backend 契約で揃える。互換変換を選んだのに mapper が設定を破棄して通常モードになる状態を作らない。
+  - 互換変換の ON → OFF、画像・動画両方の切替、動画コーデック切替、利用不可環境、保存設定の読み込みについて、表示・操作可否・request の実効値が一致することをテストする。能力不足で要求を実行できない場合は、通常圧縮へ黙って切り替えず理由を通知する。
 - [ ] 7-5. その環境で使えない機能は、押せないようにして理由をツールチップで示す。判定に使う項目は次のとおり。
   - `avif_available`
   - `libsvtav1` が使えるか（`av1_encode_available`）
@@ -214,7 +238,7 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 - [ ] 7-7. 設定の保存と読み込みがあれば、新しい項目を加え、古い設定ファイルを読んだときは既定値を使う。
 
 ### CSV・ログ・翻訳文
-- [ ] 7-8. CSV の処理種別を追加する: `csv_action_avif`、`csv_action_compat_jpeg`、`csv_action_compat_h264`、`csv_action_image_kept_original`（画像 `no_gain` 用）、`csv_action_image_kept_retention`（画像 `retention` 用）。
+- [ ] 7-8. CSV の処理種別を追加する: `csv_action_avif`、`csv_action_compat_jpeg`、`csv_action_compat_h264`、`csv_action_image_kept_original`（画像 `no_gain` 用）、`csv_action_image_kept_retention`（画像 `retention` 用）、`csv_action_non_target_skip`。対象外コピーは既存の `csv_action_non_target_copy`、変換失敗時のコピーは `csv_action_fallback_copy` を使い分ける。
 - [ ] 7-9. 完了画面の集計には、互換変換で出力したファイルも処理件数（`processed_files`）と前後サイズ（`orig_total`・`out_total`）に含める。互換変換によって合計サイズが増えた場合（`saved < 0`）は、完了ステータスや統計サマリーで「削減」ではなく既存の `worker_size_delta_grown` と同様に「増加」と分かる表示にする。
 - [ ] 7-10. 追加したすべての文言を [ja.json](../../frontend/config_data/locales/ja.json) と [en.json](../../frontend/config_data/locales/en.json) の両方に入れる。
 
@@ -241,12 +265,16 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
   - 出力した AVIF と AV1 の MP4 が、Windows のフォトアプリとブラウザーで開ける。
   - 互換変換で出力した JPEG と H.264 の MP4 が、古い端末で開ける。
 - [ ] 8-7. インストーラーに、追加したライセンス文が入っていることを確認する。
+- [ ] 8-8. 画像・動画の互換変換4状態 × ミラー ON / OFF の8通りで統合テストを行う。PDF・JPEG・PNG・AVIF・AV1動画・H.264動画・HEVC動画を混在させ、呼び出された処理、実際の出力ファイルと拡張子、CSV の処理種別・出力パス、処理件数・前後サイズ、進捗を検証する。通常設定に AVIF / AV1 出力が残っている場合も、互換変換中は通常圧縮が走らないことを確認する。
+- [ ] 8-9. 新画像経路の失敗・停止・再実行テスト（1-9）を行い、過去の出力を今回の成功やサイズとして数えず、停止後に配置・フォールバックコピーされず、一時ファイルが安全に回収されることを確認する。
+- [ ] 8-10. 新しい FFmpeg で10bit グラデーションの実変換テスト（6-4）を行う。ディザの画素検証と、ffprobe による8bit・BT.709タグ検証を別々の合格条件とし、固定ビルドと採用方式を記録する。
+- [ ] 8-11. AVIF エンコードのCPU使用率・ピークメモリ・処理時間を、画像複数枚と画像/PDF/動画の混在入力で測定する。Pillow の AVIF エンコーダーも既定でCPU数相当のスレッドを使うため、画像 worker 数との積による過剰並列を確認し、必要なら保存時の `max_threads` または新経路の同時実行数を制限する。既存 JPEG / PNG の並列動作は不用意に変更しない。
 
 ---
 
 ## フェーズ9: リリース
 
-- [ ] 9-1. フェーズ0〜8の実装と検証が完了したら、アプリを v2.8.0 としてリリースする。
+- [ ] 9-1. D-13・D-14を含む実装前の決定事項が確定し、フェーズ0〜8の実装と検証が完了したら、アプリを v2.8.0 としてリリースする。
 
 ---
 
@@ -264,6 +292,8 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 - [x] D-10. 今回のスコープ外: AVIF→AVIF の再圧縮（リサイズだけする場合も含む）、WebP の出力、動く AVIF の変換。
 - [x] D-11. AV1→H.264互換変換に限り、10bit SDRをディザ付きで8bitに変換する。HDR（PQ / HLG / Dolby Vision等）、BT.2020等の広色域、12bit以上はトーンマッピングや色変換を行わず元ファイルを残す。変換後は8bit `yuv420p` / BT.709とし、注記を記録する。
 - [x] D-12. 完了画面の集計には互換変換で出力したファイルも件数・前後サイズともに含め、互換変換で合計サイズが増加した場合（`saved < 0`）は「削減」ではなく「増加」として表示する（A案）。
+- [ ] D-13. 画像互換変換 ON 時の出力形式の正規化方法を確定する。候補は「UI の値自体を `original` に変更する」または「通常圧縮用の選択値を保持し、mapper で request の実効値だけ `original` にする」。OFF に戻したときの復元方針も合わせて決め、2-2・7-2の実装前に記録する。
+- [ ] D-14. 動画互換変換と既存の動画有効設定の関係を確定する。候補は「動画が有効なときだけ互換変換を ON にでき、無効化時は互換変換も OFF にする」または「互換変換 ON の操作で動画も有効にする」。`enabled=False` / `video_config=None` との矛盾を request 生成時と backend 契約でどう防ぐかを含め、6-1・7-4の実装前に記録する。AV1出力選択時の排他条件はD-4を維持する。
 
 ## 未確定の論点
 
@@ -273,6 +303,8 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
    - 対象の10bit SDRは、色域がBT.709または未指定の入力に限る。
 2. **SVT-AV1 の既定値（CRF、プリセット）は、フェーズ8-5 で測った結果を見て決める。** 現時点の値は仮置きとする。
 3. **AV1 出力の処理時間が許容範囲かを確認する。** 動画は1本ずつ処理するので並列化による遅延は無いが、長い動画では数倍の時間がかかる可能性がある。
+4. **UI のモード切替と request 正規化の仕様を実装前に確定する。** D-13・D-14が未確定のため、該当する契約・UI の実装にはまだ着手しない。
+5. **ディザ方式と AVIF の並列度を実測で確定する。** ディザは6-4・8-10、AVIF のCPU・メモリ上限に関わる並列度は8-11で確認し、採用設定と測定結果を記録する。
 
 ## 変更履歴
 
@@ -281,3 +313,4 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 | 2026-11-06 | 初版を作成 |
 | 2026-11-06 | AV1→H.264互換変換では10bit SDRのみ8bit化して許可し、HDR・広色域・12bit以上は元ファイルを残す方針を反映 |
 | 2026-11-06 | レビュー結果を反映: 互換変換ON時は対象ファイルのみ処理し対象外には触らない方針（画像・動画個別設定）、EXIF/ICC引き継ぎの安全化、完了画面集計のA案、FFmpegビルド要件（CMake/Meson/Ninja）と契約検証を明記 |
+| 2026-11-06 | 追加レビューを反映: workerからCSV・コピー・集計までの対象外判定、動画の判定順序、画像失敗時の元拡張子コピーと停止・既存出力保護、明示的なディザ指定と画素検証を追加。UI設定正規化を実装前の未決事項D-13・D-14として整理し、互換変換8通りの統合テストとAVIFのCPU・メモリ測定を追記 |
