@@ -68,11 +68,12 @@
 
 AV1 を読めない環境では、変換を始める前に AV1 の入力を見つけて元ファイルを残す。
 
-- [ ] 0-1. [capabilities.py](../../backend/capabilities.py) に `_TRACKED_DECODERS = ('libdav1d', 'libaom-av1')` を追加し、`FfmpegDetection` に `decoders: frozenset[str]` を持たせて `-decoders` の一覧から検出する。結果は [contracts.py](../../backend/contracts.py) の `CapabilityReport` に `av1_decode_available: bool` プロパティ（またはフィールド）として追加する。
-- [ ] 0-2. [video_utils.py](../../backend/core/video_utils.py) の `_compress()` で、HEVC の判定のすぐ後に AV1 の判定を入れる。入力が AV1（`info.contains_av1`）で、かつ `av1_decode_available` が False なら `keep('retention', ['av1_decoder_unavailable'])` を返す。フェーズ6で互換変換モードを追加したあとは、互換変換の対象外判定を HEVC・AV1 の保持判定より先に行う（6-2）。
-- [ ] 0-3. `parse_probe_json()` の `MediaInfo` に、`contains_hevc` と同じ形で `contains_av1`（全映像ストリーム対象、フェーズ0のデコード不可判定用）を追加する。フェーズ6の互換変換対象かどうかの判定には、主映像（`info.video is not None and info.video.codec == 'av1'`）を使い分ける。
-- [ ] 0-4. 元ファイルを残した理由 `av1_decoder_unavailable` の表示文言を [ja.json](../../frontend/config_data/locales/ja.json) と [en.json](../../frontend/config_data/locales/en.json) に追加する。
-- [ ] 0-5. テストを追加する: `test_capabilities.py`（デコーダーの検出）、`test_video_utils.py`（AV1 入力で元ファイルが残る）、`test_video_ffmpeg.py`（同梱 FFmpeg で、理由が `av1_decoder_unavailable` になる）。
+- [x] 0-1. [capabilities.py](../../backend/capabilities.py) に `_TRACKED_DECODERS = ('libdav1d', 'libaom-av1')` を追加し、`FfmpegDetection` に `decoders: frozenset[str]` を持たせて `-decoders` の一覧から検出する。結果は [contracts.py](../../backend/contracts.py) の `CapabilityReport` に `av1_decode_available: bool` プロパティ（またはフィールド）として追加する。
+  - `-decoders` の取得失敗は別途記録し、AV1 以外の動画処理は継続する。AV1 入力は安全側で元ファイルを維持し、検出失敗の詳細も表示する。
+- [x] 0-2. [video_utils.py](../../backend/core/video_utils.py) の `_compress()` で、HEVC の判定のすぐ後に AV1 の判定を入れる。入力が AV1（`info.contains_av1`）で、かつ `av1_decode_available` が False なら `keep('retention', ['av1_decoder_unavailable'])` を返す（デコーダー検出失敗時は失敗理由も追加する）。フェーズ6で互換変換モードを追加したあとは、互換変換の対象外判定を HEVC・AV1 の保持判定より先に行う（6-2）。
+- [x] 0-3. `parse_probe_json()` の `MediaInfo` に、`contains_hevc` と同じ形で `contains_av1`（全映像ストリーム対象、フェーズ0のデコード不可判定用）を追加する。フェーズ6の互換変換対象かどうかの判定には、主映像（`info.video is not None and info.video.codec == 'av1'`）を使い分ける。
+- [x] 0-4. 元ファイルを残した理由 `av1_decoder_unavailable` の表示文言を [ja.json](../../frontend/config_data/locales/ja.json) と [en.json](../../frontend/config_data/locales/en.json) に追加する。
+- [x] 0-5. テストを追加する: `test_capabilities.py`（デコーダーの検出）、`test_video_utils.py`（AV1 入力で元ファイルが残る）、`test_video_ffmpeg.py`（同梱 FFmpeg で、理由が `av1_decoder_unavailable` になる）。
 
 ---
 
@@ -314,3 +315,4 @@ AVIF 出力と AVIF→JPEG はどちらも拡張子が変わり、「元ファ�
 | 2026-11-06 | AV1→H.264互換変換では10bit SDRのみ8bit化して許可し、HDR・広色域・12bit以上は元ファイルを残す方針を反映 |
 | 2026-11-06 | レビュー結果を反映: 互換変換ON時は対象ファイルのみ処理し対象外には触らない方針（画像・動画個別設定）、EXIF/ICC引き継ぎの安全化、完了画面集計のA案、FFmpegビルド要件（CMake/Meson/Ninja）と契約検証を明記 |
 | 2026-11-06 | 追加レビューを反映: workerからCSV・コピー・集計までの対象外判定、動画の判定順序、画像失敗時の元拡張子コピーと停止・既存出力保護、明示的なディザ指定と画素検証を追加。UI設定正規化を実装前の未決事項D-13・D-14として整理し、互換変換8通りの統合テストとAVIFのCPU・メモリ測定を追記 |
+| 2026-11-06 | フェーズ0を実装。デコーダー検出失敗時は詳細を通知し、AV1以外の動画処理を継続する方針を追加 |

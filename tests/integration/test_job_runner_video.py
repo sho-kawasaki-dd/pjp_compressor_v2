@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import threading
 from concurrent.futures import Future
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -142,6 +143,22 @@ def test_job_uses_one_capability_report_for_summary_and_worker(harness: JobHarne
 
     assert detections == [VIDEO_CAPS] and seen_by_worker == [VIDEO_CAPS]
     assert any('ffmpeg:system' in message and 'ffprobe:system' in message for message in harness.logs)
+
+
+def test_decoder_detection_error_is_logged_without_blocking_other_video(
+    harness: JobHarness, sample_paths, monkeypatch,
+) -> None:
+    write_video(sample_paths.input_dir / 'clip.mov')
+    error = 'ffmpeg -decoders timed out'
+    report = replace(VIDEO_CAPS, ffmpeg_decoder_detection_error=error)
+    monkeypatch.setattr(job_runner, 'detect_capabilities', lambda: report)
+    calls = install_fake_compress(monkeypatch, compress_ok)
+
+    harness.run(video_config=VideoCompressionConfig())
+
+    assert calls == ['clip.mov']
+    assert any(error in message for message in harness.logs)
+    assert (sample_paths.output_dir / 'clip.mp4').is_file()
 
 
 def test_video_events_distinguish_started_updated_and_finished(harness: JobHarness, sample_paths, monkeypatch) -> None:

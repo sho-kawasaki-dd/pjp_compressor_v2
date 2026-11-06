@@ -161,7 +161,10 @@ def _tool_detection_summary(catalog: dict[str, str], report: CapabilityReport) -
         catalog.get('capability_pikepdf_ok', 'pikepdf:OK') if report.pikepdf_available else catalog.get('capability_pikepdf_missing', 'pikepdf:なし'),
         f"{catalog.get('capability_ghostscript_label', 'Ghostscript=')}{catalog.get(f'tool_source.{report.ghostscript_source}', describe_tool_source(report.ghostscript_source))}",
         f"{catalog.get('capability_pngquant_label', 'pngquant:')}{catalog.get(f'tool_source.{report.pngquant_source}', describe_tool_source(report.pngquant_source))}",
-        _video_tool_part(catalog, 'capability_ffmpeg_label', 'ffmpeg:', report.ffmpeg_source, report.ffmpeg_detection_error),
+        _video_tool_part(
+            catalog, 'capability_ffmpeg_label', 'ffmpeg:', report.ffmpeg_source,
+            report.ffmpeg_detection_error or report.ffmpeg_decoder_detection_error,
+        ),
         _video_tool_part(catalog, 'capability_ffprobe_label', 'ffprobe:', report.ffprobe_source, report.ffprobe_detection_error),
     ]
     return _format_message(catalog, 'log_dependency_detection_summary', parts=', '.join(parts))

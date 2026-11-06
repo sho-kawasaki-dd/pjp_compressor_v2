@@ -69,6 +69,7 @@ def test_detect_capabilities_handles_missing_optional_dependencies(monkeypatch: 
     assert report.pngquant_source == 'system'
     assert report.ffmpeg_source == 'unavailable'
     assert report.video_available is False
+    assert report.av1_decode_available is False
 
 
 ENCODERS_OUTPUT = """Encoders:
@@ -78,6 +79,14 @@ ENCODERS_OUTPUT = """Encoders:
  V....D libx265              libx265 H.265 / HEVC (codec hevc)
  A....D aac                  AAC (Advanced Audio Coding)
  A....D libmp3lame           libmp3lame MP3
+"""
+
+DECODERS_OUTPUT = """Decoders:
+ V..... = Video
+ ------
+ V....D av1                  Alliance for Open Media AV1
+ V..... libdav1d             dav1d AV1 decoder (codec av1)
+ V....D libaom-av1           libaom AV1 (codec av1)
 """
 
 
@@ -97,10 +106,14 @@ def _patch_tools(monkeypatch: pytest.MonkeyPatch, run) -> list[list[str]]:
     return calls
 
 
-def test_detect_ffmpeg_collects_encoders_and_caches(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_detect_ffmpeg_collects_encoders_and_decoders_and_caches(monkeypatch: pytest.MonkeyPatch) -> None:
     def run(command, **kwargs):
         assert kwargs['timeout'] == 10
-        return _completed(stdout=ENCODERS_OUTPUT if '-encoders' in command else 'ffprobe version 7')
+        if '-encoders' in command:
+            return _completed(stdout=ENCODERS_OUTPUT)
+        if '-decoders' in command:
+            return _completed(stdout=DECODERS_OUTPUT)
+        return _completed(stdout='ffprobe version 7')
 
     calls = _patch_tools(monkeypatch, run)
 
@@ -110,8 +123,70 @@ def test_detect_ffmpeg_collects_encoders_and_caches(monkeypatch: pytest.MonkeyPa
     assert first.ffmpeg_encoders == frozenset({'libx264', 'aac'})
     assert first.ffmpeg_available and first.ffprobe_available and first.video_available
     assert first.ffmpeg_source == 'system' and first.ffprobe_source == 'system'
+    assert first.av1_decode_available is True
+    assert capabilities._detect_ffmpeg().decoders == frozenset({'libdav1d', 'libaom-av1'})
     assert second.ffmpeg_path == first.ffmpeg_path
-    assert len(calls) == 2  # ffmpeg -encoders と ffprobe -version が各1回だけ
+    assert len(calls) == 3  # ffmpeg -encoders / -decoders と ffprobe -version が各1回だけ
+
+
+@pytest.mark.parametrize(
+    ('decoder_output', 'expected'),
+    [
+        (' V..... libdav1d dav1d\n', frozenset({'libdav1d'})),
+        (' V....D libaom-av1 libaom\n', frozenset({'libaom-av1'})),
+        (DECODERS_OUTPUT, frozenset({'libdav1d', 'libaom-av1'})),
+        (' V....D av1 builtin\n V..... av1_qsv hardware\n', frozenset()),
+        (' V.... libdav1d invalid-flags\n V..... libdav1d_extra other\n', frozenset()),
+    ],
+)
+def test_detect_ffmpeg_tracks_only_software_av1_decoders(
+    monkeypatch: pytest.MonkeyPatch, decoder_output: str, expected: frozenset[str],
+) -> None:
+    def run(command, **kwargs):
+        if '-encoders' in command:
+            return _completed(stdout=ENCODERS_OUTPUT)
+        if '-decoders' in command:
+            return _completed(stdout=decoder_output)
+        return _completed(stdout='ffprobe version')
+
+    _patch_tools(monkeypatch, run)
+
+    report = capabilities.detect_capabilities()
+
+    assert capabilities._detect_ffmpeg().decoders == expected
+    assert report.av1_decode_available is bool(expected)
+    assert report.video_available
+
+
+@pytest.mark.parametrize('failure', ['exit', 'exit-no-details', 'timeout', 'start'])
+def test_decoder_probe_failure_is_reported_without_disabling_other_video(
+    monkeypatch: pytest.MonkeyPatch, failure: str,
+) -> None:
+    def run(command, **kwargs):
+        if '-encoders' in command:
+            return _completed(stdout=ENCODERS_OUTPUT)
+        if '-decoders' in command:
+            if failure == 'timeout':
+                raise subprocess.TimeoutExpired(command, 10)
+            if failure == 'start':
+                raise OSError('C:/ff/ffmpeg.exe: decoder probe could not start')
+            if failure == 'exit-no-details':
+                return _completed(returncode=23)
+            return _completed(returncode=1, stderr='C:/ff/ffmpeg.exe: decoder probe failed')
+        return _completed(stdout='ffprobe version')
+
+    _patch_tools(monkeypatch, run)
+
+    report = capabilities.detect_capabilities()
+
+    assert report.video_available and report.ffmpeg_detection_error is None
+    assert report.av1_decode_available is False
+    assert capabilities._detect_ffmpeg().decoders == frozenset()
+    assert report.ffmpeg_decoder_detection_error is not None
+    assert 'ffmpeg -decoders' in report.ffmpeg_decoder_detection_error
+    assert 'C:/ff/' not in report.ffmpeg_decoder_detection_error
+    if failure == 'exit-no-details':
+        assert 'ffmpeg_exit_23' in report.ffmpeg_decoder_detection_error
 
 
 def test_detect_ffmpeg_ignores_hevc_encoders(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -128,6 +203,8 @@ def test_detect_ffprobe_failure_keeps_sanitized_reason(monkeypatch: pytest.Monke
     def run(command, **kwargs):
         if '-encoders' in command:
             return _completed(stdout=ENCODERS_OUTPUT)
+        if '-decoders' in command:
+            return _completed(stdout=DECODERS_OUTPUT)
         return _completed(returncode=1, stderr='C:/ff/ffprobe.exe: bad dll\n')
 
     _patch_tools(monkeypatch, run)
@@ -156,6 +233,25 @@ def test_detect_ffmpeg_start_failure_and_timeout_are_reported(monkeypatch: pytes
     assert report.ffmpeg_encoders == frozenset()
     assert 'timed out' in (report.ffprobe_detection_error or '')
     assert report.ffprobe_available is False
+
+
+def test_encoder_probe_failure_is_reported_and_does_not_probe_decoders(monkeypatch: pytest.MonkeyPatch) -> None:
+    def run(command, **kwargs):
+        if '-encoders' in command:
+            return _completed(returncode=1, stderr='C:/ff/ffmpeg.exe: encoder probe failed')
+        assert '-decoders' not in command
+        return _completed(stdout='ffprobe version')
+
+    calls = _patch_tools(monkeypatch, run)
+
+    report = capabilities.detect_capabilities()
+
+    assert not report.video_available and not report.av1_decode_available
+    assert report.ffmpeg_detection_error is not None
+    assert 'ffmpeg -encoders' in report.ffmpeg_detection_error
+    assert 'C:/ff/' not in report.ffmpeg_detection_error
+    assert report.ffmpeg_decoder_detection_error is None
+    assert not any('-decoders' in command for command in calls)
 
 
 def test_ffmpeg_resolves_to_bundled_x264_only_build_when_system_missing(
@@ -196,17 +292,29 @@ def test_ffprobe_resolves_to_bundled_x264_only_build_when_system_missing(
 
 def test_clearing_video_tool_cache_rechecks_both_tools(monkeypatch: pytest.MonkeyPatch) -> None:
     encoder_output = ENCODERS_OUTPUT
+    decoder_output = DECODERS_OUTPUT
 
     def run(command, **kwargs):
-        return _completed(stdout=encoder_output if '-encoders' in command else 'ffprobe version')
+        if '-encoders' in command:
+            return _completed(stdout=encoder_output)
+        if '-decoders' in command:
+            return _completed(stdout=decoder_output)
+        return _completed(stdout='ffprobe version')
 
     calls = _patch_tools(monkeypatch, run)
-    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264', 'aac'})
+    first = capabilities.detect_capabilities()
+    assert first.ffmpeg_encoders == frozenset({'libx264', 'aac'})
+    assert first.av1_decode_available
     encoder_output = ' V....D libx264 libx264 H.264\n'
-    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264', 'aac'})
-    assert len(calls) == 2
+    decoder_output = ' V....D av1 builtin\n'
+    cached = capabilities.detect_capabilities()
+    assert cached.ffmpeg_encoders == frozenset({'libx264', 'aac'})
+    assert cached.av1_decode_available
+    assert len(calls) == 3
 
     capabilities.clear_video_tool_cache()
 
-    assert capabilities.detect_capabilities().ffmpeg_encoders == frozenset({'libx264'})
-    assert len(calls) == 4
+    refreshed = capabilities.detect_capabilities()
+    assert refreshed.ffmpeg_encoders == frozenset({'libx264'})
+    assert refreshed.av1_decode_available is False
+    assert len(calls) == 6

@@ -175,6 +175,7 @@ class MediaInfo:
     chapters: tuple[ChapterInfo, ...]
     format_tags: dict[str, str]
     contains_hevc: bool = False
+    contains_av1: bool = False
 
 
 @dataclass(frozen=True)
@@ -321,6 +322,7 @@ def parse_probe_json(payload: Any) -> MediaInfo:
     data: list[DataStreamInfo] = []
     attachments = 0
     contains_hevc = False
+    contains_av1 = False
 
     for position, stream in enumerate(streams):
         index = _to_int(stream.get('index'))
@@ -335,6 +337,7 @@ def parse_probe_json(payload: Any) -> MediaInfo:
             if normalized_codec in {'', 'none', 'unknown'}:
                 raise ValueError(f'video stream {index} has no codec name')
             contains_hevc = contains_hevc or normalized_codec == 'hevc'
+            contains_av1 = contains_av1 or normalized_codec == 'av1'
             disposition = stream.get('disposition')
             if isinstance(disposition, dict) and disposition.get('attached_pic'):
                 continue  # カバーアートは保持対象外
@@ -402,6 +405,7 @@ def parse_probe_json(payload: Any) -> MediaInfo:
         chapters=tuple(chapters),
         format_tags=_tags_of(fmt),
         contains_hevc=contains_hevc,
+        contains_av1=contains_av1,
     )
 
 
@@ -971,6 +975,13 @@ def _compress(
 
     if info.contains_hevc:
         return keep('retention', ['hevc_input_prohibited'])
+
+    if info.contains_av1 and not capabilities.av1_decode_available:
+        notes = ['av1_decoder_unavailable']
+        detection_error = capabilities.ffmpeg_decoder_detection_error or capabilities.ffmpeg_detection_error
+        if detection_error:
+            notes.append(f'av1_decoder_detection_failed={detection_error}')
+        return keep('retention', notes)
 
     unavailable = tool_unavailable_reason(capabilities, config, log_language)
     if unavailable:

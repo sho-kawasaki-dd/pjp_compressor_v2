@@ -5,11 +5,13 @@ from __future__ import annotations
 採用ビルドで保持条件・出力検証・元維持の配置を確認する。ツールが無い環境ではスキップする。
 """
 
+import base64
 import csv
 import hashlib
 import json
 import re
 import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -22,6 +24,7 @@ from backend.core import video_utils
 from backend.core.video_utils import VideoCompressResult, compress_video_ffmpeg, terminate_active_video_processes, tool_unavailable_reason
 from backend.orchestrator import job_runner
 from shared.locale_catalog import translate
+from shared.runtime_paths import ExternalToolResolution
 
 pytestmark = [pytest.mark.integration, pytest.mark.requires_external]
 
@@ -33,6 +36,29 @@ def caps():
         pytest.skip(tool_unavailable_reason(report, VideoCompressionConfig(), 'en') or 'video tools unavailable')
     if 'aac' not in report.ffmpeg_encoders:
         pytest.skip('ffmpeg AAC encoder is required for video fixtures')
+    return report
+
+
+@pytest.fixture
+def bundled_caps(monkeypatch: pytest.MonkeyPatch):
+    bin_dir = Path(__file__).resolve().parents[2] / 'vendor' / 'ffmpeg-windows' / 'bin'
+    ffmpeg = bin_dir / 'ffmpeg.exe'
+    ffprobe = bin_dir / 'ffprobe.exe'
+    if sys.platform != 'win32' or not ffmpeg.is_file() or not ffprobe.is_file():
+        pytest.skip('bundled Windows ffmpeg / ffprobe are unavailable')
+    monkeypatch.setattr(
+        capabilities, 'resolve_ffmpeg_executable', lambda: ExternalToolResolution(str(ffmpeg), 'bundled'),
+    )
+    monkeypatch.setattr(
+        capabilities, 'resolve_ffprobe_executable', lambda: ExternalToolResolution(str(ffprobe), 'bundled'),
+    )
+
+    report = capabilities.detect_capabilities()
+
+    assert report.ffmpeg_source == report.ffprobe_source == 'bundled'
+    assert report.video_available, tool_unavailable_reason(report, VideoCompressionConfig(), 'en')
+    assert report.ffmpeg_decoder_detection_error is None
+    assert report.av1_decode_available is False
     return report
 
 
@@ -70,6 +96,17 @@ def _ffmpeg(caps, *args: str) -> None:
         check=True,
         creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0),
     )
+
+
+def _make_av1_sample(caps, tmp_path: Path, out: Path) -> Path:
+    # One 64x64 black frame encoded with libaom-av1, so the bundled build need not encode AV1.
+    ivf = tmp_path / 'av1-frame.ivf'
+    ivf.write_bytes(base64.b64decode(
+        'REtJRgAAIABBVjAxQABAAAEAAAABAAAAAQAAAAAAAAAdAAAAAAAAAAAAAAASAAoKAAAAAq//m18gCDINEADkAAACwAAACgV4hg==',
+        validate=True,
+    ))
+    _ffmpeg(caps, '-i', str(ivf), '-map', '0:v:0', '-c:v', 'copy', str(out))
+    return out
 
 
 def _probe(caps, path: Path) -> dict:
@@ -439,6 +476,92 @@ def test_hevc_input_is_copied_without_running_ffmpeg(caps, tmp_path: Path, monke
     assert 'H.265/HEVC' in result.message
     assert not app_ffmpeg_calls
     assert hashlib.sha256(src.read_bytes()).digest() == hashlib.sha256(copied.read_bytes()).digest()
+
+
+def test_bundled_ffmpeg_keeps_av1_before_encoding_and_records_reason(
+    bundled_caps, tmp_path: Path, sample_paths, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    src = _make_av1_sample(bundled_caps, tmp_path, sample_paths.input_dir / 'clip.mkv')
+    # The bundled FFmpeg has no lavfi input device.
+    raw = tmp_path / 'h264-frames.yuv'
+    frame = bytes(range(256)) * 16 + bytes([128]) * 2048
+    raw.write_bytes(frame * 50)
+    h264 = sample_paths.input_dir / 'h264.mp4'
+    _ffmpeg(
+        bundled_caps, '-f', 'rawvideo', '-pixel_format', 'yuv420p', '-video_size', '64x64',
+        '-framerate', '25', '-i', str(raw), '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '4',
+        str(h264),
+    )
+    assert _streams(_probe(bundled_caps, src), 'video')[0]['codec_name'] == 'av1'
+    ffmpeg_calls: list[list[str]] = []
+    run_ffmpeg = video_utils._run_ffmpeg
+
+    def track_ffmpeg(cmd, *args, **kwargs):
+        assert str(src) not in cmd, 'AV1 input must be copied without starting ffmpeg'
+        ffmpeg_calls.append(cmd)
+        return run_ffmpeg(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(video_utils, '_run_ffmpeg', track_ffmpeg)
+    result, out_dir, work = _run(bundled_caps, src, tmp_path)
+
+    assert result.ok and result.kept_original and result.kept_original_reason == 'retention'
+    assert result.notes == ('av1_decoder_unavailable',)
+    assert translate('en', 'video_reason.av1_decoder_unavailable') in result.message
+    assert not ffmpeg_calls
+    assert (out_dir / src.name).read_bytes() == src.read_bytes()
+    assert not (out_dir / 'clip.mp4').exists()
+    assert not any(work.glob('*'))
+
+    logs: list[str] = []
+    stats: list[tuple[int, int, int, float]] = []
+    monkeypatch.setattr(job_runner, 'detect_capabilities', lambda: bundled_caps)
+    job_runner.run_compression_job(
+        input_dir=str(sample_paths.input_dir), output_dir=str(sample_paths.output_dir),
+        jpg_quality=70, png_quality=70, use_pngquant=False, log_func=logs.append,
+        progress_func=lambda _current, _total: None, stats_func=lambda *values: stats.append(values),
+        csv_enable=True, csv_path=str(sample_paths.csv_path), log_language='en',
+        video_config=VideoCompressionConfig(),
+    )
+
+    with sample_paths.csv_path.open(newline='', encoding='utf-8') as handle:
+        rows = {row[translate('en', 'csv_header_input_path')]: row for row in csv.DictReader(handle)}
+    assert set(rows) == {src.name, h264.name}
+    row = rows[src.name]
+    assert row[translate('en', 'csv_header_action')] == translate('en', 'csv_action_video_kept_retention')
+    assert row[translate('en', 'csv_header_output_path')] == src.name
+    assert row[translate('en', 'csv_header_notes')] == 'av1_decoder_unavailable'
+    assert rows[h264.name][translate('en', 'csv_header_action')] == translate('en', 'csv_action_video')
+    assert len(ffmpeg_calls) == 1 and str(h264) in ffmpeg_calls[0]
+    assert (sample_paths.output_dir / src.name).read_bytes() == src.read_bytes()
+    assert not (sample_paths.output_dir / 'clip.mp4').exists()
+    h264_output = sample_paths.output_dir / h264.name
+    assert h264_output.stat().st_size < h264.stat().st_size
+    original_size = src.stat().st_size + h264.stat().st_size
+    output_size = src.stat().st_size + h264_output.stat().st_size
+    assert stats[-1][:3] == (original_size, output_size, original_size - output_size)
+    assert any(translate('en', 'video_reason.av1_decoder_unavailable') in message for message in logs)
+
+
+def test_av1_with_software_decoder_follows_normal_compression(
+    caps, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    if not caps.av1_decode_available:
+        pytest.skip('a software AV1 decoder is required')
+    src = _make_av1_sample(caps, tmp_path, tmp_path / 'av1.mkv')
+    assert _streams(_probe(caps, src), 'video')[0]['codec_name'] == 'av1'
+    calls: list[list[str]] = []
+    run_ffmpeg = video_utils._run_ffmpeg
+
+    def track_ffmpeg(cmd, *args, **kwargs):
+        calls.append(cmd)
+        return run_ffmpeg(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(video_utils, '_run_ffmpeg', track_ffmpeg)
+    result, _, _ = _run(caps, src, tmp_path)
+
+    assert result.ok, (result.message, result.notes)
+    assert len(calls) == 1
+    assert 'av1_decoder_unavailable' not in result.notes
 
 
 @pytest.mark.parametrize(

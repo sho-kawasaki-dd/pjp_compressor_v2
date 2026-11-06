@@ -26,6 +26,7 @@ from backend.core.video_utils import (
     VideoStreamInfo,
 )
 from backend.settings import VIDEO_WORK_OWNER_MARKER, VIDEO_WORK_OWNER_TOKEN
+from shared.locale_catalog import translate
 
 pytestmark = pytest.mark.unit
 
@@ -122,6 +123,7 @@ def test_parse_probe_json_extracts_streams_and_skips_cover_art() -> None:
     assert info.chapters == (ChapterInfo(start=1.5, title='Intro'),)
     assert info.format_tags == {'creation_time': 'x'}
     assert info.contains_hevc is False
+    assert info.contains_av1 is False
 
 
 def test_parse_probe_json_detects_hevc_in_cover_art_and_secondary_video() -> None:
@@ -132,6 +134,25 @@ def test_parse_probe_json_detects_hevc_in_cover_art_and_secondary_video() -> Non
 
     assert info.contains_hevc is True
     assert info.video_count == 2
+
+
+@pytest.mark.parametrize('position', ['primary', 'secondary', 'cover'])
+def test_parse_probe_json_detects_av1_in_every_video_stream(position: str) -> None:
+    av1_stream = {**VIDEO_STREAM, 'index': 5, 'codec_name': ' AV1 '}
+    if position == 'cover':
+        av1_stream['disposition'] = {'attached_pic': 1}
+    streams = [av1_stream] if position == 'primary' else [VIDEO_STREAM, av1_stream]
+
+    info = video_utils.parse_probe_json(probe_payload(streams))
+
+    assert info.contains_av1 is True
+    assert info.video_count == (2 if position == 'secondary' else 1)
+
+
+def test_parse_probe_json_does_not_treat_non_video_stream_as_av1_video() -> None:
+    info = video_utils.parse_probe_json(probe_payload([VIDEO_STREAM, {**AUDIO_STREAM, 'codec_name': 'av1'}]))
+
+    assert info.contains_av1 is False
 
 
 @pytest.mark.parametrize(
@@ -907,6 +928,98 @@ def test_compress_keeps_hevc_input_without_h264_encoder(flow: Flow) -> None:
     assert result.notes == ('hevc_input_prohibited',)
     assert flow.ffmpeg_calls == 0
     assert copied.read_bytes() == flow.src.read_bytes()
+
+
+@pytest.mark.parametrize('language', ['ja', 'en'])
+def test_compress_keeps_av1_without_software_decoder(flow: Flow, language: str) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, video=make_video(codec='av1'), contains_av1=True)
+
+    result = flow.run(log_language=language)
+
+    copied = flow.out_dir / 'clip.mov'
+    assert result.ok and result.kept_original and result.kept_original_reason == 'retention'
+    assert result.notes == ('av1_decoder_unavailable',)
+    label = translate(language, 'video_reason.av1_decoder_unavailable')
+    assert 'AV1' in label and label in result.message
+    assert 'cannot be preserved in MP4' not in result.message
+    assert 'MP4 で保持できない' not in result.message
+    assert flow.ffmpeg_calls == 0
+    assert copied.read_bytes() == flow.src.read_bytes()
+    assert not (flow.out_dir / 'clip.mp4').exists()
+    assert flow.leftovers() == []
+
+
+@pytest.mark.parametrize('attached_picture', [False, True])
+def test_compress_keeps_av1_in_a_non_primary_video_stream(flow: Flow, attached_picture: bool) -> None:
+    av1_stream = {
+        **VIDEO_STREAM, 'index': 5, 'codec_name': 'av1',
+        'disposition': {'attached_pic': int(attached_picture)},
+    }
+    flow.src_info = video_utils.parse_probe_json(probe_payload([VIDEO_STREAM, av1_stream]))
+    assert flow.src_info.video is not None and flow.src_info.video.codec == 'h264'
+
+    result = flow.run()
+
+    assert result.ok and result.kept_original
+    assert result.notes == ('av1_decoder_unavailable',)
+    assert flow.ffmpeg_calls == 0
+    assert (flow.out_dir / 'clip.mov').read_bytes() == flow.src.read_bytes()
+
+
+def test_compress_keeps_av1_before_checking_h264_encoder(flow: Flow) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, video=make_video(codec='av1'), contains_av1=True)
+
+    result = flow.run(caps=make_caps(frozenset(), ffmpeg_path=None, ffmpeg_source='unavailable'))
+
+    assert result.ok and result.kept_original
+    assert result.notes == ('av1_decoder_unavailable',)
+    assert flow.ffmpeg_calls == 0
+    assert (flow.out_dir / 'clip.mov').read_bytes() == flow.src.read_bytes()
+
+
+@pytest.mark.parametrize('language', ['ja', 'en'])
+@pytest.mark.parametrize(
+    ('error_field', 'error'),
+    [
+        ('ffmpeg_decoder_detection_error', 'ffmpeg -decoders timed out'),
+        ('ffmpeg_detection_error', 'ffmpeg -encoders timed out'),
+    ],
+)
+def test_compress_reports_decoder_detection_failure_when_keeping_av1(
+    flow: Flow, language: str, error_field: str, error: str,
+) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, video=make_video(codec='av1'), contains_av1=True)
+
+    result = flow.run(caps=make_caps(**{error_field: error}), log_language=language)
+
+    assert result.ok and result.kept_original and result.kept_original_reason == 'retention'
+    assert result.notes == ('av1_decoder_unavailable', f'av1_decoder_detection_failed={error}')
+    label = translate(language, 'video_reason.av1_decoder_detection_failed')
+    assert 'AV1' in label and label in result.message
+    assert error in result.message
+    assert flow.ffmpeg_calls == 0
+    assert (flow.out_dir / 'clip.mov').read_bytes() == flow.src.read_bytes()
+
+
+def test_compress_allows_av1_when_software_decoder_is_available(flow: Flow) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, video=make_video(codec='av1'), contains_av1=True)
+
+    result = flow.run(caps=make_caps(av1_decode_available=True))
+
+    assert result.ok and not result.kept_original
+    assert flow.ffmpeg_calls == 1
+    assert (flow.out_dir / 'clip.mp4').is_file()
+
+
+def test_compress_prioritizes_hevc_retention_when_input_also_contains_av1(flow: Flow) -> None:
+    flow.src_info = dataclasses.replace(flow.src_info, contains_hevc=True, contains_av1=True)
+
+    result = flow.run()
+
+    assert result.ok and result.kept_original
+    assert result.notes == ('hevc_input_prohibited',)
+    assert flow.ffmpeg_calls == 0
+    assert (flow.out_dir / 'clip.mov').read_bytes() == flow.src.read_bytes()
 
 
 def test_compress_cancelled_before_start_does_nothing(flow: Flow) -> None:

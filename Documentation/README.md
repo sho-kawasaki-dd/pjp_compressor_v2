@@ -39,6 +39,7 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
 - 動画圧縮（ffmpeg / ffprobe が必要）
   - 対象は `.mp4/.mov/.avi/.mkv/.webm/.wmv/.m4v`。出力はH.264（libx264）のみ。H.265/HEVCはエンコード・デコードせず、HEVC映像streamを含む入力はffprobeのstream情報で検出してffmpegを起動せず元ファイルをコピー
   - PATH上のsystem `ffmpeg` / `ffprobe` を優先し、未検出時は `vendor/ffmpeg-windows/` の承認済みx264-only版を利用する。gyan.dev full buildは使用・同梱しない
+  - AV1映像stream（副映像・カバーアートを含む）がある入力は、利用するffmpegに `libdav1d` または `libaom-av1` がある場合だけ通常圧縮を試みる。どちらもない場合（同梱版を含む）は変換用ffmpegを起動せず元ファイルを維持する。HEVCが混在する場合はHEVCの保持判定を優先する。デコーダーの確認に失敗した場合も元ファイルを維持し、理由をログと、有効時のCSVに記録する
   - 最初のカバーアート以外の本編映像、全音声・全字幕と、言語・トラック名・既定選択・音声レイアウト・チャプター・表示向き・対象メタデータを保持対象とする。追加映像・カバーアートは対象外
   - 音声の既定はコピー。MP4 へのコピー許可リストは AAC / MP3 / AC-3 / E-AC-3 / ALAC / FLAC で、Opus などそれ以外は該当トラックのみ AAC に変換してログに通知する。AAC 指定は音質を変え、「音声なし」は全音声を削除する。MP4 格納可否と再生機器の互換性は別
   - HDR（iPhone の HDR 撮影を含む）・8bit 超・映像なし・字幕変換が必要な形式・強制字幕・添付・未対応データストリームなどは元維持。MP4 出力時は `tmcd` / `mebx` の削除を許容し、CSV 備考に記録する
@@ -108,7 +109,7 @@ PDF圧縮は Ghostscript（任意）またはネイティブエンジン（PyMuP
   - 実行ファイル: `ghostscript` (`gswin64c` / `gswin32c` / `gs`) / `pngquant` / `ffmpeg` / `ffprobe`
 - 検出結果は `CapabilityReport`（`backend/contracts.py`）としてUIへ反映されます。
 - 外部ツール未導入でもアプリは起動継続し、該当機能のみ無効化されます。
-- 動画には PATH 上の system `ffmpeg` / `ffprobe` と `libx264` が必要です。H.265/HEVC機能は提供しません。HEVC映像streamがある入力はmetadataを取得した後に元ファイルを維持します。動画ツールの検出結果はキャッシュされ、再検出にはアプリの再起動が必要です。
+- 動画には `ffmpeg` / `ffprobe` と `libx264` が必要です。H.265/HEVC機能は提供しません。HEVC映像streamがある入力はmetadataを取得した後に元ファイルを維持します。AV1映像streamのある入力には `libdav1d` または `libaom-av1` が必要です。動画ツールの検出結果はキャッシュされ、再検出にはアプリの再起動が必要です。
 - `pngquant` が未導入でも PDF ネイティブ非可逆圧縮は継続し、PDF 内 PNG 系画像だけが Pillow の 256 色固定減色へフォールバックします。
 - Ghostscript / pngquant の呼び出しは `subprocess.run([...])` の引数配列で実行し、shell を経由しません。
 - Ghostscript / pngquant の呼び出しには timeout を設定し、引数は安全側に正規化します。

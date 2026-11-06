@@ -131,7 +131,7 @@ class JobControl:
 
 @dataclass(frozen=True)
 class CapabilityReport:
-    """実行環境で利用可能な任意依存と外部ツールの検出結果。"""
+    """任意依存の検出結果。AV1 デコーダ検出失敗は通常の動画可否と区別する。"""
 
     fitz_available: bool
     pikepdf_available: bool
@@ -146,6 +146,8 @@ class CapabilityReport:
     ffprobe_source: ToolSource = 'unavailable'
     ffmpeg_detection_error: str | None = None
     ffprobe_detection_error: str | None = None
+    av1_decode_available: bool = False
+    ffmpeg_decoder_detection_error: str | None = None
 
     @property
     def ghostscript_available(self) -> bool:

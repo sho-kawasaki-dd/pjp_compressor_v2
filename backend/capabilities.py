@@ -26,16 +26,19 @@ from shared.runtime_paths import (
 
 TOOL_PROBE_TIMEOUT_SECONDS = 10
 _TRACKED_ENCODERS = ('libx264', 'aac')
+_TRACKED_DECODERS = ('libdav1d', 'libaom-av1')
 _ERROR_DETAIL_MAX_LENGTH = 240
 
 
 class FfmpegDetection(NamedTuple):
-    """ffmpeg の解決結果とエンコーダ検出結果。失敗時は理由を保持する。"""
+    """ffmpeg の解決結果とコーデック検出結果。失敗時は理由を保持する。"""
 
     path: str | None
     source: ToolSource
     encoders: frozenset[str]
+    decoders: frozenset[str]
     error: str | None
+    decoder_error: str | None
 
 
 class FfprobeDetection(NamedTuple):
@@ -79,15 +82,31 @@ def _run_tool_probe(tool_path: str, args: list[str]) -> subprocess.CompletedProc
     )
 
 
-def _parse_encoder_names(output: str) -> frozenset[str]:
-    """`ffmpeg -encoders` の出力から追跡対象エンコーダ名を抽出する。"""
+def _parse_tracked_codec_names(output: str, tracked: tuple[str, ...]) -> frozenset[str]:
+    """ffmpeg のコーデック一覧から追跡対象の名前を抽出する。"""
     found: set[str] = set()
     for line in output.splitlines():
         fields = line.split()
         # 行形式は `<flags> <name> <description>`。flags は V....D のような 6 文字。
-        if len(fields) >= 2 and len(fields[0]) == 6 and fields[1] in _TRACKED_ENCODERS:
+        if len(fields) >= 2 and len(fields[0]) == 6 and fields[1] in tracked:
             found.add(fields[1])
     return frozenset(found)
+
+
+def _probe_ffmpeg_codecs(
+    tool_path: str, option: str, tracked: tuple[str, ...],
+) -> tuple[frozenset[str], str | None]:
+    """コーデック一覧の検出結果と失敗理由を分けて返す。"""
+    try:
+        result = _run_tool_probe(tool_path, ['-hide_banner', option])
+    except subprocess.TimeoutExpired:
+        return frozenset(), f'ffmpeg {option} timed out'
+    except OSError as exc:
+        return frozenset(), _sanitize_probe_error(f'ffmpeg {option} failed to start: {exc}', tool_path)
+    if result.returncode != 0:
+        detail = _sanitize_probe_error(result.stderr, tool_path) or f'ffmpeg_exit_{result.returncode}'
+        return frozenset(), _sanitize_probe_error(f'ffmpeg {option} failed: {detail}', tool_path)
+    return _parse_tracked_codec_names(result.stdout, tracked), None
 
 
 def _detect_ghostscript():
@@ -112,27 +131,19 @@ def _detect_pngquant_path() -> str | None:
 
 @functools.lru_cache(maxsize=1)
 def _detect_ffmpeg() -> FfmpegDetection:
-    """ffmpeg を解決し、`-encoders` を1回だけ実行してエンコーダ有無を収集する。
+    """ffmpeg を解決し、エンコーダと AV1 ソフトウェアデコーダの有無を収集する。
 
     結果はアプリ起動中キャッシュされる。PATH やビルドを変更した場合は再起動が必要で、
     テストでは `cache_clear()` で初期化する。
     """
     resolution = resolve_ffmpeg_executable()
     if not resolution.path:
-        return FfmpegDetection(None, resolution.source, frozenset(), None)
-    try:
-        result = _run_tool_probe(resolution.path, ['-hide_banner', '-encoders'])
-    except subprocess.TimeoutExpired:
-        return FfmpegDetection(resolution.path, resolution.source, frozenset(), 'ffmpeg -encoders timed out')
-    except OSError as exc:
-        return FfmpegDetection(
-            resolution.path, resolution.source, frozenset(),
-            _sanitize_probe_error(f'ffmpeg failed to start: {exc}', resolution.path),
-        )
-    if result.returncode != 0:
-        detail = _sanitize_probe_error(result.stderr, resolution.path) or f'ffmpeg_exit_{result.returncode}'
-        return FfmpegDetection(resolution.path, resolution.source, frozenset(), detail)
-    return FfmpegDetection(resolution.path, resolution.source, _parse_encoder_names(result.stdout), None)
+        return FfmpegDetection(None, resolution.source, frozenset(), frozenset(), None, None)
+    encoders, error = _probe_ffmpeg_codecs(resolution.path, '-encoders', _TRACKED_ENCODERS)
+    if error is not None:
+        return FfmpegDetection(resolution.path, resolution.source, encoders, frozenset(), error, None)
+    decoders, decoder_error = _probe_ffmpeg_codecs(resolution.path, '-decoders', _TRACKED_DECODERS)
+    return FfmpegDetection(resolution.path, resolution.source, encoders, decoders, None, decoder_error)
 
 
 @functools.lru_cache(maxsize=1)
@@ -188,4 +199,6 @@ def detect_capabilities() -> CapabilityReport:
         ffprobe_source=ffprobe.source,
         ffmpeg_detection_error=ffmpeg.error,
         ffprobe_detection_error=ffprobe.error,
+        av1_decode_available=bool(ffmpeg.decoders),
+        ffmpeg_decoder_detection_error=ffmpeg.decoder_error,
     )
